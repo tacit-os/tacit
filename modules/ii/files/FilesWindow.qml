@@ -2359,6 +2359,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
 
                             HeaderButton { glyph: "arrow_back"; enabled: win.historyIndex > 0; onActivated: win.back() }
                             HeaderButton { glyph: "arrow_forward"; enabled: win.historyIndex < win.history.length - 1; onActivated: win.forward() }
+                            // one level up, wherever the history stands (a Recent or Shelf page has no folder to leave)
+                            HeaderButton { glyph: "arrow_upward"; enabled: !headerBox.aView && win.folder !== "/"; onActivated: win.up() }
 
                             Item {
                                 id: titleBlock
