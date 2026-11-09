@@ -828,6 +828,9 @@ FloatingWindow {
     readonly property string statusLine: {
         if (win.footLine.length > 0)
             return win.footLine;
+        // the folder is being read (big or over the network): say so where the count would sit
+        if (folderModel.status === FolderListModel.Loading)
+            return "Reading…";
         if (win.phoneShown)
             return "";
         if (win.recentShown)
