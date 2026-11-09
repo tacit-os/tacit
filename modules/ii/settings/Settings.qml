@@ -23,6 +23,11 @@ Scope {
         GlobalStates.settingsOpen = false;
     }
 
+    // The whole window tree is only worth its RAM while the legacy panel is open
+    // (shortcut: the first open skips the fade, because the loader builds it already visible).
+    LazyLoader {
+        active: GlobalStates.settingsOpen
+
     PanelWindow {
         id: panelWindow
         visible: GlobalStates.settingsOpen
@@ -180,6 +185,7 @@ Scope {
                 anchors.fill: parent
             }
         }
+    }
     }
 
     // `settings` and the settingsToggle shortcut open the Settings app (services/SettingsApp.qml),
