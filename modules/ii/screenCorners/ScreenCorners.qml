@@ -14,13 +14,11 @@ Scope {
     readonly property Toplevel activeWindow: ToplevelManager.activeToplevel
 
     property var actionForCorner: ({
-        // Was the left sidebar, which this desktop no longer has; the launcher is the surface
-        // that took over its role. The bottom-left corner is configurable and migrates to the same.
-        [RoundCorner.CornerEnum.TopLeft]: () => GlobalStates.overviewOpen = !GlobalStates.overviewOpen,
+        // The bottom corners take their action from the settings; the top ones do too (2026-11-09:
+        // they were hard-wired to the palette and the notification centre).
+        [RoundCorner.CornerEnum.TopLeft]: () => GlobalStates.toggleState(Config.options.sidebar.cornerOpen.topLeftAction),
+        [RoundCorner.CornerEnum.TopRight]: () => GlobalStates.toggleState(Config.options.sidebar.cornerOpen.topRightAction),
         [RoundCorner.CornerEnum.BottomLeft]: () => GlobalStates.toggleState(Config.options.sidebar.cornerOpen.bottomLeftAction),
-        // The top-right corner is the notification panel's own corner (the control panel lives
-        // bottom-right, see bottomRightAction); a press on the top edge there opens the centre.
-        [RoundCorner.CornerEnum.TopRight]: () => GlobalStates.notificationCenterOpen = !GlobalStates.notificationCenterOpen,
         [RoundCorner.CornerEnum.BottomRight]: () => GlobalStates.toggleState(Config.options.sidebar.cornerOpen.bottomRightAction)
     })
 
@@ -63,7 +61,9 @@ Scope {
         RoundCorner {
             id: leftCorner
             anchors { left: parent.left; top: strip.top ? parent.top : undefined; bottom: strip.top ? undefined : parent.bottom }
-            visible: strip.decorationVisible
+            visible: strip.decorationVisible && (strip.top
+                ? Config.options.appearance.shownScreenCorners.topLeft
+                : Config.options.appearance.shownScreenCorners.bottomLeft)
             corner: strip.top ? RoundCorner.CornerEnum.TopLeft : RoundCorner.CornerEnum.BottomLeft
             bottomVisualMargin: (strip.deadPixel && !strip.top) * 1
             implicitSize: Appearance.rounding.screenRounding
@@ -71,7 +71,9 @@ Scope {
         RoundCorner {
             id: rightCorner
             anchors { right: parent.right; top: strip.top ? parent.top : undefined; bottom: strip.top ? undefined : parent.bottom }
-            visible: strip.decorationVisible
+            visible: strip.decorationVisible && (strip.top
+                ? Config.options.appearance.shownScreenCorners.topRight
+                : Config.options.appearance.shownScreenCorners.bottomRight)
             corner: strip.top ? RoundCorner.CornerEnum.TopRight : RoundCorner.CornerEnum.BottomRight
             rightVisualMargin: strip.deadPixel * 1
             bottomVisualMargin: (strip.deadPixel && !strip.top) * 1

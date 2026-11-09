@@ -241,6 +241,13 @@ Singleton {
             property JsonObject appearance: JsonObject {
                 property bool extraBackgroundTint: true
                 property int fakeScreenRounding: 2 // 0: None | 1: Always | 2: When not fullscreen
+                property JsonObject shownScreenCorners: JsonObject {
+                    // which corners the drawn rounding is drawn on
+                    property bool topLeft: true
+                    property bool topRight: true
+                    property bool bottomLeft: true
+                    property bool bottomRight: true
+                }
                 // Tacit's own type everywhere (the owner's, 2026-10-16); the defaults named fonts Tacit does not ship
                 property JsonObject fonts: JsonObject {
                     property string main: "Tacit Sans"
@@ -958,6 +965,8 @@ Singleton {
                     property bool clickless: false
                     property int cornerRegionWidth: 250
                     property int cornerRegionHeight: 5
+                    property string topLeftAction: "overviewOpen"
+                    property string topRightAction: "notificationCenterOpen"
                     property string bottomLeftAction: "overviewOpen"
                     property string bottomRightAction: "sidebarRightOpen"
                     property bool visualize: false
