@@ -1745,7 +1745,7 @@ ApplicationWindow {
                     label: "Corners of the screen"
                     value: Config.options.sidebar.cornerOpen.enable ? "On" : "Off"
                     description: Config.options.sidebar.cornerOpen.enable
-                        ? `Bottom left ${dk.cornerName(Config.options.sidebar.cornerOpen.bottomLeftAction)} · bottom right ${dk.cornerName(Config.options.sidebar.cornerOpen.bottomRightAction)}`
+                        ? `Top left ${dk.cornerName(Config.options.sidebar.cornerOpen.topLeftAction)} · top right ${dk.cornerName(Config.options.sidebar.cornerOpen.topRightAction)} · bottom left ${dk.cornerName(Config.options.sidebar.cornerOpen.bottomLeftAction)} · bottom right ${dk.cornerName(Config.options.sidebar.cornerOpen.bottomRightAction)}`
                         : "Push the pointer into a corner to open something"
                     onActivated: dk.viewing = "corners"
                 }
@@ -1852,17 +1852,52 @@ ApplicationWindow {
                     checked: Config.options.sidebar.cornerOpen.enable
                     onToggled: value => Config.options.sidebar.cornerOpen.enable = value
                 }
-                SettingRow {
-                    label: "Top left"
-                    clickable: false
-                    enabled: Config.options.sidebar.cornerOpen.enable
-                    control: StyledText { text: "Palette"; font.pixelSize: 15; color: Tacit.inkSec }
+                // the drawn rounded corners of the screen, turned off for square displays;
+                // on returns to the default, round whenever not fullscreen (QuickConfig's third choice)
+                SwitchRow {
+                    label: "Round the screen corners"
+                    description: "The drawn rounding of the screen's edges; off leaves them square"
+                    checked: Config.options.appearance.fakeScreenRounding !== 0
+                    onToggled: value => Config.options.appearance.fakeScreenRounding = value ? 2 : 0
                 }
-                SettingRow {
-                    label: "Top right"
-                    clickable: false
+                // each drawn corner, following the switch above
+                SwitchRow {
+                    label: "Round the top left corner"
+                    enabled: Config.options.appearance.fakeScreenRounding !== 0
+                    checked: Config.options.appearance.shownScreenCorners.topLeft
+                    onToggled: value => Config.options.appearance.shownScreenCorners.topLeft = value
+                }
+                SwitchRow {
+                    label: "Round the top right corner"
+                    enabled: Config.options.appearance.fakeScreenRounding !== 0
+                    checked: Config.options.appearance.shownScreenCorners.topRight
+                    onToggled: value => Config.options.appearance.shownScreenCorners.topRight = value
+                }
+                SwitchRow {
+                    label: "Round the bottom left corner"
+                    enabled: Config.options.appearance.fakeScreenRounding !== 0
+                    checked: Config.options.appearance.shownScreenCorners.bottomLeft
+                    onToggled: value => Config.options.appearance.shownScreenCorners.bottomLeft = value
+                }
+                SwitchRow {
+                    label: "Round the bottom right corner"
+                    enabled: Config.options.appearance.fakeScreenRounding !== 0
+                    checked: Config.options.appearance.shownScreenCorners.bottomRight
+                    onToggled: value => Config.options.appearance.shownScreenCorners.bottomRight = value
+                }
+                ChoiceRow {
+                    label: "Top left"
                     enabled: Config.options.sidebar.cornerOpen.enable
-                    control: StyledText { text: "Notifications"; font.pixelSize: 15; color: Tacit.inkSec }
+                    options: CornerActions.list.map(o => ({ value: o.value, label: o.displayName }))
+                    current: Config.options.sidebar.cornerOpen.topLeftAction
+                    onPicked: value => Config.options.sidebar.cornerOpen.topLeftAction = value
+                }
+                ChoiceRow {
+                    label: "Top right"
+                    enabled: Config.options.sidebar.cornerOpen.enable
+                    options: CornerActions.list.map(o => ({ value: o.value, label: o.displayName }))
+                    current: Config.options.sidebar.cornerOpen.topRightAction
+                    onPicked: value => Config.options.sidebar.cornerOpen.topRightAction = value
                 }
                 SwitchRow {
                     label: "Top corners open on touch"
