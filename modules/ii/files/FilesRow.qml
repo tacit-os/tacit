@@ -36,6 +36,16 @@ Item {
     property bool hidden: false      // the filter keeps the row in the model, off the screen
     property bool cut: false         // waiting to be pasted elsewhere: drawn faint
     property bool taken: false       // the edited name is already here
+    // one-word reason why the edited name cannot be taken ("" when it can); the empty text, the
+    // dots and a slash used to be refused without a word
+    function renameProblem(text) {
+        const n = text.trim();
+        if (n.length === 0) return Translation.tr("empty");
+        if (n === "." || n === "..") return Translation.tr("bad name");
+        if (n.includes("/")) return Translation.tr("no / in a name");
+        if (n !== row.fileName && row.taken) return Translation.tr("already here");
+        return "";
+    }
     property var offer: null         // { label, glyph, run }: one thing the desktop suggests
     signal offerTaken(int index)
     signal offerDismissed(int index)
@@ -307,6 +317,7 @@ Item {
         // and edits the next row. A name already here turns the ring and the words to the risk ink
         // and refuses. Above the row's MouseArea, so a click in it places the caret.
         Item {
+            id: nameField
             visible: row.editing
             x: 46 - Tacit.space.m
             width: look.textRoom + 2 * Tacit.space.m
@@ -359,6 +370,24 @@ Item {
                     }
                 }
             }
+        }
+
+        // Why the field refuses, beside the ring where the words have room: the empty text, the
+        // dots, a slash or a name already here. Any one of them also turns the field's ink, so
+        // the words only have to say which.
+        Text {
+            visible: row.editing && row.renameProblem(nameEdit.text) !== ""
+            x: nameField.x + nameField.width
+            anchors.verticalCenter: parent.verticalCenter
+            width: Math.min(implicitWidth, 200)
+            leftPadding: Tacit.space.m
+            text: row.renameProblem(nameEdit.text)
+            color: Tacit.kit.risk
+            font.family: Tacit.font.main
+            font.pixelSize: Tacit.size.row
+            font.variableAxes: ({ "wght": Tacit.weight.regular, "wdth": 100 })
+            font.hintingPreference: Font.PreferNoHinting
+            elide: Text.ElideRight
         }
 
         // The offer: a quiet Slab before the size. Click takes it, as do Enter and Right on the
