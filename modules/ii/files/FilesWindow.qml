@@ -659,7 +659,8 @@ FloatingWindow {
         { "id": "park", "label": "Park on the shelf", "glyph": "stacks", "run": () => DropShelf.addItems(["file://" + encodeURI(win.folder + "/")]) },
         { "id": "hand", "label": "Hand to Praxis", "glyph": "smart_toy", "run": () => Recents.launch(win.folder, "Look around this folder. What is here, and what should I know about it?") },
         { "id": "path", "label": "Copy path", "glyph": "content_copy", "run": () => Things.copyPath(win.folder) }
-    ].concat(Object.keys(Files.habits).length > 0 ? [{ "id": "forget", "label": "Forget where I file things", "glyph": "visibility_off", "run": () => Files.forgetHabits() }] : [])
+    ].concat(win.atTrashRoot ? [{ "id": "emptytrash", "label": "Empty trash", "glyph": "delete_forever", "run": () => win.emptyTrash() }] : [])
+.concat(Object.keys(Files.habits).length > 0 ? [{ "id": "forget", "label": "Forget where I file things", "glyph": "visibility_off", "run": () => Files.forgetHabits() }] : [])
 
     // The folder as the window shows it: the model reads the directory, `folderModel` is what the views list, in the
     // order and grouping chosen and narrowed by the kind, date and size filter (Files' own sort: groups by kind need
@@ -1857,6 +1858,13 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     function deleteSelection() {
         if (win.selectedPaths.length > 0)
             win.askDelete(win.selectedPaths.slice(), "");
+    }
+    // At the trash's root: everything shown there is the trash's own content, so the delete
+    // sheet takes the rows the model holds, for good and in one go.
+    function emptyTrash() {
+        const paths = folderModel.rows.map(r => r.filePath);
+        if (paths.length > 0)
+            win.askDelete(paths, "Empties the entire trash, for good.");
     }
     // A file:// URL another application can read back: percent-encoded segment by segment,
     // because a name may hold a space or a '%'.
