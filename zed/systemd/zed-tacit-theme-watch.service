@@ -1,0 +1,11 @@
+[Unit]
+Description=Regenerate Zed Tacit theme on wallpaper (colors.json) change
+After=graphical-session.target
+
+[Service]
+ExecStart=%h/.config/zed/scripts/zed-tacit-watch.sh
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=default.target
