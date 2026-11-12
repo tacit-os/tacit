@@ -1,0 +1,33 @@
+#!/bin/bash
+# tests/run [name...]   the shell's tests, or only those whose file names contain a name given; exits 1 if any failed
+#
+# Nothing here needs a desktop or touches one: the tests read the tree's files and run their logic under node, lua, bash
+# and python, so the desktop's variables are taken away first. TACIT_TREE=<another checkout> runs these tests on that
+# tree's code instead (an older release, to show a test fails on what it guards against).
+set -u
+here=$(dirname "$(readlink -f "$0")")
+unset WAYLAND_DISPLAY DISPLAY HYPRLAND_INSTANCE_SIGNATURE DBUS_SESSION_BUS_ADDRESS
+
+missing=()
+for t in node lua luac python3; do command -v "$t" >/dev/null || missing+=("$t"); done
+command -v qmllint >/dev/null || [ -x /usr/lib/qt6/bin/qmllint ] || missing+=(qmllint)
+[ ${#missing[@]} = 0 ] || { echo "tests/run: missing ${missing[*]}: nothing was tested" >&2; exit 2; }
+
+tests=()
+for f in "$here"/*.test.mjs "$here"/*.test.lua "$here"/static-sweep; do
+	[ $# = 0 ] && { tests+=("$f"); continue; }
+	for n in "$@"; do [[ ${f##*/} == *"$n"* ]] && { tests+=("$f"); break; }; done
+done
+[ ${#tests[@]} -gt 0 ] || { echo "tests/run: no test matches $*" >&2; exit 2; }
+
+failed=()
+for f in "${tests[@]}"; do
+	case "$f" in
+	*.mjs) node "$f" ;;
+	*.lua) lua "$f" ;;
+	*) "$f" ;;
+	esac || failed+=("${f##*/}")
+	echo
+done
+echo "tests/run on ${TACIT_TREE:-$(dirname "$here")}: $((${#tests[@]} - ${#failed[@]})) of ${#tests[@]} passed${failed:+; failed: ${failed[*]}}"
+[ ${#failed[@]} = 0 ]

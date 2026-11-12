@@ -1,0 +1,59 @@
+#!/bin/bash
+# tests/static-sweep: every file in the tree that a release ships parses: QML (qmllint, its [syntax] findings only: the
+# others need the running shell's imports), Lua (luac -p), shell (bash -n) and Python (compiled in memory, as py_compile
+# does, without leaving __pycache__ in the tree). A file is known by its ending or its #! line.
+set -u
+tree=${TACIT_TREE:-$(dirname "$(dirname "$(readlink -f "$0")")")}
+cd "$tree" || exit 2
+qmllint=$(command -v qmllint || echo /usr/lib/qt6/bin/qmllint)
+failed=0
+result() { # name, number of files, the errors
+	if [ -z "$3" ]; then printf '  ok    %s: %s files\n' "$1" "$2"
+	else printf '  FAIL  %s:\n%s\n' "$1" "$(sed 's/^/          /' <<<"$3")"; failed=1; fi
+}
+
+files() {
+	if git rev-parse --is-inside-work-tree >/dev/null 2>&1; then git ls-files -z
+	else find . -path ./.git -prune -o -type f -print0 | sed -z 's|^\./||'; fi
+}
+qml=() lua=() sh=() py=()
+while IFS= read -r -d '' f; do
+	[ -f "$f" ] && [ ! -L "$f" ] || continue
+	case "${f##*/}" in
+	*.qml) qml+=("$f") ;;
+	*.lua) lua+=("$f") ;;
+	*.sh | *.bash) sh+=("$f") ;;
+	*.py) py+=("$f") ;;
+	*.*) ;;
+	*)
+		case "$(head -n1 "$f" 2>/dev/null | tr -d '\0')" in
+		'#!'*bash* | '#!/bin/sh'* | '#!'*' sh') sh+=("$f") ;;
+		'#!'*python*) py+=("$f") ;;
+		'#!'*lua*) lua+=("$f") ;;
+		esac
+		;;
+	esac
+done < <(files)
+
+echo "The tree parses (qmllint [syntax], luac -p, bash -n, Python)"
+out=$(printf '%s\0' "${qml[@]}" | xargs -0 -n 60 -P 2 "$qmllint" --bare 2>&1 | grep -a '\[syntax\]$')
+result "QML" "${#qml[@]}" "$out"
+out=$(for f in "${lua[@]}"; do luac -p -- "$f" 2>&1; done)
+result "Lua" "${#lua[@]}" "$out"
+# a script that carries data after its exit (fuzzel-emoji.sh's emoji list, from "### DATA ###") is read up to there
+out=$(for f in "${sh[@]}"; do
+	if grep -qx '### DATA ###' "$f"; then sed '/^### DATA ###$/q' "$f" | bash -n 2>&1 | sed "s|^bash: |$f: |"
+	else bash -n -- "$f" 2>&1; fi
+done)
+result "shell" "${#sh[@]}" "$out"
+out=$(python3 -I - "${py[@]}" <<'EOF'
+import sys
+for f in sys.argv[1:]:
+    try:
+        compile(open(f, "rb").read(), f, "exec")
+    except (SyntaxError, ValueError) as e:
+        print(f"{f}:{getattr(e, 'lineno', '?')}: {e.__class__.__name__}: {getattr(e, 'msg', e)}")
+EOF
+)
+result "Python" "${#py[@]}" "$out"
+exit "$failed"
