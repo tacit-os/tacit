@@ -30,7 +30,7 @@ Singleton {
     // declares, so without a stamp on the file there is no way to tell a value that was never
     // set from one this build no longer knows the name of - and the next settings change writes
     // the loss to disk. migrate() carries a file with a lower stamp forward.
-    readonly property int currentConfigVersion: 4
+    readonly property int currentConfigVersion: 5
 
     function setNestedValue(nestedKey, value) {
         let keys = nestedKey.split(".");
@@ -118,6 +118,11 @@ Singleton {
             }
             root.options.dock.pinnedApps = pins;
         }
+        // v5: the loudest allowed volume is 100. 1.2.14 changed the default from 99, but every file already held the old
+        // default, so the volume still stopped at 99% after the update (Discord, Mustiya, 2026-11-12; #83). A 99 is that
+        // default left as it was: Settings' "Loudest allowed" moves it in fives.
+        if (from < 5 && root.options.audio.protection.maxAllowed === 99)
+            root.options.audio.protection.maxAllowed = 100;
         if (from === root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();
