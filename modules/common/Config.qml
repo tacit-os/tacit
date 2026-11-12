@@ -123,6 +123,12 @@ Singleton {
         // default left as it was: Settings' "Loudest allowed" moves it in fives.
         if (from < 5 && root.options.audio.protection.maxAllowed === 99)
             root.options.audio.protection.maxAllowed = 100;
+        // v5 too: the saved keyboard layout is empty, the one the system was installed with. 3034a6b made "" the default
+        // in place of "us", but every file already held "us", so an updated computer installed with another layout kept
+        // Settings naming "us" as the one in use. A "us" is that default left as it was; Hyprland reports "us" anyway
+        // where it is the layout in use.
+        if (from < 5 && root.options.hyprland.input.kbLayout === "us")
+            root.options.hyprland.input.kbLayout = "";
         if (from === root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();
