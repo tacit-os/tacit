@@ -192,15 +192,53 @@ def check_disk_only(disk):
         raise Refused("that is the stick Tacit runs from")
 
 
-def efi_room(efi):
-    """Free bytes on the EFI partition, and whether another Linux keeps its kernel there (as /boot), read with it
-    mounted read-only for a moment."""
+TACIT_START_FILES = ("vmlinuz-linux", "initramfs-linux.img")    # what Tacit writes at the top of a shared EFI partition
+
+
+def root_ids(root):
+    """The ways a boot entry's root= can name this partition."""
+    ids = {root}
+    for key in ("UUID", "PARTUUID"):
+        v = subprocess.run(["blkid", "-s", key, "-o", "value", root], capture_output=True, text=True).stdout.strip()
+        if v:
+            ids.add(f"{key}={v}".lower())
+    return ids
+
+
+def start_files_taken(mnt, ids):
+    """Whether another system keeps start-up files under the names Tacit's take. Other names stay beside Tacit's
+    (CachyOS's initramfs-linux-cachyos.img, an LTS or Zen kernel): every initramfs-linux* used to count, so a person
+    replacing CachyOS was refused (Discord, OYINOS, 2026-11-12). Files whose boot entries all start the partition Tacit
+    goes on (`ids`: the system being replaced, or an earlier Tacit there) are left over and are replaced."""
+    clash = {n for n in TACIT_START_FILES if os.path.exists(f"{mnt}/{n}")}
+    if not clash:
+        return False
+    claimed = set()
+    for entry in glob.glob(f"{mnt}/loader/entries/*.conf"):
+        try:
+            lines = open(entry, errors="replace").read().splitlines()
+        except OSError:
+            return True
+        files = {l.split(None, 1)[1].strip().lstrip("/") for l in lines if l.split(None, 1)[:1] in (["linux"], ["initrd"]) and len(l.split(None, 1)) > 1}
+        if not files & clash:
+            continue
+        roots = {m.lower() for l in lines if l.startswith("options") for m in re.findall(r"\broot=(\S+)", l)}
+        if not roots or not roots <= ids:
+            return True
+        claimed |= files & clash
+    # files no systemd-boot entry speaks for (another boot loader's) are kept: they may still start something
+    return claimed != clash
+
+
+def efi_room(efi, root=None):
+    """Free bytes on the EFI partition, and whether another system's start-up files there would be replaced by Tacit's
+    (start_files_taken), read with it mounted read-only for a moment."""
     mnt = "/mnt/tacit-efi-check"
     os.makedirs(mnt, exist_ok=True)
     sh("mount", "-o", "ro", efi, mnt)
     try:
         st = os.statvfs(mnt)
-        return st.f_bavail * st.f_frsize, bool(glob.glob(f"{mnt}/vmlinuz-linux") + glob.glob(f"{mnt}/initramfs-linux*.img"))
+        return st.f_bavail * st.f_frsize, start_files_taken(mnt, root_ids(root) if root else set())
     finally:
         subprocess.run(["umount", mnt], capture_output=True)
 
@@ -348,7 +386,7 @@ def install(disk, place, keep, manual=None):
         # the start-up files go on the EFI partition when it has room for them, else on the boot partition the person
         # chose; with neither, nothing is changed (Windows makes its EFI partition 100 MB)
         if not boot:
-            free, taken = efi_room(efi)
+            free, taken = efi_room(efi, root)
             if taken:
                 raise Refused("another Linux keeps its start-up files on this EFI partition and Tacit's would replace them; choose a boot partition of 500 MB or more for Tacit's")
             if free < EFI_ROOM:
