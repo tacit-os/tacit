@@ -1,12 +1,28 @@
 // Reads the parts of a QML file the tests run under node: a function's body, a property's expression, and the settings
-// JsonAdapter's tree of defaults. A text reader, not a QML engine: it knows strings, comments and brackets, which is all
-// these files need.
+// JsonAdapter's tree of defaults. A text reader, not a QML engine: it knows strings, comments, regular expressions and
+// brackets, which is all these files need.
 
-// the index just past the string, comment or template that starts at i, or i when none starts there
+// the index just past the string, comment, template or regular expression that starts at i, or i when none starts there
 function skipQuoted(src, i) {
   const c = src[i];
   if (c === "/" && src[i + 1] === "/") { const n = src.indexOf("\n", i); return n < 0 ? src.length : n; }
   if (c === "/" && src[i + 1] === "*") { const n = src.indexOf("*/", i + 2); return n < 0 ? src.length : n + 2; }
+  // a regular expression, told from a division by what comes before it: an operator, an opening bracket, return or
+  // nothing (its brackets, as in /^\s*listener\s*\{/, are not the code's); one that does not end on its line is not one
+  if (c === "/") {
+    let k = i - 1;
+    while (k >= 0 && /\s/.test(src[k])) k--;
+    if (k < 0 || /[(,=:[!&|?{};+\-*%<>~^]/.test(src[k]) || /(^|[^\w$])return$/.test(src.slice(Math.max(0, k - 6), k + 1))) {
+      let inClass = false;
+      for (let j = i + 1; j < src.length && src[j] !== "\n"; j++) {
+        if (src[j] === "\\") j++;
+        else if (src[j] === "[") inClass = true;
+        else if (src[j] === "]") inClass = false;
+        else if (src[j] === "/" && !inClass) return j + 1;
+      }
+    }
+    return i;
+  }
   if (c === '"' || c === "'" || c === "`") {
     for (let j = i + 1; j < src.length; j++) {
       if (src[j] === "\\") { j++; continue; }
@@ -50,7 +66,7 @@ export function readExpression(src, start) {
   let out = "", i = start;
   while (i < src.length) {
     const j = skipQuoted(src, i);
-    if (j !== i) { if (src[i] !== "/") out += src.slice(i, j); i = j; continue; }
+    if (j !== i) { if (!(src[i] === "/" && "/*".includes(src[i + 1]))) out += src.slice(i, j); i = j; continue; }
     const c = src[i];
     if ("([{".includes(c)) { const e = matchBrace(src, i); out += src.slice(i, e + 1); i = e + 1; continue; }
     if (c === "\n" || c === ";" || c === "}") {

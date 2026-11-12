@@ -46,7 +46,9 @@ hl.on("hyprland.start", function ()
     -- twice besides. `systemctl start` is a no-op on a unit already up, and starts it here when nothing else did.
     -- WAYLAND_DISPLAY is imported first because the unit's ConditionEnvironment asks for it: this line runs before
     -- the session has exported it, and a skipped unit would leave the desktop with no idle daemon at all.
-    hl.exec_cmd("bash -c '[ -d /run/archiso ] || { systemctl --user import-environment WAYLAND_DISPLAY; exec systemctl --user start hypridle; }'")
+    -- First, a hypridle.conf Settings copied into ~/.config/hypr to change a time is brought up to Tacit's, the times kept:
+    -- hypridle reads that copy first, and a fix to Tacit's file never reached it.
+    hl.exec_cmd("bash -c '[ -d /run/archiso ] || { python3 $TACIT_SHELL/scripts/hyprland/hypridle_refresh.py; systemctl --user import-environment WAYLAND_DISPLAY; exec systemctl --user start hypridle; }'")
     -- Documents, Pictures, Downloads, Music, Videos in the person's language, made if missing: xdg-user-dirs.service
     -- waits on graphical-session-pre.target, which this session never starts, so a new account had none of them
     hl.exec_cmd("xdg-user-dirs-update")

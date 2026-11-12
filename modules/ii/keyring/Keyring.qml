@@ -6,6 +6,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import Quickshell.Wayland
+import Quickshell.Hyprland
 
 /**
  * The window the keyring sheet lives in, the shape of the pairing window (../bluetooth/BluetoothPairing.qml):
@@ -39,11 +40,22 @@ Scope {
     // a password was just answered and the next ask (the retry) may still come
     property bool busy: false
 
+    // The monitor that takes the keys, fixed when the ask comes, as the polkit window does (FullscreenPolkitWindow.qml):
+    // with every screen's window exclusive the compositor picked one, maybe on the screen nobody looks at, and the
+    // password typed went nowhere. A retry that comes while the sheet is still up keeps its screen.
+    property string keyScreenName: ""
+    function pickKeyScreen(): void {
+        root.keyScreenName = WM.compositor === "niri"
+            ? (NiriBackend.focusedMonitor?.name ?? "")
+            : (Hyprland.focusedMonitor?.name ?? "");
+    }
+
     onWantedChanged: {
         if (wanted) {
             linger.stop();
             busy = false;
             ask = DialogBridge.current;
+            if (!up) root.pickKeyScreen();
             up = true;
         } else {
             linger.restart();
@@ -132,7 +144,11 @@ Scope {
 
                 color: "transparent"
                 WlrLayershell.namespace: "quickshell:keyring"
-                WlrLayershell.keyboardFocus: root.asking ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+                // only the key screen's window asks for the keys (the first screen if none matches)
+                readonly property bool takesKeys: Quickshell.screens.some(s => s.name === root.keyScreenName)
+                    ? panelWindow.screen?.name === root.keyScreenName
+                    : panelWindow.screen === Quickshell.screens[0]
+                WlrLayershell.keyboardFocus: root.asking && panelWindow.takesKeys ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
                 WlrLayershell.layer: WlrLayer.Overlay
                 exclusionMode: ExclusionMode.Ignore
 

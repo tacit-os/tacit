@@ -127,8 +127,16 @@ Singleton {
         // in place of "us", but every file already held "us", so an updated computer installed with another layout kept
         // Settings naming "us" as the one in use. A "us" is that default left as it was; Hyprland reports "us" anyway
         // where it is the layout in use.
-        if (from < 5 && root.options.hyprland.input.kbLayout === "us")
+        // The old Settings > Hyprland page also wrote that "us" over the installed layout when it opened, as a line in
+        // shellOverrides/main.lua, which hyprland.lua reads last: the keyboard stayed US after the update. That exact
+        // line goes where /etc/vconsole.conf names another layout, and Hyprland reloads into it.
+        if (from < 5 && root.options.hyprland.input.kbLayout === "us") {
             root.options.hyprland.input.kbLayout = "";
+            Quickshell.execDetached(["bash", "-c",
+                'grep -qxF "$4" "$1" && l=$(. "$2"; printf %s "$XKBLAYOUT") && [ -n "$l" ] && [ "$l" != us ] && python3 "$3" --file "$1" --reset input:kb_layout && hyprctl reload',
+                "kb-layout", FileUtils.trimFileProtocol(`${Directories.config}/hypr/hyprland/shellOverrides/main.lua`), "/etc/vconsole.conf",
+                Quickshell.shellPath("scripts/hyprland/hyprconfigurator.py"), 'hl.config({ input = { kb_layout = "us" } })']);
+        }
         if (from === root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();

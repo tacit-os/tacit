@@ -49,9 +49,12 @@ Item {
     function submit() {
         if (!PolkitService.interactionAvailable)
             return;
+        // nothing typed is not an answer: PAM counts it as a wrong password toward faillock's lockout
+        if (field.text.length === 0) {
+            field.forceActiveFocus();
+            return;
+        }
         root.submitted = true;
-        if (field.text.length === 0)
-            console.warn("[Polkit] empty answer sent");
         PolkitService.submit(field.text);
     }
 

@@ -86,7 +86,13 @@ Scope {
         }
     }
 
+    // Nothing typed is not an attempt: PAM counts an empty password as a wrong one toward faillock's lockout (three in a
+    // row lock the account for 10 minutes), and an Enter or the disc sent one once the field had emptied itself after 10 s
     function tryUnlock(alsoInhibitIdle = false) {
+        if (root.currentText.length === 0) {
+            root.shouldReFocus();
+            return;
+        }
         root.alsoInhibitIdle = alsoInhibitIdle;
         root.authUnavailable = false;
         root.unlockInProgress = true;

@@ -646,7 +646,6 @@ ApplicationWindow {
                     anchors.fill: parent
                     Headline { text: "Send a report when something breaks?" }
                     Sentence { text: "If an update fails or an app closes by itself, Tacit can send the Tacit team a short report: what went wrong, the Tacit version and the computer model. It never includes your files, what you type or what you open." }
-                    T { x: (parent.width - width) / 2; y: Look.px(792); text: "You can change this in Settings."; font.pixelSize: Look.fs(16); color: Look.meta }
                 }
 
                 // ── almost, ready, stopped

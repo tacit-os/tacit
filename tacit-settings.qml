@@ -601,6 +601,9 @@ ApplicationWindow {
     function idleKind(run) {
         return /suspend|hibernate/.test(run) ? "sleep" : /dpms/.test(run) ? "screen" : /lock/.test(run) ? "lock" : "";
     }
+    // The first line of the copy Settings makes: at each login the rest of a copy so marked is brought up to the packaged
+    // file, the times kept (scripts/hyprland/hypridle_refresh.py, its MARK), so a later fix to that file still reaches it
+    readonly property string idleMark: "# Made by Settings > Lock & sleep from Tacit's hypridle.conf, with your times: the rest is Tacit's again at each login. Delete this line to keep edits of your own."
     // Rewrites one listener's timeout line and nothing else, comments and commands kept, then
     // restarts hypridle, which reads its config only when it starts.
     function setIdleTime(kind, secs) {
@@ -633,7 +636,7 @@ ApplicationWindow {
                     // the write is asynchronous: idleFile's onSaved restarts hypridle once the new timeout is in the file
                     idleFile.setText(lines.join("\n"));
                 } else {
-                    Quickshell.execDetached(["bash", "-c", 'mkdir -p "$(dirname "$1")" && printf "%s" "$2" > "$1" && ' + restart, "_", FileUtils.trimFileProtocol(`${Directories.config}/hypr/hypridle.conf`), lines.join("\n")]);
+                    Quickshell.execDetached(["bash", "-c", 'mkdir -p "$(dirname "$1")" && printf "%s" "$2" > "$1" && ' + restart, "_", FileUtils.trimFileProtocol(`${Directories.config}/hypr/hypridle.conf`), [root.idleMark, ...lines].join("\n")]);
                     root.idleTimes = Object.assign({}, root.idleTimes, { [kind]: secs });
                     idleReload.restart();
                 }
@@ -853,6 +856,22 @@ ApplicationWindow {
             }
             root.xkbLayouts = out.sort((a, b) => a.label.localeCompare(b.label));
         }
+    }
+    // Layouts that cannot type Latin letters (a Wi-Fi name, the password at the lock), as Setup has them (setupd.py's
+    // NON_LATIN): Setup puts US before one, with Alt + Shift to switch, and so does the keyboard page
+    readonly property var nonLatinLayouts: ["af", "am", "ara", "bd", "bg", "bt", "by", "eg", "et", "ge", "gr", "il", "in", "iq", "ir",
+        "kg", "kh", "kz", "la", "lk", "ma", "mk", "mm", "mn", "mv", "my", "np", "pk", "rs", "ru", "sy", "th", "tj", "ua", "uz"]
+    // the layout typed in, of the ones Hyprland has: the second of Setup's US + non-Latin pair, else the first
+    function typedLayout(codes) {
+        return codes.length > 1 && codes[0] === "us" && root.nonLatinLayouts.includes(codes[1]) ? codes[1] : codes[0];
+    }
+    // The layouts once that one is replaced by the one picked, the ones after it kept: { layout, options }. A non-Latin
+    // pick comes after US with Alt + Shift to switch (options), or a Latin password could not be typed at the lock.
+    function pickLayout(codes, value) {
+        const rest = codes.slice(root.typedLayout(codes) === codes[0] ? 1 : 2).filter(c => c !== value);
+        if (!root.nonLatinLayouts.includes(value))
+            return { layout: [value, ...rest].join(","), options: "" };
+        return { layout: ["us", value, ...rest.filter(c => c !== "us")].join(","), options: "grp:alt_shift_toggle" };
     }
 
     // Pairs asked for on the Bluetooth page, by address. Held here, not on the row: the row leaves
@@ -4816,13 +4835,13 @@ ApplicationWindow {
                     label: "Layout"
                     readonly property var codes: (inputCol.liveLayout || Config.options.hyprland.input.kbLayout || HyprlandXkb.layoutCodes.join(",") || "us").split(",")
                     options: root.xkbLayouts
-                    current: layoutRow.codes[0]
-                    // with several layouts this replaces the first and keeps the ones after it
+                    current: root.typedLayout(layoutRow.codes)
+                    // with several layouts this replaces the one typed in and keeps the ones after it (root.pickLayout)
                     onPicked: value => {
-                        const v = [value, ...layoutRow.codes.slice(1)].join(",");
-                        Config.options.hyprland.input.kbLayout = v;
-                        inputCol.liveLayout = v;
-                        HyprlandConfig.set("input:kb_layout", v);
+                        const v = root.pickLayout(layoutRow.codes, value);
+                        Config.options.hyprland.input.kbLayout = v.layout;
+                        inputCol.liveLayout = v.layout;
+                        HyprlandConfig.setMany(v.options ? { "input:kb_layout": v.layout, "input:kb_options": v.options } : { "input:kb_layout": v.layout });
                     }
                 }
                 SwitchRow {

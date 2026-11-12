@@ -68,6 +68,29 @@ Singleton {
     function togglePower() {
         const adapter = Bluetooth.defaultAdapter;
         if (!adapter) return;
-        adapter.enabled = !adapter.enabled;
+        const on = !adapter.enabled;
+        adapter.enabled = on;
+        Persistent.states.bluetooth.off = !on;
+    }
+
+    // BlueZ powers every adapter on when it starts (AutoEnable), so Bluetooth switched off here was on again after a
+    // restart. The choice is kept, and an adapter is switched off again the first time it is seen while it says off;
+    // one switched on later by anything else is left on.
+    property var seenAdapters: []
+    function keepChoice(): void {
+        const adapter = Bluetooth.defaultAdapter;
+        if (!adapter || !Persistent.ready || root.seenAdapters.includes(adapter)) return;
+        root.seenAdapters = [...root.seenAdapters, adapter];
+        if (Persistent.states.bluetooth.off && adapter.enabled)
+            adapter.enabled = false;
+    }
+    Component.onCompleted: root.keepChoice()
+    Connections {
+        target: Bluetooth
+        function onDefaultAdapterChanged() { root.keepChoice(); }
+    }
+    Connections {
+        target: Persistent
+        function onReadyChanged() { root.keepChoice(); }
     }
 }

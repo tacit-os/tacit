@@ -81,6 +81,7 @@ MouseArea {
         if (event.key === Qt.Key_Escape) {
             root.context.currentText = "";
             root.context.resetTargetAction();
+            root.armedPower = LockContext.ActionEnum.Unlock;
         }
         forceFieldFocus();
     }
@@ -370,6 +371,10 @@ MouseArea {
                 placeholderText: {
                     if (root.context.authUnavailable)
                         return Translation.tr("Authentication unavailable");
+                    if (root.armedPower === LockContext.ActionEnum.Poweroff)
+                        return Translation.tr("Press again to shut down");
+                    if (root.armedPower === LockContext.ActionEnum.Reboot)
+                        return Translation.tr("Press again to restart");
                     if (GlobalStates.screenUnlockFailed)
                         return Translation.tr("Incorrect password");
                     // what the password will do once armed: it no longer only unlocks
@@ -516,6 +521,8 @@ MouseArea {
     // confirm button's action and the password does the rest.
     // The armed disc pressed again, or Esc, disarms it: once armed, the password used to shut down or restart with
     // no way back to unlocking until the next lock.
+    // Without the password they still ask a second time, as the session panel does: one touch on the corner of the
+    // locked screen shut the computer down. An armed disc left alone goes back after 5 s.
     function power(action, run) {
         if (root.requirePasswordToPower) {
             if (root.context.targetAction === action) {
@@ -527,7 +534,20 @@ MouseArea {
             root.forceFieldFocus();
             return;
         }
+        if (root.armedPower !== action) {
+            root.armedPower = action;
+            disarmPower.restart();
+            root.forceFieldFocus();
+            return;
+        }
+        root.armedPower = LockContext.ActionEnum.Unlock;
         run();
+    }
+    property int armedPower: LockContext.ActionEnum.Unlock    // Unlock: none
+    Timer {
+        id: disarmPower
+        interval: 5000
+        onTriggered: root.armedPower = LockContext.ActionEnum.Unlock
     }
 
     // The session panel's BigAction, verbatim in size and colours (SessionScreen.qml).

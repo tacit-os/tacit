@@ -127,6 +127,10 @@ Singleton {
             property JsonObject idle: JsonObject {
                 property bool inhibit: false
             }
+            // Bluetooth switched off: kept over a restart, which BlueZ starts with every adapter on (BluetoothStatus)
+            property JsonObject bluetooth: JsonObject {
+                property bool off: false
+            }
 
             // scripts/videos/record.sh writes enable, file, started, stopped (ms) and thumb; the notch's sheet keeps the choices
             property JsonObject record: JsonObject {
