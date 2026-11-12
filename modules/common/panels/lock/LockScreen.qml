@@ -72,6 +72,21 @@ Scope {
             }
         }
 
+        // A Shut down or Restart the password confirmed and the system refused left the disc spinning and the
+        // field disabled for good, with the reader stopped: give them back. The field says what was refused.
+        Connections {
+            target: Session
+            function onActionFailed(label, code) {
+                if (!GlobalStates.screenLocked)
+                    return;
+                if (lockContext.unlockInProgress) {
+                    lockContext.reset();
+                    lockContext.tryFingerUnlock();
+                }
+                lockContext.refusedAction = label;
+            }
+        }
+
         onUnlocked: (targetAction) => {
             // Perform the target action if it's not just unlocking
             if (targetAction == LockContext.ActionEnum.Poweroff) {
@@ -185,13 +200,13 @@ Scope {
             KeyringStorage.fetchKeyringData();
         }
     }
-    // A fresh boot is exactly when bootlock.qml is still holding an ext-session-lock of its
-    // own, and it leaves the ready marker only once someone has typed the password. Locking
-    // again before that hands the compositor's lock to this client and tears the boot lock's
-    // surface down mid-authentication.
+    // "Lock when you log in" is for a login that did not ask for the password. The ready marker
+    // says this one did (the boot lock, the login screen, or hyprlock in their place): locking
+    // then asked for it a second time right after it was typed. A boot lock still up is asking
+    // now, and locking over it would tear its surface down mid-authentication.
     Process {
         id: startupLockProc
-        command: ["bash", "-c", "[ -e \"$XDG_RUNTIME_DIR/martida-lock-ready\" ]"]
+        command: ["bash", "-c", "! [ -e \"$XDG_RUNTIME_DIR/martida-lock-ready\" ] && ! { pgrep -f '[b]ootlock[.]qml' || pidof hyprlock; } >/dev/null"]
         onExited: (exitCode, exitStatus) => {
             if (exitCode === 0) {
                 root.lock();

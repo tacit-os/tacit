@@ -355,7 +355,9 @@ Item {
         readonly property bool enterprise: Network.isEnterprise(row.network)
         property string eapMethod: "peap"   // PEAP+MSCHAPv2 (eduroam, most offices) or TTLS+PAP
         readonly property bool trusted: Network.isTrusted(row.network?.ssid ?? "")
-        readonly property bool portal: (row.current && (row.network?.security ?? "").trim().length === 0) ?? false
+        // NetworkManager's own answer, as Settings reads it: a hotel's network can have a password and a sign-in page,
+        // and an open network often has neither
+        readonly property bool portal: row.current && Network.connectivity === "portal"
         readonly property string band: {
             const f = row.network?.frequency ?? 0;
             return f >= 5925 ? "6 GHz" : f >= 4900 ? "5 GHz" : f > 0 ? "2.4 GHz" : "";
@@ -510,7 +512,7 @@ Item {
         }
 
         // Under the line: the password (a secure network without a profile), the reason the last
-        // attempt did not get on, or the portal button (an open network you are on).
+        // attempt did not get on, or the portal button (the network you are on asks you to sign in).
         ColumnLayout {
             id: extra
             anchors.left: parent.left

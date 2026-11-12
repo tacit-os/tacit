@@ -132,6 +132,11 @@ Singleton {
                 property bool off: false
             }
 
+            // a night light switched on by hand (not "By time of day"): kept over a restart of the shell
+            property JsonObject nightLight: JsonObject {
+                property bool on: false
+            }
+
             // scripts/videos/record.sh writes enable, file, started, stopped (ms) and thumb; the notch's sheet keeps the choices
             property JsonObject record: JsonObject {
                 property bool enable: false

@@ -85,4 +85,32 @@ console.log("The volume keys and the volume protection (services/Audio.qml)");
   check("an output whose audio is not bound yet reads 0 and a key does nothing", !err && v === 0, err || `it reads ${v}`);
 }
 
+// The volume-up key itself (session/hypr/hyprland/keybinds.lua), pressed with the shell running: what its command does.
+// Before this the key ran wpctl with its own limit of 100% (-l 1.0), and only the notch's wheel went through Audio.qml.
+{
+  const lua = read("session/hypr/hyprland/keybinds.lua");
+  const ipc = JSON.parse(lua.match(/local qsIpcCall = ("[^"]*")/)[1]);
+  const m = lua.match(/hl\.bind\("XF86AudioRaiseVolume", hl\.dsp\.exec_cmd\((.+?)\),\s*\n/);
+  const cmd = m[1].replace(/qsIpcCall \.\. "([^"]*)"/, (_, rest) => JSON.stringify(ipc + rest)).replace(/^"|"$/g, "");
+  const o = settings(releaseFile("1.2.13"));
+  o.audio.protection.maxAllowed = 150;
+  const d = desktop(o, 0.9);
+  d.heard();
+  // the shell answers "qs ipc call <target> <function>" from the IpcHandler of that target in Audio.qml
+  const key = () => {
+    const call = cmd.match(/ipc call (\w+) (\w+)/);
+    if (call) {
+      const at = audioSrc.indexOf(`target: "${call[1]}"`);
+      const f = at >= 0 ? qmlFunction(audioSrc.slice(at), call[2]) : null;
+      if (f) return inScope({ root: d.root }, f.params, f.body)();
+    }
+    const w = cmd.match(/wpctl set-volume @DEFAULT_AUDIO_SINK@ (\d+)%\+(?: -l ([\d.]+))?/);
+    const a = d.root.sink.audio;
+    a.volume = Math.min(w[2] ? +w[2] : Infinity, Math.round((a.volume + w[1] / 100) * 1000) / 1000);
+  };
+  for (let i = 0; i < 40; i++) key();
+  const v = d.root.sink.audio.volume;
+  check("with Loudest allowed at 150%, the real volume-up key reaches 150%", Math.abs(v - 1.5) < 1e-9, `it stops at ${pct(v)} (${cmd})`);
+}
+
 done();

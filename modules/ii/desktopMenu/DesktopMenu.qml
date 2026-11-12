@@ -66,10 +66,12 @@ Scope {
         return all.slice(0, carouselExtraCount)
     }
 
+    // pictures work safety hides on the desktop are not shown here either
     property var carouselModel: {
         const current = FileUtils.trimFileProtocol(Config.options.background.wallpaperPath)
-        if (!current || current.length === 0) return randomWallpapers.map(p => root.displayPathFor(p))
-        return [root.displayPathFor(current), ...randomWallpapers.map(p => root.displayPathFor(p))]
+        const extra = randomWallpapers.filter(p => !Wallpapers.hiddenByWorkSafety(p)).map(p => root.displayPathFor(p))
+        if (!current || current.length === 0 || Wallpapers.hiddenByWorkSafety(current)) return extra
+        return [root.displayPathFor(current), ...extra]
     }
 
     // Menu window
@@ -209,9 +211,10 @@ Scope {
                         Layout.fillWidth: true
                         model: root.carouselModel
                         onPicked: (path, index) => {
-                            // The first card shows a live wallpaper as its thumbnail: apply the wallpaper itself
+                            // The current wallpaper's card shows a live wallpaper as its thumbnail: apply the wallpaper
+                            // itself. Not known by its place: work safety can leave it out.
                             const current = FileUtils.trimFileProtocol(Config.options.background.wallpaperPath)
-                            Wallpapers.select(index === 0 && current ? current : path, Appearance.m3colors.darkmode)
+                            Wallpapers.select(current && path === root.displayPathFor(current) ? current : path, Appearance.m3colors.darkmode)
                             GlobalStates.desktopMenuOpen = false
                         }
                     }

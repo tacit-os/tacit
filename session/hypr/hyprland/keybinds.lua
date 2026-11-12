@@ -37,9 +37,10 @@ hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(qsIpcCall .. " brightness increme
     { locked = true, repeating = true, description = "Screen: Brightness up" })
 hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qsIpcCall .. " brightness decrement || brightnessctl --class backlight -n2 set 5%-"),
     { locked = true, repeating = true, description = "Screen: Brightness down" })
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.0"),
+-- through the shell (Audio.qml), which stops at "Loudest allowed"; wpctl only when the shell does not answer
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(qsIpcCall .. " audio volumeUp || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.0"),
     { locked = true, repeating = true, description = "Media: Volume up" })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd("wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(qsIpcCall .. " audio volumeDown || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
     { locked = true, repeating = true, description = "Media: Volume down" })
 
 hl.bind("CTRL + SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"),

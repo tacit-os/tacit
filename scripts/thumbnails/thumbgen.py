@@ -34,7 +34,16 @@ logger.remove()
 logger.add(sys.stdout, level="INFO")
 logger.add(log_dir / "thumbgen.log", level="DEBUG", rotation="2 MB", retention="3 days")
 
-def make_thumbnail(fpath: str) -> bool:
+def init_worker(size: str) -> None:
+    # Each worker makes its own factory. A global set in main() reached the workers only through fork: under spawn or
+    # forkserver (Python 3.14's default on Linux) a worker imports this file afresh with factory None, and every file
+    # failed, said only in the debug log.
+    global factory
+    factory = GnomeDesktop.DesktopThumbnailFactory.new(thumbnail_size_map[size])
+
+
+def make_thumbnail(fpath: str) -> Union[bool, None]:
+    """True: made; False: not needed (fresh, or a kind it cannot thumbnail); None: it failed"""
     # one file that cannot be read (deleted during the run, a corrupt picture) must not stop the rest of the folder
     try:
         mtime = os.path.getmtime(fpath)
@@ -55,34 +64,39 @@ def make_thumbnail(fpath: str) -> bool:
         thumbnail = factory.generate_thumbnail(uri, mime_type)
         if thumbnail is None:
             logger.debug("ERROR       {}".format(uri))
-            return False
+            return None
 
         logger.debug("OK          {}".format(uri))
         factory.save_thumbnail(thumbnail, uri, mtime)
         return True
     except Exception as e:
         logger.debug("ERROR       {} ({})".format(fpath, e))
-        return False
+        return None
 
 
-# reraise: a folder that is missing must end the run with a failure, so the caller's magick fallback runs
+# reraise: a folder that is missing, or one where every file failed, must end the run with a failure, so the caller's
+# magick fallback runs
 @logger.catch(reraise=True)
-def thumbnail_folder(*, dir_path: Path, workers: int, only_images: bool, recursive: bool, machine_progress: bool = False) -> None:
+def thumbnail_folder(*, dir_path: Path, size: str, workers: int, only_images: bool, recursive: bool, machine_progress: bool = False) -> None:
     all_files = get_all_files(dir_path=dir_path, recursive=recursive)
     if only_images:
         all_files = get_all_images(all_files=all_files)
     all_files = [str(fpath) for fpath in all_files]
+    results = []
     if machine_progress:
         completed = 0
         total = len(all_files)
-        with Pool(processes=workers) as p:
+        with Pool(processes=workers, initializer=init_worker, initargs=(size,)) as p:
             for result in p.imap(make_thumbnail, all_files):
+                results.append(result)
                 completed += 1
                 print(f"PROGRESS {completed}/{total} FILE {all_files[completed-1]}")
                 sys.stdout.flush()
     else:
-        with Pool(processes=workers) as p:
-            list(tqdm(p.imap(make_thumbnail, all_files), total=len(all_files)))
+        with Pool(processes=workers, initializer=init_worker, initargs=(size,)) as p:
+            results = list(tqdm(p.imap(make_thumbnail, all_files), total=len(all_files)))
+    if results and all(r is None for r in results):
+        raise RuntimeError("no thumbnail could be made in {}".format(dir_path))
 
 
 def get_all_images(*, all_files: List[Path]) -> List[Path]:
@@ -118,10 +132,8 @@ def get_all_files(*, dir_path: Path, recursive: bool) -> List[Path]:
 @click.option("--machine_progress", is_flag=True, default=False, help="Print machine-readable progress lines instead of a progress bar")
 def main(img_dirs: Tuple[str, ...], size: str, workers: str, only_images: bool, recursive: bool, machine_progress: bool) -> None:
     img_dirs = [Path(img_dir) for img_dir in img_dirs]
-    global factory
-    factory = GnomeDesktop.DesktopThumbnailFactory.new(thumbnail_size_map[size])
     for img_dir in img_dirs:
-        thumbnail_folder(dir_path=img_dir, workers=workers, only_images=only_images, recursive=recursive, machine_progress=machine_progress)
+        thumbnail_folder(dir_path=img_dir, size=size, workers=workers, only_images=only_images, recursive=recursive, machine_progress=machine_progress)
     print("Thumbnail Generation Completed!")
 
 

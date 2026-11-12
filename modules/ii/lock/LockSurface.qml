@@ -377,6 +377,8 @@ MouseArea {
                         return Translation.tr("Press again to restart");
                     if (GlobalStates.screenUnlockFailed)
                         return Translation.tr("Incorrect password");
+                    if (root.context.refusedAction.length)
+                        return Translation.tr("%1 failed").arg(root.context.refusedAction);
                     // what the password will do once armed: it no longer only unlocks
                     if (root.context.targetAction === LockContext.ActionEnum.Poweroff)
                         return Translation.tr("Password to shut down");

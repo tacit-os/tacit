@@ -69,6 +69,18 @@ ShellRoot {
         }
     }
 
+    // A Shut down or Restart the system refused gives the field and the reader back, and the field says so.
+    Connections {
+        target: Session
+        function onActionFailed(label, code) {
+            if (lockContext.unlockInProgress) {
+                lockContext.reset();
+                lockContext.tryFingerUnlock();
+            }
+            lockContext.refusedAction = label;
+        }
+    }
+
     // The marker means "a human unlocked this", not "a frame was drawn": execs.lua starts
     // hyprlock when it is missing, so a boot lock that dies before the password has to leave
     // it absent. It must also exist before this process goes away, hence the handler.

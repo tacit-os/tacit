@@ -146,6 +146,13 @@ Singleton {
         }
     }
 
+    // a first look a few seconds after start: until a read, Settings showed the updates.json the last start left, so
+    // after an install it offered the update just installed, with Restart and Tonight, for two minutes
+    Timer {
+        interval: 5000
+        running: Config.ready
+        onTriggered: root.refresh()
+    }
     // a look two minutes after start (the night's result, and what the last download left) and every half hour
     Timer {
         interval: 2 * 60 * 1000

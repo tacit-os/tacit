@@ -221,7 +221,8 @@ Scope {
                         // strip can. Without it the map was a black card.
                         readonly property string path: /\.(mp4|webm|mkv|mov|m4v|gif)$/i.test(wallpaper) && thumbnail.length > 0
                             ? thumbnail : wallpaper
-                        source: path.length === 0 ? "" : path.startsWith("/") ? `file://${path}` : path
+                        // nothing while work safety hides the wallpaper on the desktop
+                        source: path.length === 0 || Wallpapers.hiddenByWorkSafety(wallpaper) ? "" : path.startsWith("/") ? `file://${path}` : path
                         fillMode: Image.PreserveAspectCrop
                         sourceSize.width: 464
                         asynchronous: true

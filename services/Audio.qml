@@ -3,6 +3,7 @@ pragma ComponentBehavior: Bound
 import qs.modules.common
 import QtQuick
 import Quickshell
+import Quickshell.Io
 import Quickshell.Services.Pipewire
 
 /**
@@ -77,6 +78,18 @@ Singleton {
         const currentVolume = Audio.value;
         const step = currentVolume < 0.1 ? 0.01 : 0.02;
         Audio.sink.audio.volume = Math.max(0, Math.min(root.keyMaxValue, Audio.sink.audio.volume - step));
+    }
+
+    // The volume keys (keybinds.lua) go through these, so they stop where "Loudest allowed" says: they ran wpctl with
+    // its own limit of 100% (-l 1.0), which stays only for when the shell is not there to answer.
+    IpcHandler {
+        target: "audio"
+        function volumeUp(): void {
+            root.incrementVolume();
+        }
+        function volumeDown(): void {
+            root.decrementVolume();
+        }
     }
 
     function setDefaultSink(node) {

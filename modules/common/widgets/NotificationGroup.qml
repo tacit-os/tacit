@@ -43,13 +43,16 @@ MouseArea { // Notification group area
     }
 
     hoverEnabled: true
+    // The pointer resting on a popup stops its clock, and leaving starts it again (as the reply field does). Leaving used
+    // to dismiss it on the spot, so a pointer crossing a popup on its way elsewhere took it away, a critical one too,
+    // which has no clock and is meant to stay until it is dealt with.
     onContainsMouseChanged: {
         if (!root.popup) return;
         if (root.containsMouse) root.notifications.forEach(notif => {
             Notifications.cancelTimeout(notif.notificationId);
         });
         else root.notifications.forEach(notif => {
-            Notifications.timeoutNotification(notif.notificationId);
+            notif.timer?.restart();
         });
     }
 

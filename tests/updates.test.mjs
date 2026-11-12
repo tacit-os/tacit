@@ -92,4 +92,22 @@ esac
     first === true && u.root.lastCheckFailed === false, `first read ${first}, next read ${u.root.lastCheckFailed}`);
 }
 
+// after an install: until the first read, Settings shows the updates.json the start before the install wrote
+{
+  const timers = [];
+  for (let at = src.indexOf("Timer {"); at >= 0; at = src.indexOf("Timer {", at + 1)) {
+    const open = src.indexOf("{", at), body = src.slice(open + 1, matchBrace(src, open));
+    const prop = k => (body.match(new RegExp(`\\b${k}:\\s*([^\\n]+)`)) ?? [])[1]?.trim();
+    timers.push({ interval: inScope({}, "", `return (${prop("interval")});`)(), running: prop("running"),
+      refreshes: /root\.refresh\(\)/.test(body) });
+  }
+  const first = Math.min(...timers.filter(t => t.running === "Config.ready" && t.refreshes).map(t => t.interval));
+  check("the first read comes within seconds of the shell's start", first <= 10000, `after ${first / 1000} s`);
+  const u = updates();
+  let written = null;
+  const scope = { root: u.root, stateFile: { setText(t) { written = JSON.parse(t); } }, nextNotesProc: {}, waitingProc: { running: false } };
+  inScope(scope, "text", handler("waitingProc"))("---\n---\n1762950000\n---\ninactive\n");   // nothing waits any more
+  check("and it rewrites updates.json: nothing ready", written?.ready === false && written?.count === 0, JSON.stringify(written));
+}
+
 done();

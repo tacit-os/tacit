@@ -8,8 +8,9 @@ QuickToggleModel {
     id: root
     name: Translation.tr("Game mode")
     // Hyprland's own answer decides, not the click: assigning toggled here would drop this binding for good,
-    // and until the first answer value is undefined, which must not read as animations off
-    toggled: confOpt.value === 0
+    // and until the first answer value is undefined, which must not read as animations off. Hyprland 0.56 answers
+    // animations:enabled with a bool ({"bool": false}), older ones with an int
+    toggled: confOpt.value === false || confOpt.value === 0
     icon: "gamepad"
 
     mainAction: () => {

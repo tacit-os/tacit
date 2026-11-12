@@ -111,6 +111,8 @@ Singleton {
             return root.start("trash", u.paths);
         case "restore-paths":
             return root.start("restore-paths", u.paths);
+        case "unreplace":       // a copy that replaced: it goes to the trash and the old one comes back
+            return root.start("unreplace", u.args);
         }
         return "";
     }
@@ -219,7 +221,7 @@ Singleton {
         case "copy": return "Copying";
         case "move": return "Moving";
         case "trash": return "Trashing";
-        case "restore": case "restore-paths": return "Putting back";
+        case "restore": case "restore-paths": case "unreplace": return "Putting back";
         case "rename": return "Renaming";
         case "mkdir": return "Making";
         case "delete": return "Deleting";
@@ -237,7 +239,7 @@ Singleton {
         case "copy": return `Copied ${what}${to}`;
         case "move": return `Moved ${what}${to}`;
         case "trash": return `Moved ${what} to the trash`;
-        case "restore": case "restore-paths": return `Put ${what} back`;
+        case "restore": case "restore-paths": case "unreplace": return `Put ${what} back`;
         case "rename": return `Renamed to ${what}`;
         case "mkdir": return `Made ${what}`;
         case "delete": return `Deleted ${what}`;

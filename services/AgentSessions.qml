@@ -197,6 +197,8 @@ Singleton {
 
     // The activity line ("running make", "editing Island.qml") from PreToolUse, and the last
     // assistant line from Stop, which the recap on return reads.
+    // No hook says a permission prompt was answered: a tool call after it does. The tool that asked sends its own line
+    // just before the prompt and can land a moment after it, hence the second and a half.
     function activity(id, line) {
         let list = root.all.slice();
         const s = list.find(x => x.id === id);
@@ -205,6 +207,10 @@ Singleton {
         s.activity = line;
         s.lastToolAt = Date.now();
         s.quietTold = false;
+        if (s.state === "idle" || (s.state === "waiting" && Date.now() - s.since > 1500)) {
+            s.state = "working";
+            s.since = Date.now();
+        }
         root.all = list;
     }
     function last(id, line) {
@@ -265,6 +271,13 @@ Singleton {
                         }
                         if (now === "working")
                             s.lastToolAt = Date.now();
+                    } else if (s.state === "working" && r.status !== "busy" && Date.now() - s.lastToolAt > 15000) {
+                        // a turn stopped with Esc sends no Stop hook: it read "working" until the next prompt, and
+                        // raised a "Quiet" peek. Not busy for a while with no tool call is the end of it.
+                        s.state = "idle";
+                        s.since = Date.now();
+                        s.activity = "";
+                        changed = true;
                     }
                 }
                 // gone from the roster = ended, however it ended

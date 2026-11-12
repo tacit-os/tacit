@@ -76,10 +76,24 @@ Item {
     onShowAudioInputDialogChanged: if (showAudioInputDialog) only("showAudioInputDialog")
     onShowNightLightDialogChanged: if (showNightLightDialog) only("showNightLightDialog")
 
+    // GlobalStates.sidebarRightSection: open on that section (Ctrl+Super+V, the panel's openSound). The
+    // content may be created by the same open, so it is read on creation too (Component.onCompleted, below).
+    function takeSection() {
+        const f = GlobalStates.sidebarRightSection;
+        if (f === "")
+            return;
+        if (root.sectionFlags.includes(f))
+            root[f] = true;
+        GlobalStates.sidebarRightSection = "";
+    }
+
     // Same clearing the shipped content does on close (as the panel before 1.2 did): the
     // lists fold and the drawer shuts, so the panel comes back drawn, not used.
     Connections {
         target: GlobalStates
+        function onSidebarRightSectionChanged() {
+            root.takeSection();
+        }
         function onSidebarRightOpenChanged() {
             if (!GlobalStates.sidebarRightOpen) {
                 for (const f of root.sectionFlags)
@@ -1438,5 +1452,6 @@ Item {
 
     Component.onCompleted: {
         root.loadArrangement();
+        root.takeSection();
     }
 }

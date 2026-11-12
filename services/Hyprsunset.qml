@@ -40,6 +40,8 @@ Singleton {
     onAutomaticChanged: {
         root.manualActive = undefined;
         root.firstEvaluation = true;
+        if (root.automatic && Persistent.ready)
+            Persistent.states.nightLight.on = false;   // the schedule decides from now on
         reEvaluate();
     }
 
@@ -123,12 +125,38 @@ Singleton {
             root.disableTemperature();
             root.loaded = true;
             root.ensureState();
+            root.restoreManual();
             return;
         }
         root.applyHyprsunset("identity", () => {
             root.loaded = true;
             root.ensureState();
+            root.restoreManual();
         });
+    }
+
+    // A night light switched on by hand (Settings' "On", the pill, the panel) comes back after a restart, a reload or
+    // an update of the shell, as Do not disturb does: the reset above wiped it, and only "By time of day" came back.
+    // Once the reset is done and both Persistent and Config are read (either may come first: lazy singletons).
+    property bool manualRestored: false
+    function restoreManual() {
+        if (root.manualRestored || !root.loaded || !Persistent.ready || !(Config?.ready ?? true))
+            return;
+        root.manualRestored = true;
+        if (!root.automatic && Persistent.states.nightLight.on)
+            root.toggleTemperature(true);
+    }
+    Connections {
+        target: Persistent
+        function onReadyChanged() {
+            root.restoreManual();
+        }
+    }
+    Connections {
+        target: Config
+        function onReadyChanged() {
+            root.restoreManual();
+        }
     }
 
     function enableTemperature() {
@@ -241,6 +269,8 @@ Singleton {
         }
 
         root.manualActive = active !== undefined ? active : !root.manualActive;
+        if (!root.automatic && Persistent.ready)
+            Persistent.states.nightLight.on = root.manualActive;
         if (root.manualActive) {
             root.enableTemperature();
         } else {

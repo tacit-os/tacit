@@ -14,6 +14,7 @@
 #   job.sh <id> touch   <dir> <name>                    (a new, empty file)
 #   job.sh <id> compress <dir> <zip-name> <src>...      (one .zip of them, in <dir>)
 #   job.sh <id> renames <src> <new-name> ...            (many at once; every name checked before any moves)
+#   job.sh <id> unreplace <path> <old-file> <old-record> ...  (undo of a copy that replaced: see set_aside)
 #
 # Report: $XDG_STATE_HOME/quickshell/user/files/jobs/<id>.json
 #   { id, op, dest, state: running|done|failed|cancelled, total, done, bytes, bytesDone, pid,
@@ -101,6 +102,38 @@ keep_name() {   # dir base -> free path
     printf '%s' "$d/$stem $n$ext"
 }
 
+# Replace moves the old one out of the way before the new one comes (cp and mv would put a folder inside the old one,
+# and wrote a file over the old one in place, so Stop or a full disk left it half-written or gone): to the trash, so it
+# can come back, or beside itself under a hidden name where the disk has no trash. old_back says how it comes back:
+# "<file in the trash><tab><its .trashinfo>", or the hidden name. $1 the target, $2 its name for the error.
+trash_records() {   # every .trashinfo in the trashes a file at $1 can go to: home's and its disk's
+    local mnt; mnt=$(stat -c %m -- "$1" 2>/dev/null)
+    ( shopt -s nullglob; printf '%s\n' "${XDG_DATA_HOME:-$HOME/.local/share}/Trash/info/"*.trashinfo \
+        "$mnt/.Trash-$UID/info/"*.trashinfo "$mnt/.Trash/$UID/info/"*.trashinfo ) | sort
+}
+set_aside() {
+    local before rec out
+    old_back=""
+    before=$(trash_records "$1")
+    if out=$(gio trash -- "$1" 2>&1); then
+        rec=$(comm -13 <(printf '%s\n' "$before") <(trash_records "$1") | tail -1)
+        [ -n "$rec" ] && old_back="$(dirname -- "$(dirname -- "$rec")")/files/$(basename -- "$rec" .trashinfo)"$'\t'"$rec"
+        return 0
+    fi
+    case "$out" in
+    *"not supported"*|*"trash"*"directory"*|*"Unable to find or create"*)
+        old_back="$(dirname -- "$1")/.replaced-$id-$(basename -- "$1")"
+        mv -- "$1" "$old_back" && return 0 ;;
+    esac
+    because "Could not replace $2" "$out"; return 1
+}
+put_back() {   # $1 the target, $2 its old_back: the old one goes back where it was, when nothing is there now
+    local file=${2%%$'\t'*} rec=""
+    [ -n "$2" ] && [ ! -e "$1" ] && [ -e "$file" ] || return 1
+    case "$2" in *$'\t'*) rec=${2#*$'\t'} ;; esac
+    mv -- "$file" "$1" && { [ -z "$rec" ] || rm -f -- "$rec"; }
+}
+
 case "$op" in
 copy|move)
     policy=$1; dest=$2; shift 2
@@ -108,10 +141,10 @@ copy|move)
     write   # at once: the size scan below can take longer than the shell waits for a first report
     for s in "${srcs[@]}"; do b=$(du -sb -- "$s" 2>/dev/null | cut -f1); bytes=$((bytes + ${b:-0})); done
     write
-    moved_from=(); made=()
+    moved_from=(); made=(); backs=()
     for s in "${srcs[@]}"; do
         cancelled && finish cancelled
-        name=$(basename -- "$s"); target="$dest/$name"; current=$name; write
+        name=$(basename -- "$s"); target="$dest/$name"; current=$name; old_back=""; write
         if [ -e "$target" ]; then
             case "$policy" in
             skip)    done_=$((done_+1)); continue ;;
@@ -119,24 +152,30 @@ copy|move)
             replace)
                 # pasted onto itself: nothing to replace
                 if [ "$s" -ef "$target" ]; then done_=$((done_+1)); continue; fi
-                # A folder, or a file over a folder, replaces the old one whole: cp and mv would put the
-                # new one inside it ("dir/dir"). The old one goes to the trash first, so it can come back.
                 if [ -d "$target" ] || [ -d "$s" ]; then
                     case "$target/" in "$s"/*) error="Could not replace $name: it holds the one being put there"; finish failed ;; esac
                     case "$s/" in "$target"/*) error="Could not replace $name: it holds the one being put there"; finish failed ;; esac
-                    if ! out=$(gio trash -- "$target" 2>&1); then because "Could not replace $name" "$out"; finish failed; fi
-                fi ;;
+                fi
+                # the old one, file or folder, out of the way first, so it can come back
+                set_aside "$target" "$name" || finish failed ;;
             esac
         fi
         # progress: the target growing, sampled while the copy runs
         if [ "$op" = copy ]; then cp -a -- "$s" "$target" 2>"$report.err" & else mv -f -- "$s" "$target" 2>"$report.err" & fi
         pid=$!; before=$bytesDone
         while kill -0 "$pid" 2>/dev/null; do
-            if cancelled; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; [ "$op" = copy ] && rm -rf -- "$target"; finish cancelled; fi
+            if cancelled; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; [ "$op" = copy ] && rm -rf -- "$target"; put_back "$target" "$old_back"; finish cancelled; fi
             cur=$(du -sb -- "$target" 2>/dev/null | cut -f1); bytesDone=$((before + ${cur:-0})); write; sleep 0.3
         done
-        if ! wait "$pid"; then because "Could not ${op} $name" "$(cat "$report.err" 2>/dev/null)"; rm -f "$report.err"; finish failed; fi
+        if ! wait "$pid"; then
+            because "Could not ${op} $name" "$(cat "$report.err" 2>/dev/null)"; rm -f "$report.err"
+            # what was copied of the new one goes, and the old one comes back (a move's half is left: its source may be gone)
+            [ -n "$old_back" ] && [ "$op" = copy ] && rm -rf -- "$target"; put_back "$target" "$old_back"
+            finish failed
+        fi
         rm -f "$report.err"
+        # the old one set aside on a disk with no trash goes now that the new one is whole; one in the trash stays for Undo
+        case "$old_back" in ?*$'\t'*) backs+=("$target" "${old_back%%$'\t'*}" "${old_back#*$'\t'}") ;; ?*) rm -rf -- "$old_back" ;; esac
         cur=$(du -sb -- "$target" 2>/dev/null | cut -f1); bytesDone=$((before + ${cur:-0}))
         results+=("$target"); made+=("$target"); [ "$op" = move ] && moved_from+=("$s")
         done_=$((done_+1)); write
@@ -144,9 +183,25 @@ copy|move)
     if [ ${#made[@]} -eq 0 ]; then :   # everything was skipped: nothing to undo
     elif [ "$op" = move ]; then
         undo=$(jq -nc --rawfile to <(printf '%s\n' "${made[@]}") --rawfile from <(printf '%s\n' "${moved_from[@]}") '{op:"move-back", from:($to | split("\n") | map(select(length > 0))), to:($from | split("\n") | map(select(length > 0)))}')
+    elif [ ${#backs[@]} -gt 0 ]; then
+        # a copy that replaced: Undo puts the old ones back too ("-": a new one that replaced nothing)
+        args=(); for t in "${made[@]}"; do
+            r=-; for ((i = 0; i < ${#backs[@]}; i += 3)); do [ "${backs[i]}" = "$t" ] && r=$i; done
+            if [ "$r" = - ]; then args+=("$t" - -); else args+=("$t" "${backs[r+1]}" "${backs[r+2]}"); fi
+        done
+        undo=$(jq -nc --rawfile args <(printf '%s\n' "${args[@]}") '{op:"unreplace", args:($args | split("\n") | map(select(length > 0)))}')
     else
         undo=$(jq -nc --rawfile paths <(printf '%s\n' "${made[@]}") '{op:"delete", paths:($paths | split("\n") | map(select(length > 0)))}')
     fi
+    finish done ;;
+unreplace)   # triples: <path> <old file in the trash> <its record>, "-" "-" for none: the copy to the trash, the old one back
+    total=$(( $# / 3 )); args=("$@"); write
+    for ((i = 0; i + 2 < ${#args[@]}; i += 3)); do
+        p=${args[i]}; current=$(basename -- "$p"); write
+        if [ -e "$p" ] && ! out=$(gio trash -- "$p" 2>&1); then because "Could not move $current to the trash" "$out"; finish failed; fi
+        if [ "${args[i+1]}" != - ] && ! put_back "$p" "${args[i+1]}"$'\t'"${args[i+2]}"; then error="Could not put $current back"; finish failed; fi
+        results+=("$p"); done_=$((done_+1)); write
+    done
     finish done ;;
 trash)
     total=$#; write

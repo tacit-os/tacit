@@ -36,6 +36,15 @@ Singleton {
         return root.videoExtensions.some(ext => lower.endsWith(`.${ext}`));
     }
     property list<string> wallpapers: [] // List of absolute file paths (without file://)
+    // Work safety: a picture whose path has one of its file keywords is not shown while the network's name has one of
+    // its network keywords. Everything that shows the wallpaper asks this (the desktop, its centred shape, the desktop
+    // menu's pictures, the window menu's small screen); the desktop alone used to.
+    function hiddenByWorkSafety(path) {
+        const safety = Config.options.workSafety;
+        return safety.enable.wallpaper
+            && StringUtils.stringListContainsSubstring(String(path ?? "").toLowerCase(), safety.triggerCondition.fileKeywords)
+            && StringUtils.stringListContainsSubstring(Network.networkName.toLowerCase(), safety.triggerCondition.networkNameKeywords);
+    }
     readonly property bool thumbnailGenerationRunning: thumbgenProc.running
     property real thumbnailGenerationProgress: 0
     property string previewPath: ""  // Set during arrow navigation; empty by default

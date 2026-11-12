@@ -13,7 +13,7 @@ case "$class" in
     *[Kk]ee[Pp]ass*|*1[Pp]assword*|*[Bb]itwarden*) echo '{}'; exit 0 ;;
 esac
 case "$title" in
-    *"Private Browsing"*|*"Private browsing"*|*"Incognito"*) title="" ;;
+    *"Private Browsing"*|*"Private browsing"*|*"Private Window"*|*"Incognito"*|*"InPrivate"*) title="" ;;
 esac
 # Opsis (class browser, browser-cef) titles a private window "Private · <page>"
 case "$class" in browser|browser-cef) case "$title" in Private|"Private · "*) title="" ;; esac ;; esac
@@ -33,6 +33,19 @@ esac
 [ -n "$brand" ] && case "$title" in
     "$brand"|*" — $brand"|*" – $brand"|*" - $brand") ;;
     *) title="" ;;
+esac
+# Any other browser (Edge, LibreWolf, Floorp, a Firefox or Chromium build with a class of its own): its private mark is
+# not known here, so its title is dropped whole. It is known by its class's name, or by its launcher saying it is one.
+[ -z "$brand" ] && [ -n "$title" ] && case "$class" in
+    browser|browser-cef) ;;
+    *[Ff]irefox*|*[Ww]olf*|*[Ff]loorp*|*[Zz]en*|*[Cc]hrom*|*[Bb]rave*|*[Vv]ivaldi*|*[Ee]dge*|*[Oo]pera*|*[Ee]piphany*|\
+    *[Ff]alkon*|*qutebrowser*|*[Mm]ullvad*|*[Tt]or[Bb]rowser*|*[Ll]adybird*|*[Mm]idori*) title="" ;;
+    *)
+        for d in "${XDG_DATA_HOME:-$HOME/.local/share}" $(printf %s "${XDG_DATA_DIRS:-/usr/local/share:/usr/share}" | tr : ' '); do
+            for f in "$d/applications/$class.desktop" $(grep -lsxF "StartupWMClass=$class" "$d"/applications/*.desktop); do
+                grep -qs '^Categories=.*WebBrowser' "$f" && title=""
+            done
+        done ;;
 esac
 cwd=""
 if [ "$class" = praxis ]; then

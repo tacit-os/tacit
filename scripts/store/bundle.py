@@ -451,7 +451,9 @@ def run(app, cmd):
     if lock is not None:
         os.set_inheritable(lock, True)
     root = os.path.join(base, "root")
-    perm = man["permissions"]
+    # the catalogue as this release ships it, not the copy the manifest took at install: a fix to an app's permissions
+    # (VS Code's and LibreOffice's "home") reached an app got earlier only once a system package it shares changed
+    perm = perms_for(app, [])
     uid = os.getuid(); rt = os.environ.get("XDG_RUNTIME_DIR") or f"/run/user/{uid}"
     data = os.path.join(DATA, app); os.makedirs(data, exist_ok=True)
     # one /tmp for every start of the app (until logout): a second start, as a sign-in's link opening the app, finds the

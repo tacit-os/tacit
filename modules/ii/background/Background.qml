@@ -157,12 +157,7 @@ Variants {
         property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : bgRoot.effectiveWallpaperPath
         readonly property bool widgetsAboveVideo: bgRoot.wallpaperIsVideo && !GlobalStates.screenLocked
         readonly property Item widgetWallpaper: bgRoot.widgetsAboveVideo ? videoWidgetWallpaper : wallpaper
-        property bool wallpaperSafetyTriggered: {
-            const enabled = Config.options.workSafety.enable.wallpaper;
-            const sensitiveWallpaper = (CF.StringUtils.stringListContainsSubstring(wallpaperPath.toLowerCase(), Config.options.workSafety.triggerCondition.fileKeywords));
-            const sensitiveNetwork = (CF.StringUtils.stringListContainsSubstring(Network.networkName.toLowerCase(), Config.options.workSafety.triggerCondition.networkNameKeywords));
-            return enabled && sensitiveWallpaper && sensitiveNetwork;
-        }
+        property bool wallpaperSafetyTriggered: Wallpapers.hiddenByWorkSafety(wallpaperPath)
 
         property bool shouldBlur: (GlobalStates.screenLocked && Config.options.lock.blur.enable)
         property color dominantColor: Appearance.colors.colPrimary
@@ -580,7 +575,7 @@ Variants {
 
                 StyledImage {
                     anchors.fill: parent
-                    source: CF.FileUtils.fileUrl(bgRoot.pictureOf(bgRoot.wallpaperPath))
+                    source: bgRoot.wallpaperSafetyTriggered ? "" : CF.FileUtils.fileUrl(bgRoot.pictureOf(bgRoot.wallpaperPath))
                     fillMode: Image.PreserveAspectCrop
                     cache: false
                     mipmap: true
