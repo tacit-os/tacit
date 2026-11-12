@@ -545,6 +545,9 @@ Item {
     readonly property var terminal: conv.session && !conv.session.fresh ? (conv.host.terminals[conv.session.id] ?? null) : null
     // a turn agent-host's previous process is finishing (Host.leftovers): followed, and a message waits for its end
     readonly property var leftover: conv.session && !conv.session.fresh ? (conv.host.leftovers[conv.session.id] ?? null) : null
+    // gone, its process has ended: its last rows are read once more, as after an exit of the host's own (the follow
+    // timer stops with it, and what it wrote since the last read stayed off screen until the next message)
+    onLeftoverChanged: if (conv.leftover === null) followSoon.restart()
     readonly property bool running: (conv.live !== null && (conv.live.alive || conv.live.state !== "idle")) || conv.terminal !== null || conv.leftover !== null
     readonly property bool working: (conv.live !== null && conv.live.state === "working") || (conv.terminal !== null && conv.terminal.status === "busy")
         || (conv.leftover !== null && conv.leftover.status === "busy")

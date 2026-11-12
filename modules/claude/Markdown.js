@@ -12,8 +12,8 @@ function esc(s) {
     return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
-function inline(s, t) {
-    const codes = [];
+// codes: the code spans taken out, shared with a link's label, which holds their placeholders when it comes back here
+function inline(s, t, codes = []) {
     s = s.replace(/`([^`\n]+)`/g, (m, c) => { codes.push(c); return "\u0001" + (codes.length - 1) + "\u0001"; });
     const links = [];
     s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, label, url) => { links.push([label, url]); return "\u0002" + (links.length - 1) + "\u0002"; });
@@ -24,7 +24,7 @@ function inline(s, t) {
     s = s.replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, "$1<i>$2</i>");
     s = s.replace(/(^|[^_\w])_([^_\s][^_\n]*?)_(?![_\w])/g, "$1<i>$2</i>");
     s = s.replace(/~~([^~\n]+)~~/g, "<s>$1</s>");
-    s = s.replace(/\u0002(\d+)\u0002/g, (m, i) => `<a href="${links[i][1]}" style="color:${t.link}; text-decoration:none">${inline(links[i][0], t)}</a>`);
+    s = s.replace(/\u0002(\d+)\u0002/g, (m, i) => `<a href="${links[i][1]}" style="color:${t.link}; text-decoration:none">${inline(links[i][0], t, codes)}</a>`);
     // Padded with thin spaces, except where punctuation follows: Qt breaks lines after any
     // space (even U+202F), so "`x`," could leave the comma alone at the start of a line.
     s = s.replace(/\u0001(\d+)\u0001([.,;:!?)]?)/g, (m, i, p) =>

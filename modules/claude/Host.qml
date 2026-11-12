@@ -146,6 +146,9 @@ Item {
                     retry.stop();
                     retry.tries = 0;
                     host.sayHello();
+                    // a host that restarted holds none of the old one's sessions: a turn the old process is finishing
+                    // is known from the roster alone, read now rather than up to a poll later, when it may have ended
+                    if (host.roster) { roster.running = false; roster.running = true; }
                     return;
                 }
                 host.helloSent = false;

@@ -1,8 +1,10 @@
 import QtQuick
+import QtQuick.Controls
 import QtQuick.Layouts
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.modules.tacit
 
 /**
  * The agent asks before running something: what and on what, then Allow once / Always / Deny.
@@ -25,9 +27,12 @@ Rectangle {
         case "WebFetch": return "Fetch this page?";
         case "Door": return "Let it reach this address?";
         case "Wall": return "Let it write outside its folder?";
+        case "ExitPlanMode": return "Start on this plan?";
         }
         return `Use ${card.pending.tool ?? "this tool"}?`;
     }
+    // the plan Plan mode ends with, drawn as the agent's replies are: as the detail it was one cut-off line of JSON
+    readonly property string plan: card.pending.tool === "ExitPlanMode" ? String(card.pending.input?.plan ?? "") : ""
     readonly property string detail: {
         const i = card.pending.input ?? {};
         if (card.pending.tool === "Door") return `${i.host ?? ""}${i.port ? ":" + i.port : ""}` + ((i.step ?? "").length ? `\n${i.step}` : "");
@@ -38,30 +43,31 @@ Rectangle {
     readonly property var buttons: {
         switch (card.pending.tool) {
         case "Door": return [
-            { label: "Allow once", accent: true, allow: true, input: { scope: "once" }, keys: ["Ctrl+Return", "Ctrl+Enter"] },
+            { label: "Allow once", accent: true, allow: true, input: { scope: "once" }, keys: ["Alt+Return", "Alt+Enter"] },
             { label: "This session", accent: false, allow: true, input: { scope: "session" }, keys: ["Alt+S"] },
             { label: "This folder", accent: false, allow: true, input: { scope: "folder" }, keys: ["Alt+F"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Ctrl+Shift+Backspace"] }];
+            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }];
         case "Wall": return [
-            { label: "Open the folder", accent: true, allow: true, keys: ["Ctrl+Return", "Ctrl+Enter"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Ctrl+Shift+Backspace"] }];
+            { label: "Open the folder", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
+            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }];
         }
         return [
-            { label: "Allow once", accent: true, allow: true, keys: ["Ctrl+Return", "Ctrl+Enter"] },
-            { label: "Always allow", accent: false, allow: true, always: true, keys: ["Ctrl+Shift+Return"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Ctrl+Shift+Backspace"] }
+            { label: "Allow once", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
+            { label: "Always allow", accent: false, allow: true, always: true, keys: ["Alt+Shift+Return", "Alt+Shift+Enter"] },
+            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }
         ].filter(b => !b.always || card.canAlways);
     }
     // what an edit will change, drawn as a finished one is (DiffView): the path alone asked for a yes to an edit
-    // you could not see. Clipped as the transcript clips them.
+    // you could not see. Clipped as the transcript clips them; cut: the characters left out, said under the diff
     readonly property var change: {
         const i = card.pending.input ?? {};
         const clip = t => String(t ?? "").substring(0, 3000);
+        const left = t => Math.max(0, String(t ?? "").length - 3000);
         const all = k => (i.edits ?? []).map(e => e[k] ?? "").join("\n");
         switch (card.pending.tool) {
-        case "Edit": return { old: clip(i.old_string), new: clip(i.new_string) };
-        case "MultiEdit": return { old: clip(all("old_string")), new: clip(all("new_string")) };
-        case "Write": return { new: clip(i.content) };
+        case "Edit": return { old: clip(i.old_string), new: clip(i.new_string), cut: left(i.old_string) + left(i.new_string) };
+        case "MultiEdit": return { old: clip(all("old_string")), new: clip(all("new_string")), cut: left(all("old_string")) + left(all("new_string")) };
+        case "Write": return { new: clip(i.content), cut: left(i.content) };
         }
         return null;
     }
@@ -69,7 +75,8 @@ Rectangle {
     // request and put up "That request had already closed"
     property bool sent: false
     // keys for the card on top (a second card waiting would share them): the buttons were mouse-only.
-    // Each button takes its own (`keys` in `buttons`)
+    // Each button takes its own (`keys` in `buttons`): Alt chords, as the composer keeps the keyboard while the card
+    // is up, and Ctrl+Enter there, meant to send a reply, allowed the request instead
     property bool keys: true
     readonly property bool keyed: card.keys && card.visible && !card.sent
     opacity: card.sent ? 0.6 : 1
@@ -103,21 +110,51 @@ Rectangle {
                 color: Appearance.colors.colInkMain
             }
         }
-        StyledText {
+        // all of it, scrolling past 220 px as the diff does: cut at six lines, the rest of what Allow once runs could
+        // not be read
+        Flickable {
+            id: detailFlick
             Layout.fillWidth: true
-            text: card.detail
-            wrapMode: Text.WrapAnywhere
-            maximumLineCount: 6
-            elide: Text.ElideRight
-            font.family: Appearance.font.family.monospace
-            font.pixelSize: 14
-            color: Appearance.colors.colInkSecondary
+            readonly property Item shown: card.plan.length ? planText : detailText
+            Layout.preferredHeight: Math.min(detailFlick.shown.implicitHeight, 220)
+            contentHeight: detailFlick.shown.implicitHeight
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            ScrollBar.vertical: ScrollBar { policy: ScrollBar.AsNeeded }
+            GlideWheel { view: detailFlick; chain: true; gain: 1.6; gainPerSpeed: 3; gainMax: 6 }
+            StyledText {
+                id: detailText
+                visible: !card.plan.length
+                width: detailFlick.width
+                text: card.detail
+                // what will run, never markup: as rich text a "<b>" in an echo was drawn bold, its tags gone
+                textFormat: Text.PlainText
+                wrapMode: Text.WrapAnywhere
+                font.family: Appearance.font.family.monospace
+                font.pixelSize: 14
+                color: Appearance.colors.colInkSecondary
+            }
+            ClaudeText {
+                id: planText
+                visible: card.plan.length > 0
+                width: detailFlick.width
+                compact: true
+                markdown: card.plan
+            }
         }
         DiffView {
             visible: card.change !== null
             Layout.fillWidth: true
             Layout.preferredHeight: visible ? Math.min(implicitHeight, 220) : 0
             item: card.change ?? ({})
+        }
+        // a Write of 10,000 characters read as if its first 3000 were the whole file
+        StyledText {
+            visible: (card.change?.cut ?? 0) > 0
+            Layout.fillWidth: true
+            text: `… ${card.change?.cut ?? 0} more characters not shown`
+            font.pixelSize: 13
+            color: Appearance.colors.colInkMeta
         }
         Row {
             spacing: 8
