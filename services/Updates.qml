@@ -100,6 +100,7 @@ Singleton {
                 return;
             root.guarding = false;
             const warning = IslandController.workUnsaved ? "Unsaved changes"
+                : SessionWarnings.agentWorking ? "An agent is still working"
                 : SessionWarnings.packageManagerRunning ? "The package manager is running"
                 : SessionWarnings.downloadRunning ? "A download may be in progress" : "";
             if (warning.length === 0) {

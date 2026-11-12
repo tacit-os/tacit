@@ -12,6 +12,10 @@ StyledPopup {
     property real downloadedBytes: 0
     property real uploadedBytes: 0
 
+    // The public IP is looked up from a third party only while this is open (Network.publicIpViewers)
+    onActiveChanged: Network.publicIpViewers += root.active ? 1 : -1
+    Component.onDestruction: if (root.active) Network.publicIpViewers -= 1
+
     readonly property bool wifiConnected: Network.wifiStatus === "connected"
     readonly property string connectionName: {
         if (Network.ethernet)

@@ -11,8 +11,11 @@ Singleton {
 
     property bool packageManagerRunning: false
     property bool downloadRunning: false
+    // An agent-host session mid-turn (working, or waiting on a permission): a restart or shut down stops the host and
+    // its agents with the session, so the turn is cut off half done.
+    property bool agentWorking: false
 
-    // said when both looks below have come back (a caller that acts on the answer waits for it)
+    // said when the three looks below have come back (a caller that acts on the answer waits for it)
     signal checked()
     property int pending: 0
     function settle() {
@@ -22,13 +25,16 @@ Singleton {
     }
 
     function refresh() {
-        pending = 2;
+        pending = 3;
         packageManagerRunning = false;
         downloadRunning = false;
+        agentWorking = false;
         detectPackageManagerProc.running = false;
         detectPackageManagerProc.running = true;
         detectDownloadProc.running = false;
         detectDownloadProc.running = true;
+        detectAgentProc.running = false;
+        detectAgentProc.running = true;
     }
 
     Process {
@@ -49,6 +55,20 @@ Singleton {
                   "_", FileUtils.trimFileProtocol(Directories.downloads)]
         onExited: (exitCode, exitStatus) => {
             root.downloadRunning = (exitCode === 0);
+            root.settle();
+        }
+    }
+
+    Process {
+        id: detectAgentProc
+        // agent-host's own word: the hello it sends every client on connect lists its sessions with their state. No
+        // host, or no answer within 3 s, is no turn running.
+        command: ["python3", "-I", "-c", "import json, socket, sys; s = socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect(sys.argv[1]); "
+                  + "hello = json.loads(s.makefile(encoding='utf-8').readline()); "
+                  + "sys.exit(0 if any(x.get('state') in ('working', 'waiting') for x in hello.get('sessions', [])) else 1)",
+                  `${Quickshell.env("XDG_RUNTIME_DIR")}/agent-host.sock`]
+        onExited: (exitCode, exitStatus) => {
+            root.agentWorking = (exitCode === 0);
             root.settle();
         }
     }

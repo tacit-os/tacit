@@ -763,9 +763,11 @@ Singleton {
         }
     }
 
-    // A request to a third party, so it is made when the link itself changes and the link is
-    // actually up - not once per NetworkManager event.
-    readonly property string publicIpKey: root.connectivity === "full" ? root.ipAddress : ""
+    // A request to a third party, so it is made only while something that shows the answer is open
+    // (the bar's network popup counts itself in here), then again when the link itself changes and
+    // the link is actually up - not once per NetworkManager event, and never for a value nothing shows.
+    property int publicIpViewers: 0
+    readonly property string publicIpKey: root.publicIpViewers > 0 && root.connectivity === "full" ? root.ipAddress : ""
     onPublicIpKeyChanged: {
         if (root.publicIpKey.length === 0)
             root.publicIpAddress = "";
@@ -778,7 +780,8 @@ Singleton {
         stdout: StdioCollector {
             onStreamFinished: {
                 const candidate = text.trim();
-                root.publicIpAddress = /^[0-9a-fA-F:.]+$/.test(candidate)
+                // an answer that lands after the popup closed is not kept for the next one to show
+                root.publicIpAddress = root.publicIpKey !== "" && /^[0-9a-fA-F:.]+$/.test(candidate)
                     ? candidate
                     : "";
             }

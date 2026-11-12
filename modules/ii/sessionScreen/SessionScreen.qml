@@ -291,7 +291,7 @@ Scope {
                     ColumnLayout {
                         Layout.fillWidth: true
                         spacing: 4
-                        visible: SessionWarnings.downloadRunning || SessionWarnings.packageManagerRunning || IslandController.workUnsaved || sessionRoot.failedText.length > 0
+                        visible: SessionWarnings.downloadRunning || SessionWarnings.packageManagerRunning || SessionWarnings.agentWorking || IslandController.workUnsaved || sessionRoot.failedText.length > 0
                         Warning {
                             visible: sessionRoot.failedText.length > 0
                             text: sessionRoot.failedText
@@ -299,6 +299,10 @@ Scope {
                         Warning {
                             visible: IslandController.workUnsaved
                             text: Translation.tr("Unsaved changes: %1").arg(IslandController.unsavedLine)
+                        }
+                        Warning {
+                            visible: SessionWarnings.agentWorking
+                            text: Translation.tr("An agent is still working")
                         }
                         Warning {
                             visible: SessionWarnings.downloadRunning

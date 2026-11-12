@@ -66,6 +66,9 @@ night)
 	systemctl reboot
 	;;
 install)
+	# The screen says what the minutes are for: it showed the boot picture, then black once the splash let the display go
+	# (about 40 s), and nothing else until the restart. Plain dots: the console's own font has no ellipsis.
+	printf '\n\n  Installing updates...\n' > /dev/console
 	# taken away first: an install that fails can never run again at every start
 	rm -f /system-update
 	# nothing else runs at this point of the start: a lock is one a stopped pacman left behind
