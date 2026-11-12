@@ -20,29 +20,37 @@ local function bandVerb(verb)
     local w = hl.get_active_window()
     return (w and tonumber(w.fullscreen) == 1) and "fill" or "unside"
 end
-local function bandSwipe(direction, verb)
-    local travelled = 0
-    hl.gesture({
-        fingers = 3,
-        direction = direction,
-        action = {
-            start = function() travelled = 0 end,
-            update = function(e)
-                local d = e.delta or {}
-                travelled = travelled + math.abs((direction == "up" or direction == "down") and (d.y or 0) or (d.x or 0))
-            end,
-            finish = function(e)
-                if not e.cancelled and travelled >= 120 then
-                    hl.dispatch(hl.dsp.exec_cmd("hyprctl tacitgrip " .. bandVerb(verb) .. " active"))
-                end
-            end
-        }
-    })
+-- One gesture for the four ways, decided when the fingers lift by where they went in all. Hyprland picks a gesture's
+-- direction from the first 5 units of movement, so a swipe up that set off a little sideways was taken as left or
+-- right, and its sideways wobble, added up as distance, then sent the window to a half (Discord, Mustiya, 2026-11-12).
+local swipeX, swipeY = 0, 0
+local function swipeAdd(e)
+    local d = e.delta or {}
+    swipeX, swipeY = swipeX + (d.x or 0), swipeY + (d.y or 0)
 end
-bandSwipe("up", "back")
-bandSwipe("down", "hide")
-bandSwipe("left", "left")
-bandSwipe("right", "right")
+local function swipeVerb()
+    if math.abs(swipeY) >= math.abs(swipeX) then
+        if math.abs(swipeY) < 120 then return nil end
+        return swipeY < 0 and "back" or "hide"
+    end
+    if math.abs(swipeX) < 120 then return nil end
+    return swipeX < 0 and "left" or "right"
+end
+hl.gesture({
+    fingers = 3,
+    direction = "swipe",
+    action = {
+        -- the event that starts the gesture comes again as its first update
+        start = function() swipeX, swipeY = 0, 0 end,
+        update = swipeAdd,
+        finish = function(e)
+            local verb = swipeVerb()
+            if not e.cancelled and verb then
+                hl.dispatch(hl.dsp.exec_cmd("hyprctl tacitgrip " .. bandVerb(verb) .. " active"))
+            end
+        end
+    }
+})
 hl.gesture({
     fingers = 3,
     direction = "pinch",
