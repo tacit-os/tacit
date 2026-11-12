@@ -89,13 +89,17 @@ Singleton {
             const mounts = (d.mountpoints ?? [d.mountpoint]).filter(m => (m ?? "").length > 0);
             let listed = false;
             if (fs.length > 0 && fs !== "swap" && d.mountpoint !== "/") {
-                if (usb || removable || loop)
-                    listed = !onBootDisk;   // on a USB install its other partitions (/boot, the ESP, /home) look removable
+                // the disk the system runs from gets the internal rule however it looks: on a USB install its /boot,
+                // ESP and /home look removable, and some laptops' NVMe is hot-pluggable to lsblk, which hid a person's
+                // own data partition there (Discord, OYINOS, 2026-11-12)
+                if ((usb || removable || loop) && !onBootDisk)
+                    listed = true;
                 else
                     listed = !mounts.some(systemMount) && !hiddenPart.has((d.parttype ?? "").toLowerCase()) && !/_member$|^crypto_LUKS$|^bcache$/.test(fs);
             }
+            // never powered off from the system's own disk: its eject only unmounts
             if (listed)
-                next.push({ "path": d.path, "name": d.name, "label": d.label ?? "", "mountpoint": d.mountpoint ?? "", "size": d.size ?? "", "fstype": fs, "usb": usb, "loop": loop });
+                next.push({ "path": d.path, "name": d.name, "label": d.label ?? "", "mountpoint": d.mountpoint ?? "", "size": d.size ?? "", "fstype": fs, "usb": usb && !onBootDisk, "loop": loop });
             for (const c of d.children ?? [])
                 walk(c, onBootDisk, usb, removable);
         };
