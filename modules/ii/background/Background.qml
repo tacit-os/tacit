@@ -351,6 +351,20 @@ Variants {
                 }
             }
         }
+        // A full-screen window keeps the compositor from answering this window's frame callbacks, so a frame drawn
+        // under it (the first crossfade and palette, under Setup on Tacit's live system) is the late callback that
+        // hides the window above, and nothing showed it again: Try Tacit's desktop stayed Hyprland's background
+        // colour, no picture and no wallpaper change ever on it (2026-11-12). Shown again when it goes, as on unlock
+        // (only then: this var changes with every window that opens or closes).
+        property bool underFullscreen: false
+        onActiveWorkspaceWithFullscreenChanged: {
+            const covered = !!bgRoot.activeWorkspaceWithFullscreen
+            if (bgRoot.underFullscreen && !covered) {
+                bgRoot.windowShown = false
+                showWindowTimer.start()
+            }
+            bgRoot.underFullscreen = covered
+        }
         Timer {
             id: showWindowTimer
             interval: 0
