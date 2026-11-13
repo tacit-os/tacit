@@ -1,7 +1,7 @@
 """Apps' helpers (scripts/store/bundle.py and stored.py) in a home of their own: python3 -I store_cases.py <tree> <case>
 prints what the case saw, as JSON. Nothing is downloaded, installed or started, and the shell is never called: what would
 do so is replaced first."""
-import fcntl, importlib.util, io, json, os, shutil, sys, tarfile, tempfile, time
+import fcntl, hashlib, importlib.util, io, json, os, shutil, sys, tarfile, tempfile, time
 sys.dont_write_bytecode = True   # nothing left beside the scripts in the tree
 tree, case = sys.argv[1], sys.argv[2]
 home = tempfile.mkdtemp(prefix="tacit-store-")
@@ -165,7 +165,102 @@ def restart_mark():
     return seen
 
 
-CASES = {"yours": yours, "can": can, "restart-mark": restart_mark, "remove-open": remove_open, "fake-install": fake_install, "progress": progress,
+def version():
+    """the Version an app's page is told (stored.py info), the lists giving newer ones than the bundles got here (Krita
+    5.2.1, Discord 0.0.111 with an epoch) and for GIMP, installed with pacman, and Pinta, not installed"""
+    s = load("stored")
+    for pkg, v in (("krita", "5.2.1-1"), ("discord", "1:0.0.111-1")):
+        os.makedirs(os.path.join(s.BUNDLES, pkg))
+        json.dump(dict(package=pkg, version=v, versions={pkg: v}, ids=[pkg]), open(os.path.join(s.BUNDLES, pkg, "manifest.json"), "w"))
+    ed, listed = {"apps": {}}, {"krita": "5.2.3", "discord": "0.0.112", "gimp": "3.0.4", "pinta": "2.1"}
+    inst = {"krita", "discord", "gimp"}
+    return {p: s.info(p, {}, ed, set(listed), inst, {"krita", "discord"}, {"version": v})["version"] for p, v in listed.items()}
+
+
+# curl on a line that moves LINE_BPS bytes a second, ended by its own limits on a clock of its own (nothing waits): the file
+# LINE_FILE, said to be LINE_SIZE bytes, arrives whole unless a limit ends the try first, which leaves a part and code 28.
+# LINE_BPS 0 is a mirror that never answers. Each try's end goes to LINE_LOG as "<seconds> <code>"
+CURL_ON_A_LINE = r'''#!/usr/bin/env python3
+import os, shutil, sys
+a = sys.argv[1:]
+opt = lambda k, d: float(a[a.index(k) + 1]) if k in a else d
+bps, out = float(os.environ["LINE_BPS"]), a[a.index("-o") + 1]
+cap, size = opt("--max-time", float("inf")), float(os.environ["LINE_SIZE"])
+if not bps:
+    took, code = min(opt("--connect-timeout", 300), cap), 28          # libcurl waits 300 s to connect unless told
+elif "--speed-limit" in a and bps < opt("--speed-limit", 0):
+    took, code = min(opt("--speed-time", 30), cap), 28
+else:
+    took, code = (size / bps, 0) if size / bps <= cap else (cap, 28)
+if code:
+    open(out, "wb").write(b"\0" * 100)
+else:
+    shutil.copy(os.environ["LINE_FILE"], out)
+open(os.environ["LINE_LOG"], "a").write(f"{took:g} {code}\n")
+sys.exit(code)
+'''
+
+
+def lists_on_a_line(bps):
+    """Apps' own package lists fetched for the first time (none kept yet) over a line of `bps` bytes a second, Arch's extra
+    list being 9 MB, as before an install: whether it came whole or the fetch said why not, and when each try ended"""
+    b = load("bundle")
+    src = os.path.join(home, "extra.db")
+    with tarfile.open(src, "w:gz") as t:
+        desc = b"%NAME%\nkrita\n\n%VERSION%\n5.2.3-1\n\n%FILENAME%\nkrita-5.2.3-1-x86_64.pkg.tar.zst\n"
+        m = tarfile.TarInfo("krita-5.2.3-1/desc"); m.size = len(desc); t.addfile(m, io.BytesIO(desc))
+    curl = os.path.join(bin_, "curl"); open(curl, "w").write(CURL_ON_A_LINE); os.chmod(curl, 0o755)
+    log = os.path.join(home, "line.log")
+    os.environ.update(LINE_BPS=str(bps), LINE_FILE=src, LINE_SIZE="9000000", LINE_LOG=log)
+    b.repos = lambda: [("extra", ["https://mirror.example/extra/os/x86_64"])]
+    try:
+        b.refresh_sync(max_age=600)
+        said = "ok" if b.load_sync()[0].get("krita", {}).get("version") == "5.2.3-1" else "not the list"
+    except b.Refused as e:
+        said = e.why
+    return {"said": said, "tries": [[float(s), int(c)] for s, c in (l.split() for l in open(log))] if os.path.exists(log) else []}
+
+
+# a mirror that has MIRROR_FILE. Asked to go on (-C -) from part of it already here, it does when MIRROR_RESUMES is set and
+# answers that it cannot (curl's 33) otherwise. Each call's arguments go to MIRROR_LOG, a JSON line each
+CURL_MIRROR = r'''#!/usr/bin/env python3
+import json, os, sys
+a = sys.argv[1:]
+out, url = a[a.index("-o") + 1], a[-1]
+open(os.environ["MIRROR_LOG"], "a").write(json.dumps(a) + "\n")
+if url.endswith(".sig"):
+    open(out, "w").write("signature"); sys.exit(0)
+whole = open(os.environ["MIRROR_FILE"], "rb").read()
+have = os.path.getsize(out) if "-C" in a and os.path.exists(out) else 0
+if have and not os.environ.get("MIRROR_RESUMES"):
+    sys.exit(33)
+open(out, "ab" if have else "wb").write(whole[have:])
+'''
+
+
+def fetch_again(resumes):
+    """Blender's package fetched again after a first try stopped a third of the way, from Tacit's one mirror, which can or
+    cannot resume: what fetch() gave (the whole package, checked, or why not) and the calls to curl, as (resumed?, file)"""
+    b = load("bundle")
+    whole = os.urandom(600_000)
+    src = os.path.join(home, "blender.pkg"); open(src, "wb").write(whole)
+    for name, text in (("curl", CURL_MIRROR), ("gpgv", "#!/bin/sh\nexit 0\n")):
+        open(os.path.join(bin_, name), "w").write(text); os.chmod(os.path.join(bin_, name), 0o755)
+    log = os.path.join(home, "mirror.log")
+    os.environ.update(MIRROR_FILE=src, MIRROR_LOG=log, MIRROR_RESUMES="1" if resumes else "")
+    p = dict(filename="blender-4.5-1-x86_64.pkg.tar.zst", sha256=hashlib.sha256(whole).hexdigest(), servers=["https://mirror.example/extra/os/x86_64"])
+    d = os.path.join(b.CACHE, "pkg"); os.makedirs(d)
+    open(os.path.join(d, p["filename"] + ".part"), "wb").write(whole[:200_000])
+    try:
+        said = "ok" if open(b.fetch(p), "rb").read() == whole else "not the package"
+    except b.Refused as e:
+        said = e.why
+    return {"said": said, "calls": [["-C" in c, c[-1].rsplit("/", 1)[-1]] for c in (json.loads(l) for l in open(log))] if os.path.exists(log) else []}
+
+
+CASES = {"yours": yours, "can": can, "version": version, "restart-mark": restart_mark, "remove-open": remove_open, "fake-install": fake_install, "progress": progress,
+         "lists-slow": lambda: lists_on_a_line(125_000), "lists-stalled": lambda: lists_on_a_line(500), "lists-dead": lambda: lists_on_a_line(0),
+         "fetch-no-resume": lambda: fetch_again(False), "fetch-resume": lambda: fetch_again(True),
          "start-newer": lambda: start_after_update("1:0.0.112-1"), "start-same": lambda: start_after_update("1:0.0.111-1"),
          "start-newer-offline": lambda: start_after_update("1:0.0.112-1", offline=True)}
 try:

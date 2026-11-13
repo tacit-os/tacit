@@ -107,7 +107,11 @@ def refresh_sync(max_age=3600):
         if os.path.exists(dst) and time.time() - os.path.getmtime(dst) < max_age:
             continue
         for s in servers:
-            r = subprocess.run(["curl", "-fsSL", "--max-time", "60", "-o", dst + ".part", f"{s}/{name}.db"], capture_output=True)
+            # a slow line is fine, a stalled one or a mirror that does not answer is not: extra's list is several MB, and the
+            # 60 s every try had cut it off on a line under about 1 Mbit/s. Started over each time, never resumed: the list on
+            # the mirror changes between tries, and a resumed one would be half of each
+            r = subprocess.run(["curl", "-fsSL", "--connect-timeout", "60", "--speed-limit", "1024", "--speed-time", "60",
+                                "-o", dst + ".part", f"{s}/{name}.db"], capture_output=True)
             if r.returncode == 0:
                 os.replace(dst + ".part", dst); break
         else:
@@ -265,11 +269,16 @@ def fetch(p):
             raise Refused("stopped")
         url = f"{s}/{p['filename']}"
         # a slow line is fine, a stalled one is not; what came so far is kept, so the next mirror or the next try goes on from it
-        rc = subprocess.run(["curl", "-fsSL", "-C", "-", "--speed-limit", "1024", "--speed-time", "60", "-o", dst + ".part", url],
-                            capture_output=True).returncode
-        if rc == 33:                                         # the mirror cannot resume: start the file again
+        get = ["curl", "-fsSL", "--speed-limit", "1024", "--speed-time", "60", "-o", dst + ".part", url]
+        rc = subprocess.run(get[:2] + ["-C", "-"] + get[2:], capture_output=True).returncode
+        if rc == 33:
+            # the mirror cannot resume: the file again from its start, from this mirror. Going on to the next one ended the
+            # loop with Tacit's single mirror, and the install said "No internet connection"
             os.unlink(dst + ".part")
-        elif rc == 0:
+            if STOPPING:
+                raise Refused("stopped")
+            rc = subprocess.run(get, capture_output=True).returncode
+        if rc == 0:
             rc = subprocess.run(["curl", "-fsSL", "--max-time", "60", "-o", dst + ".sig", url + ".sig"], capture_output=True).returncode
         if rc == 0:
             break

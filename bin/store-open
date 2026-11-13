@@ -1,13 +1,15 @@
 #!/bin/sh
-# store-open [discover|yours|search <words>]   Apps, on that page, in front.
+# store-open [discover|yours|search <words>]   Apps, on that page, in front; with none named, on the page it is on.
 #
 # One Apps window: tacit-app starts it if it is not up, the page is handed over IPC, the window is raised.
 # Installed to ~/.local/bin; the launcher's "Apps" entry calls it.
 T="${TACIT_BIN:-$HOME/.local/bin}/tacit-app"   # Tacit's launchers (the package sets TACIT_BIN)
 "$T" ensure store >/dev/null || exit 1
-case "${1:-discover}" in
+case "${1:-}" in
 search) shift; "$T" call store search "$*" >/dev/null 2>&1 ;;
-*) "$T" call store page "${1:-discover}" >/dev/null 2>&1 ;;
+# the launcher's Apps: a window open on an app's page, an install going, stays there (a new one opens on Discover)
+"") "$T" call store present >/dev/null 2>&1 ;;
+*) "$T" call store page "$1" >/dev/null 2>&1 ;;
 esac
 "$T" focus store
 exit 0

@@ -217,6 +217,16 @@ def bundle_desktop(pkg):
     return pkg if pkg in ids else ids[0] if len(ids) == 1 else ""
 
 
+def bundle_version(pkg):
+    """the version in a bundle's own folder, as facts() words a version; "" for an app that is not one. The lists' newest,
+    which facts() gives, can be ahead of it: a bundle is brought up to date only at a start"""
+    try:
+        v = json.load(open(os.path.join(BUNDLES, pkg, "manifest.json"))).get("version", "")
+    except (OSError, ValueError):
+        return ""
+    return v.split(":")[-1].rsplit("-", 1)[0]
+
+
 def bundle_plan(pkg):
     """the sandbox's plan in the window's words, or None when the app cannot be a bundle"""
     try:
@@ -544,7 +554,7 @@ def info(pkg, cat, ed, avail, inst, owned, f=None, icon=True):
         "pkg": pkg, "name": e.get("name") or c.get("name") or pkg, "line": e.get("line") or c.get("summary", ""), "like": e.get("like", ""),
         "developer": c.get("developer", ""), "icon": (icon_png if icon else icon_ready)(c.get("icon", "")), "desktop": c.get("desktop", "") or bundle_desktop(pkg),
         "available": pkg in avail or bool(have), "installed": bool(have), "installedAs": have,
-        "version": f.get("version", ""), "download": f.get("download", 0), "size": f.get("size", 0),
+        "version": (have and bundle_version(pkg)) or f.get("version", ""), "download": f.get("download", 0), "size": f.get("size", 0),
         "free": free_license(c.get("license") or f.get("licenses", "")),
         "removable": bool(have) and pkg in owned,
         "can": can_use(pkg),

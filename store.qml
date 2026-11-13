@@ -24,6 +24,7 @@ import QtQuick.Shapes
 import Qt5Compat.GraphicalEffects as GE
 import Quickshell
 import Quickshell.Io
+import Quickshell.Wayland
 import Quickshell.Widgets
 import qs.modules.common
 import qs.modules.common.functions
@@ -79,7 +80,11 @@ ApplicationWindow {
     property var work: null               // { pkg, kind: "install"|"remove", progress, phase }
     property var outcome: ({})
     property string justGot: ""
+    // pkg -> installed, as Apps' own last get or remove of it left it: the lists say so only once they are read again, and in
+    // between a got app's capsule said Get (with the tick), and a press got it again
+    property var settled: ({})
     property string opening: ""      // an app asked to start and not shown yet: its button says so (some take 10 s)
+    property string openingId: ""    // its launcher entry, to know its window by
     // the system was brought up to date here (Get X and the updates): a restart finishes it. Until the computer restarts,
     // the backend's word for it too (stored.py's restart mark), so it is still said after Apps was closed
     property bool restartNeeded: root.home?.restartNeeded === true
@@ -125,6 +130,7 @@ ApplicationWindow {
         if (opening === a?.pkg) return;
         opening = a?.pkg ?? ""; openingTimer.restart();
         const id = (a?.desktop || "").replace(/\.desktop$/, "");
+        openingId = id;
         const entry = id ? DesktopEntries.byId(id) : null;
         if (entry) entry.execute();
         else if (id) { if (!openProc.running) { openProc.pkg = a.pkg; openProc.command = ["gtk-launch", id]; openProc.running = true; } }
@@ -171,7 +177,9 @@ ApplicationWindow {
         if (r === "ok") Quickshell.execDetached(["notify-send", "-a", "Apps", w.kind === "remove" ? `${name} is removed` : `${name} is in your apps now`,
                                                  ...(w.everything ? ["Restart to finish the updates."] : [])]);
         else if (w.kind === "remove") notice(w.pkg, r);       // installs were told by failedInstall
-        Qt.quit();
+        // once the front page it keeps for next time is read again (refresh): ending now ended that too, and the next open
+        // drew the old one, Get on the app just got
+        if (homeProc.running) homeProc.quitAfter = true; else Qt.quit();
     }
     // the system was brought up to date with an app while the window was open (Get X and the updates): said in a notification
     // too, which stays in the list once Apps is closed, as Apps' own Restart is shown only in Apps
@@ -245,13 +253,13 @@ ApplicationWindow {
     function stateOf(a) {
         if (!a) return "none";
         if (work && work.pkg === a.pkg) return work.kind === "install" ? "getting" : "removing";
-        if (a.installed) return "installed";
+        if (settled[a.pkg] ?? a.installed) return "installed";
         if (!a.available) return "unavailable";
         return "get";
     }
     function costWords(a) {
         if (!a) return "";
-        if (a.installed) return "On this computer";
+        if (settled[a.pkg] ?? a.installed) return "On this computer";
         return [a.free === false ? "Free to use" : "Free", a.download ? `${a.download} MB` : ""].filter(x => x).join(" · ");
     }
     readonly property var outcomeWords: ({
@@ -277,8 +285,9 @@ ApplicationWindow {
     // a request made while the backend is still answering the last one waits for it and goes out when it is done
     Process { id: homeProc; running: true; command: ["python3", "-I", root.backend, "home"]
         property bool again: false
+        property bool quitAfter: false      // the window was closed on its work, which has ended (endHidden)
         function ask() { if (running) again = true; else running = true; }
-        onExited: if (again) { again = false; running = true; }
+        onExited: if (again) { again = false; running = true; } else if (quitAfter) { quitAfter = false; if (!root.visible && !root.work) Qt.quit(); }
         stdout: StdioCollector { onStreamFinished: { try { root.home = JSON.parse(text); root.homeFailed = false; } catch (e) { root.homeFailed = true; console.warn("store: home", e); } } } }
     Process { id: appProc; property string pkg: ""; property bool again: false; command: ["python3", "-I", root.backend, "app", pkg]
         // two lines: the page, then the same with its plan once the backend has it (that can wait on the network)
@@ -316,6 +325,7 @@ ApplicationWindow {
                     if (msg.result !== "ok" && root.work.kind === "install") root.failedInstall(root.work);
                 }
                 if (msg.result === "ok" && msg.restart) { root.restartNeeded = true; if (root.visible) root.sayRestart(root.work.pkg); }
+                if (msg.result === "ok") { const s = Object.assign({}, root.settled); s[root.work.pkg] = root.work.kind === "install"; root.settled = s; }
                 if (msg.result === "ok" && root.work.kind === "install") { root.justGot = root.work.pkg; tickTimer.restart(); }
             }
         } }
@@ -330,6 +340,15 @@ ApplicationWindow {
             if (!root.visible && w) root.endHidden(w);
         } }
     Timer { id: openingTimer; interval: 15000; onTriggered: root.opening = "" }
+    // its window came up (known as AppScope.hasWindow knows it): Open is Open again then, not after the 15 s, so a press once it
+    // was closed again starts it
+    Connections {
+        target: ToplevelManager.toplevels
+        function onValuesChanged() {
+            if (root.opening && ToplevelManager.toplevels.values.some(t => DesktopEntries.heuristicLookup(t.appId)?.id === root.openingId))
+                root.opening = "";
+        }
+    }
     Timer { id: tickTimer; interval: 2600; onTriggered: root.justGot = "" }
     Timer { id: disarmTimer; interval: 5000; onTriggered: root.restartArmed = false }
     // gtk-launch ends as soon as it has started the app: a failure to find or start it is its non-zero exit
@@ -1103,7 +1122,8 @@ ApplicationWindow {
         focus: true
         Keys.onPressed: e => {
             if (field.activeFocus || root.askUpdate) return;      // the sheet in front is asked about, not searched past
-            if (e.text.length === 1 && e.text.charCodeAt(0) >= 32 && !(e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
+            // Delete's text is "\x7f", which is not a letter either: it went into the search, unseen
+            if (e.text.length === 1 && e.text.charCodeAt(0) >= 32 && e.text.charCodeAt(0) !== 127 && !(e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier))) {
                 field.forceActiveFocus();
                 field.insert(field.cursorPosition, e.text);
                 e.accepted = true;
