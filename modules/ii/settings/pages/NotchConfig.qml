@@ -54,13 +54,8 @@ ContentPage {
         title: Translation.tr("Notch")
         shape: MaterialShape.Shape.Cookie4Sided
 
+        // No switch for the notch itself: it is always on (held, panelFamilies/IllogicalImpulseFamily.qml)
         GroupedList {
-            ConfigSwitch {
-                buttonIcon: "toggle_on"
-                text: Translation.tr("Enable the notch")
-                checked: Config.options.island.enable
-                onSwitched: (value) => { Config.options.island.enable = value }
-            }
             ConfigSwitch {
                 buttonIcon: "mouse"
                 text: Translation.tr("Open the sheet on hover")
@@ -136,18 +131,7 @@ ContentPage {
                 checked: Config.options.island.states.notification
                 onSwitched: (value) => { Config.options.island.states.notification = value }
             }
-            ConfigSwitch {
-                buttonIcon: "volume_up"
-                text: Translation.tr("Volume")
-                checked: Config.options.island.states.volume
-                onSwitched: (value) => { Config.options.island.states.volume = value }
-            }
-            ConfigSwitch {
-                buttonIcon: "brightness_6"
-                text: Translation.tr("Brightness")
-                checked: Config.options.island.states.brightness
-                onSwitched: (value) => { Config.options.island.states.brightness = value }
-            }
+            // No Volume or Brightness switch: the notch always shows both (held, panelFamilies/IllogicalImpulseFamily.qml)
             ConfigSwitch {
                 buttonIcon: "battery_charging_full"
                 text: Translation.tr("Battery and charger")

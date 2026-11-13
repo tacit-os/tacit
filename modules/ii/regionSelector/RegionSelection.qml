@@ -199,8 +199,7 @@ PanelWindow {
     property real regionX: Math.min(dragStartX, draggingX)
     property real regionY: Math.min(dragStartY, draggingY)
 
-    // What the notch strip says.
-    readonly property string stripVerb: root.isCircleSelection ? "Draw" : "Drag"
+    // What the notch strip says: a whole phrase for each way of drawing, as a translation needs.
     readonly property string stripGlyph: switch (root.action) {
     case RegionSelection.SnipAction.Copy:
     case RegionSelection.SnipAction.Edit:
@@ -220,33 +219,33 @@ PanelWindow {
     readonly property string stripHint: switch (root.action) {
     case RegionSelection.SnipAction.Copy:
     case RegionSelection.SnipAction.Edit:
-        return `${root.stripVerb} to copy, right-${root.stripVerb.toLowerCase()} to annotate`;
+        return root.isCircleSelection ? Translation.tr("Draw to copy, right-draw to annotate") : Translation.tr("Drag to copy, right-drag to annotate");
     case RegionSelection.SnipAction.Search:
-        return `${root.stripVerb} to search with Google Lens`;
+        return root.isCircleSelection ? Translation.tr("Draw to search with Google Lens") : Translation.tr("Drag to search with Google Lens");
     case RegionSelection.SnipAction.CharRecognition:
-        return `${root.stripVerb} over text to copy it`;
+        return root.isCircleSelection ? Translation.tr("Draw over text to copy it") : Translation.tr("Drag over text to copy it");
     case RegionSelection.SnipAction.Record:
-        return `${root.stripVerb} to record this region`;
+        return root.isCircleSelection ? Translation.tr("Draw to record this region") : Translation.tr("Drag to record this region");
     case RegionSelection.SnipAction.RecordWithSound:
-        return `${root.stripVerb} to record this region, with sound`;
+        return root.isCircleSelection ? Translation.tr("Draw to record this region, with sound") : Translation.tr("Drag to record this region, with sound");
     case RegionSelection.SnipAction.Claude:
-        return `${root.stripVerb} to ask Claude about it`;
+        return root.isCircleSelection ? Translation.tr("Draw to ask Claude about it") : Translation.tr("Drag to ask Claude about it");
     default:
         return "";
     }
     readonly property string stripRelease: switch (root.action) {
     case RegionSelection.SnipAction.Copy:
     case RegionSelection.SnipAction.Edit:
-        return root.mouseButton === Qt.RightButton ? "Release to annotate" : "Release to copy";
+        return root.mouseButton === Qt.RightButton ? Translation.tr("Release to annotate") : Translation.tr("Release to copy");
     case RegionSelection.SnipAction.Search:
-        return "Release to search";
+        return Translation.tr("Release to search");
     case RegionSelection.SnipAction.CharRecognition:
-        return "Release to copy the text";
+        return Translation.tr("Release to copy the text");
     case RegionSelection.SnipAction.Record:
     case RegionSelection.SnipAction.RecordWithSound:
-        return "Release to start recording";
+        return Translation.tr("Release to start recording");
     case RegionSelection.SnipAction.Claude:
-        return "Release to ask Claude";
+        return Translation.tr("Release to ask Claude");
     default:
         return "";
     }

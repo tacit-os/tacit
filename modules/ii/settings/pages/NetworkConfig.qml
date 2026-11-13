@@ -179,8 +179,12 @@ ContentPage {
                         label: ipSection.saving ? Translation.tr("Applying") : Translation.tr("Apply")
                         primary: true
                         // a method the list does not have (a hotspot's "shared", "link-local", "disabled") until one of
-                        // its own is picked: Apply wrote any other as automatic, and the hotspot stopped sharing
+                        // its own is picked: Apply wrote any other as automatic, and the hotspot stopped sharing.
+                        // Nor custom DNS with no server typed (the link came up resolving nothing), or a manual
+                        // address without the prefix its field asks for (NetworkManager made it a /32)
                         enabled: ipSection.loaded && !ipSection.saving && methodBox.model.some(m => m.value === ipSection.method)
+                            && !(ipSection.method === "auto-dns" && dnsField.value.trim().length === 0)
+                            && !(ipSection.method === "manual" && !/\/\d{1,2}$/.test(addressField.value.trim()))
                         onClicked: {
                             ipSection.saving = true;
                             ipSection.failed = false;

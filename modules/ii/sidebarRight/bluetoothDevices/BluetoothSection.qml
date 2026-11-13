@@ -409,8 +409,8 @@ Item {
             colBackgroundHover: Appearance.colors.colLayer1Hover
             colRipple: Appearance.colors.colLayer1Active
             // Enabled even while busy: disabling the button disables its own MouseArea, which is
-            // where the right-click that opens the actions - the only way to call an attempt off -
-            // is dispatched. The state text is the busy cue; the dimming is for a dead adapter.
+            // where the right-click (or held press) that opens the actions - the only way to call an
+            // attempt off - is dispatched. The state text is the busy cue; the dimming is for a dead adapter.
             opacity: BluetoothStatus.enabled ? 1 : 0.4
             onClicked: {
                 const d = row.device;
@@ -436,6 +436,7 @@ Item {
                 }
             }
             altAction: () => { row.more = !row.more; }
+            altOnHold: true   // a touch screen holds the row, a keyboard presses Menu: no right-click there
             contentItem: RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 10
@@ -469,7 +470,7 @@ Item {
             }
         }
 
-        // Right-click: what else a device can do. Call off an attempt while one is under way;
+        // Right-click, a held press or the Menu key: what else a device can do. Call off an attempt while one is under way;
         // trust and forget for a paired device; keep paired for a new one so it reconnects on
         // its own.
         RowLayout {

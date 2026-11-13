@@ -31,10 +31,10 @@ Item {
     property bool searching: false
     property string filter: ""
     readonly property var sources: [
-        { "key": "yours", "label": "Yours" },
-        { "key": "pictures", "label": "Pictures" },
-        { "key": "downloads", "label": "Downloads" },
-        { "key": "online", "label": "Online" }
+        { "key": "yours", "label": Translation.tr("Yours") },
+        { "key": "pictures", "label": Translation.tr("Pictures") },
+        { "key": "downloads", "label": Translation.tr("Downloads") },
+        { "key": "online", "label": Translation.tr("Online") }
     ]
 
     // ------------------------------------------------------------------ the pictures
@@ -143,9 +143,9 @@ Item {
             root.onlineState = "";
         }
         function onFetchError(message) {
-            root.onlineState = message.startsWith("No API key") ? "Needs an API key: " + Config.options.search.prefix.action + OnlineWallpapers.provider + " in search"
-                : message.startsWith("curl") ? "Could not reach " + OnlineWallpapers.provider
-                : "Could not read " + OnlineWallpapers.provider;
+            root.onlineState = message.startsWith("No API key") ? Translation.tr("Needs an API key: %1 in search").arg(Config.options.search.prefix.action + OnlineWallpapers.provider)
+                : message.startsWith("curl") ? Translation.tr("Could not reach %1").arg(OnlineWallpapers.provider)
+                : Translation.tr("Could not read %1").arg(OnlineWallpapers.provider);
         }
     }
     onSourceChanged: {
@@ -500,13 +500,14 @@ Item {
                 implicitHeight: 26
                 padding: 0
                 colBackground: "transparent"
-                placeholderText: root.source === "online" ? "Search online, Enter to look" : "Search by name"
+                placeholderText: root.source === "online" ? Translation.tr("Search online, Enter to look") : Translation.tr("Search by name")
                 font.pixelSize: Appearance.font.pixelSize.smallie
                 onTextChanged: if (root.source !== "online") root.filter = text
                 onAccepted: {
                     if (root.source === "online") {
                         OnlineWallpapers.query = text;
                         root.onlineState = "looking";
+                        root.pointed = 0;   // the new results start at the first, as a new filter does
                         OnlineWallpapers.fetch();
                     }
                     strip.forceActiveFocus();
@@ -661,8 +662,8 @@ Item {
             visible: root.items.length === 0 && !root.scanning
             anchors.centerIn: list
             text: root.source === "online"
-                ? (root.onlineState === "looking" || OnlineWallpapers.loading ? "Looking…" : root.onlineState || "Nothing found")
-                : root.filter.length > 0 ? "No picture is called that" : "No pictures here"
+                ? (root.onlineState === "looking" || OnlineWallpapers.loading ? Translation.tr("Looking…") : root.onlineState || Translation.tr("Nothing found"))
+                : root.filter.length > 0 ? Translation.tr("No picture is called that") : Translation.tr("No pictures here")
             font.pixelSize: Appearance.font.pixelSize.small
             color: Appearance.colors.colSubtext
         }
@@ -670,7 +671,8 @@ Item {
         StyledText {
             x: 24
             y: 186
-            text: "Enter keeps it · Esc goes back · ← → to look through · Tab for the next source" + (root.currentPath.length > 0 ? " · Drag the picture to choose the part" : "")
+            text: Translation.tr("Enter keeps it · Esc goes back · ← → to look through · Tab for the next source")
+                + (root.currentPath.length > 0 ? " · " + Translation.tr("Drag the picture to choose the part") : "")
             font.pixelSize: Appearance.font.pixelSize.smallie
             color: Appearance.colors.colSubtext
         }

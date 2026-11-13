@@ -412,7 +412,8 @@ ContentPage {
                     from: 10; to: 100; stepSize: 5
                     onValueChanged: {
                         const newVal = value / 100.0
-                        if (newVal === Config.options.hyprland.decoration.activeOpacity) return
+                        // the box shows the stored value rounded: that is not a change
+                        if (value === Math.round(Config.options.hyprland.decoration.activeOpacity * 100)) return
                         Config.options.hyprland.decoration.activeOpacity = newVal
                         HyprlandConfig.set("decoration:active_opacity", newVal)
                     }
@@ -425,7 +426,8 @@ ContentPage {
                     from: 10; to: 100; stepSize: 5
                     onValueChanged: {
                         const newVal = value / 100.0
-                        if (newVal === Config.options.hyprland.decoration.inactiveOpacity) return
+                        // the box shows the stored value rounded: that is not a change
+                        if (value === Math.round(Config.options.hyprland.decoration.inactiveOpacity * 100)) return
                         Config.options.hyprland.decoration.inactiveOpacity = newVal
                         HyprlandConfig.set("decoration:inactive_opacity", newVal)
                     }

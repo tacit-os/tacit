@@ -214,7 +214,7 @@ Singleton {
     Process {
         id: fetchProc
         running: false
-        command: ["bash", "-c", "pidof hyprsunset >/dev/null || exit 0; hyprctl hyprsunset temperature"]
+        command: ["bash", "-c", "pidof hyprsunset >/dev/null || exit 0; hyprctl hyprsunset identity get"]
         stdout: StdioCollector {
             id: stateCollector
             onStreamFinished: {
@@ -224,15 +224,15 @@ Singleton {
                     root.temperatureActive = false;
                     return;
                 }
-                // Only a Kelvin value proves anything. An error reply used to read as "on"
-                // because it merely differed from the string "6500". Neutral daylight is
-                // 6500 K and hyprsunset's own default is 6000 K, so below 6000 is a tint.
-                const kelvin = Number((output.match(/(\d{4,5})/) ?? [])[1]);
-                if (!kelvin) {
-                    console.error("[Hyprsunset] Unexpected reply to a temperature query:", output);
+                // Only "identity" says whether a tint is on (hyprsunset 0.4). The temperature does not: "identity",
+                // which is how the tint is turned off, keeps the last one, and a warmth of 6000 K or more is a tint
+                // too, so "below 6000 K" read a night light just turned off as on and one at 6200 K as off.
+                // An error reply is neither, and changes nothing.
+                if (output !== "true" && output !== "false") {
+                    console.error("[Hyprsunset] Unexpected reply to an identity query:", output);
                     return;
                 }
-                root.temperatureActive = kelvin < 6000;
+                root.temperatureActive = output === "false";
             }
         }
     }

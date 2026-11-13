@@ -1,7 +1,8 @@
 // The desktop's words go through Translation.tr (the tags' menu and drop ghost, the Notes, To-Do, Image converter, You and
-// media widgets, the Open with menu): each phrase is looked for as a Translation.tr key in its file, and the tags' menu
-// (DesktopTags.qml's openMenu() and onPicked) and the drop ghost's name run under node with the words in German, since a
-// pick that went by the words would stop working once they are translated.
+// media widgets, the Open with menu, the share picker, the wallpaper strip, the area picker's hints): each phrase is looked
+// for as a Translation.tr key in its file, with no qsTr left beside them, and the tags' menu (DesktopTags.qml's openMenu()
+// and onPicked) and the drop ghost's name run under node with the words in German, since a pick that went by the words
+// would stop working once they are translated.
 import { inScope, qmlFunction, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -18,11 +19,22 @@ const phrases = {
   "modules/ii/background/widgets/media/MediaWidget.qml": ["Play"],
   "modules/ii/openWith/OpenWithContent.qml": ["Open %1 with", "Open with", "No app on this computer can open this file. Press Esc to close.", "Recommended",
     "Always use for %1"],
+  "modules/ii/sharePicker/SharePickerContent.qml": ["Whole screen", "Built-in screen", "Screen %1", "Share with %1", "Share your screen", "Draw a region",
+    "Allow %1 next time", "Allow next time", "Cancel", "Share", "Drag to draw a region", "Back"],
+  "modules/ii/wallpaperSelector/WallpaperStrip.qml": ["Yours", "Pictures", "Downloads", "Online", "Needs an API key: %1 in search", "Could not reach %1",
+    "Could not read %1", "Search online, Enter to look", "Search by name", "Looking…", "Nothing found", "No picture is called that", "No pictures here",
+    "Enter keeps it · Esc goes back · ← → to look through · Tab for the next source", "Drag the picture to choose the part"],
+  "modules/ii/regionSelector/RegionSelection.qml": [...["to copy, right-%v to annotate", "to search with Google Lens", "over text to copy it",
+    "to record this region", "to record this region, with sound", "to ask Claude about it"].flatMap(p => ["Drag", "Draw"].map(v => `${v} ${p.replace("%v", v.toLowerCase())}`)),
+    "Release to annotate", "Release to copy", "Release to search", "Release to copy the text", "Release to start recording", "Release to ask Claude"],
 };
 for (const [file, list] of Object.entries(phrases)) {
   const src = read(file);
   const missing = list.filter(p => !src.includes(`Translation.tr(${JSON.stringify(p)})`));
   check(`${file.replace(/.*\//, "")}: ${list.length === 1 ? "its phrase is" : `${list.length} phrases are`} translated`, missing.length === 0, `not through Translation.tr: ${missing.map(p => JSON.stringify(p)).join(", ")}`);
+  // Tacit loads no Qt translator: a qsTr phrase stays English in every language
+  const qsTr = src.match(/\bqsTr\(/g)?.length ?? 0;
+  check(`${file.replace(/.*\//, "")}: no qsTr left`, qsTr === 0, `${qsTr} left`);
 }
 
 // the tags' menu in German: each line still does its own thing

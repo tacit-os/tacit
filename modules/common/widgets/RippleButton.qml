@@ -21,6 +21,9 @@ Button {
     property var downAction // When left clicking (down)
     property var releaseAction // When left clicking (release)
     property var altAction // When right clicking
+    // A held press (a touch screen's right click) and the Menu key or Shift+F10 run altAction too, for a button
+    // whose right click is the only way to its actions; the release that ends the hold clicks nothing
+    property bool altOnHold: false
     property var middleClickAction // When middle clicking
     property bool border: false
     property real borderWidth: 1
@@ -75,7 +78,9 @@ Button {
         anchors.fill: parent
         cursorShape: root.pointingHandCursor ? Qt.PointingHandCursor : Qt.ArrowCursor
         acceptedButtons: Qt.LeftButton | Qt.RightButton | Qt.MiddleButton
+        property bool held: false
         onPressed: (event) => { 
+            gesture.held = false
             if(event.button === Qt.RightButton) {
                 if (root.altAction) root.altAction(event);
                 return;
@@ -90,9 +95,17 @@ Button {
             const {x,y} = event
             startRipple(x, y)
         }
+        onPressAndHold: (event) => {
+            if (!root.altOnHold || !root.altAction || event.button !== Qt.LeftButton) return;
+            gesture.held = true
+            root.down = false
+            if (root.rippleEnabled) rippleFadeAnim.restart();
+            root.altAction(event);
+        }
         onReleased: (event) => {
             root.down = false
             if (event.button != Qt.LeftButton) return;
+            if (gesture.held) return;   // the hold ran altAction
             // Pressing and then dragging off is how a person cancels. QtQuick's own Button
             // works this way; this one did not, so every releaseAction in the desktop fired
             // wherever the pointer happened to be let go. Tested by position rather than by
@@ -111,6 +124,14 @@ Button {
             root.down = false
             if (!root.rippleEnabled) return;
             rippleFadeAnim.restart();
+        }
+    }
+
+    Keys.onPressed: (event) => {
+        if (!root.altOnHold || !root.altAction) return;
+        if (event.key === Qt.Key_Menu || (event.key === Qt.Key_F10 && (event.modifiers & Qt.ShiftModifier))) {
+            root.altAction(event);
+            event.accepted = true;
         }
     }
 

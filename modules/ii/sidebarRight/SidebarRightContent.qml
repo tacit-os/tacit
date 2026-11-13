@@ -130,8 +130,8 @@ Item {
 
     // The user's arrangement: four primary in a 2×2 square (they stack two wide), a
     // single row of secondaries below it whose last cell is the dots button, the rest
-    // in the drawer. Empty lists mean "first boot": the defaults below apply until the
-    // user moves something.
+    // in the drawer. A file never arranged means "first boot": the defaults below apply until the
+    // user moves something; after that an empty list is theirs (every top pill sent to More).
     readonly property list<string> defaultPrimary: ["wifi", "bluetooth", "vpn", "nightLight"]
     readonly property list<string> defaultSecondary: ["mic", "notifications", "keepAwake"]
     property list<string> primary
@@ -143,6 +143,12 @@ Item {
         const known = id => root.catalogEntry(id) !== null;
         const p = (arrangementAdapter.primary ?? []).filter(known);
         const s = (arrangementAdapter.secondary ?? []).filter(known);
+        // Read back as "never arranged", an emptied list got the defaults again at the next load.
+        if (arrangementAdapter.arranged) {
+            root.primary = p;
+            root.secondary = s;
+            return;
+        }
         // A default id the user already placed in the other list stays out, or it would show twice.
         root.primary = p.length > 0 ? p : root.defaultPrimary.filter(id => !s.includes(id));
         root.secondary = s.length > 0 ? s : root.defaultSecondary.filter(id => !p.includes(id));
@@ -150,6 +156,7 @@ Item {
     function saveArrangement() {
         arrangementAdapter.primary = root.primary;
         arrangementAdapter.secondary = root.secondary;
+        arrangementAdapter.arranged = true;
         arrangementFile.writeAdapter();
     }
     function demote(id) {
@@ -218,16 +225,17 @@ Item {
             return;
         // Where the pointer sat, in panel coordinates, against each zone's bounds.
         const zone = root.zoneAt(rootPos);
+        const idx = zone === "secondary" ? root.secondaryIndex(root.mapToItem(secondaryZone, rootPos.x, rootPos.y)) : -1;
+        // Retiring a pill placed nowhere (one the row filled in by itself, one from the drawer) moves
+        // nothing: no undo line says it did.
+        if (zone !== "primary" && idx < 0 && root.primary.indexOf(pill) < 0 && root.secondary.indexOf(pill) < 0)
+            return;
         root.pushUndo(`Moved ${name}`);
         if (zone === "primary") {
             root.promoteAt(pill, "primary", root.primaryIndex(root.mapToItem(primaryZone, rootPos.x, rootPos.y)));
-        } else if (zone === "secondary") {
-            const idx = root.secondaryIndex(root.mapToItem(secondaryZone, rootPos.x, rootPos.y));
-            if (idx >= 0) // the dots' cell or the empty tail retires the pill
-                root.promoteAt(pill, "secondary", idx);
-            else
-                root.demote(pill);
-        } else {
+        } else if (idx >= 0) {
+            root.promoteAt(pill, "secondary", idx);
+        } else { // the dots' cell, the row's empty tail or no zone retires the pill
             root.demote(pill);
         }
     }
@@ -315,7 +323,9 @@ Item {
                 root.pushUndo(`Moved ${name} to the top buttons`);
                 root.promoteAt(id, "primary", root.primary.length);
                 root.focusNext(id);
-            } else if (dir === "down") {
+            } else if (dir === "down" && i >= 0) {
+                // not a pill the row filled in by itself: in neither list, it has nowhere to leave, and the row
+                // took it back at once under a "Moved to More"
                 root.pushUndo(`Moved ${name} to More`);
                 root.demote(id);
                 root.focusNext(id);
@@ -410,6 +420,7 @@ Item {
             id: arrangementAdapter
             property list<string> primary: []
             property list<string> secondary: []
+            property bool arranged: false   // a move saved these lists: an empty one is no longer first boot
         }
     }
 
@@ -448,7 +459,8 @@ Item {
             clip: true
 
             // Escape folds what is open (the submenu first, the drawer, then edit
-            // mode); Ctrl+Z steps the last placement back.
+            // mode); with nothing to fold it goes on to the panel, which closes
+            // (SidebarRight.qml). Ctrl+Z steps the last placement back.
             Keys.onPressed: event => {
                 if (event.key === Qt.Key_Escape) {
                     if (root.sectionFlags.some(f => root[f])) {
@@ -456,8 +468,10 @@ Item {
                             root[f] = false;
                     } else if (root.drawerOpen) {
                         root.drawerOpen = false;
-                    } else {
+                    } else if (root.editMode) {
                         root.editMode = false;
+                    } else {
+                        return;
                     }
                     event.accepted = true;
                 } else if (event.key === Qt.Key_Z && (event.modifiers & Qt.ControlModifier)) {
@@ -911,6 +925,12 @@ Item {
                 // its silhouette and the card its place.
                 color: Appearance.colors.colLayer3Base
 
+                // A press on the card is not one outside it: only its buttons and lists took one, so a click on
+                // its padding, a heading or the space under a short list fell through to the backdrop and folded it.
+                MouseArea {
+                    anchors.fill: parent
+                }
+
                 Behavior on y {
                     NumberAnimation {
                         duration: Kit.ms(Kit.motion("arriveSmall").ms)
@@ -1081,7 +1101,8 @@ Item {
         id: line
         property string glyph: "tune"
         property string label: ""
-        property alias value: slider.value
+        // the setting as it is: a volume past 100% fills the bar, which ends at 1, and its word says how far
+        property real value: 0
         // the kit's Slider does not move itself: it says where it was moved to, and the value follows the setting
         signal moved(real value)
         spacing: Kit.tokens.space.s
@@ -1095,7 +1116,8 @@ Item {
             id: slider
             Layout.fillWidth: true
             label: line.label
-            word: `${Math.round(value * 100)}%`
+            value: Math.min(1, line.value)
+            word: `${Math.round(line.value * 100)}%`
             onMoved: v => line.moved(v)
         }
     }

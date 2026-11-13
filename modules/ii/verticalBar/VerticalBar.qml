@@ -49,6 +49,29 @@ Scope {
                 }
                 property bool superShow: false
                 property bool mustShow: hoverRegion.containsMouse || superShow || (GlobalStates.barHolds[barRoot.screen?.name] ?? 0) > 0
+
+                // The corners follow the bar, as Bar.qml's do: gone as soon as it hides, back a beat after it shows.
+                // A binding on purpose: assigning showCorners would lose it, and it would then stay
+                // stuck when auto-hide is turned off.
+                property bool cornersWaiting: false
+                property bool showCorners: !Config.options.bar.autoHide.enable || (mustShow && !cornersWaiting)
+
+                Timer {
+                    id: cornerRevealTimer
+                    interval: 65
+                    onTriggered: barRoot.cornersWaiting = false
+                }
+
+                onMustShowChanged: {
+                    if (!Config.options.bar.autoHide.enable) return;
+                    if (mustShow) {
+                        barRoot.cornersWaiting = true
+                        cornerRevealTimer.restart()
+                    } else {
+                        cornerRevealTimer.stop()
+                        barRoot.cornersWaiting = false
+                    }
+                }
                 exclusionMode: ExclusionMode.Ignore
                 exclusiveZone: (Config?.options.bar.autoHide.enable && !Config?.options.bar.autoHide.pushWindows) ? 0 :
                     Appearance.sizes.baseVerticalBarWidth + (Config.options.bar.cornerStyle === 1 ? Appearance.sizes.hyprlandGapsOut : 0)
@@ -84,7 +107,7 @@ Scope {
 
                     RoundCorner {
                         id: topPillCorner
-                        visible: barContent.centerOnly && showBarBackground && Config.options.bar.cornerStyle === 0
+                        visible: barContent.centerOnly && showBarBackground && Config.options.bar.cornerStyle === 0 && barRoot.showCorners
                         y: barContent.centerPillY - implicitSize
                         implicitSize: Appearance.rounding.screenRounding
                         color: Config.options.bar.followFrameColor
@@ -114,7 +137,7 @@ Scope {
 
                     RoundCorner {
                         id: bottomPillCorner
-                        visible: barContent.centerOnly && showBarBackground && Config.options.bar.cornerStyle === 0
+                        visible: barContent.centerOnly && showBarBackground && Config.options.bar.cornerStyle === 0 && barRoot.showCorners
                         y: barContent.centerPillY + barContent.centerPillHeight
                         implicitSize: Appearance.rounding.screenRounding
                         color: Config.options.bar.followFrameColor
@@ -194,7 +217,7 @@ Scope {
                             right: undefined
                         }
                         width: Appearance.rounding.screenRounding
-                        active: showBarBackground && Config.options.bar.cornerStyle === 0 && !barContent.centerOnly
+                        active: showBarBackground && Config.options.bar.cornerStyle === 0 && !barContent.centerOnly && barRoot.showCorners
 
                         states: State {
                             name: "right"

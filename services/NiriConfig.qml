@@ -76,7 +76,8 @@ Singleton {
 
         kdl += "input {\n"
         kdl += "    keyboard {\n"
-        kdl += `        xkb { layout "${o.input.kbLayout}"; }\n`
+        // no layout chosen: no xkb line, so niri keeps its own (config.kdl's, or the system's through localed)
+        if (o.input.kbLayout !== "") kdl += `        xkb { layout "${root.kdlEscape(o.input.kbLayout)}"; }\n`
         kdl += `        repeat-delay ${o.input.repeatDelay}\n`
         kdl += `        repeat-rate ${o.input.repeatRate}\n`
         if (o.input.numlock) kdl += "        numlock\n"
@@ -204,13 +205,25 @@ Singleton {
         path: root.outputsKdlPath
     }
 
+    // v1: the keyboard layout is empty, niri's own, until one is chosen. "us" was the default, and the first start wrote
+    // it into every settings.json, so shell.kdl set a US keyboard over the one niri had; a "us" from before is that
+    // default left as it was, as Config's v5 takes it on Hyprland.
+    function migrate() {
+        if (adapter.version >= 1) return
+        if (adapter.input.kbLayout === "us") adapter.input.kbLayout = ""
+        adapter.version = 1
+    }
+
     FileView {
         id: settingsFileView
         path: root.settingsPath
         watchChanges: true
         onFileChanged: reload()
         onAdapterUpdated: fileWriteTimer.restart()
-        onLoaded: root.ready = true
+        onLoaded: {
+            root.migrate()
+            root.ready = true
+        }
         onLoadFailed: error => {
             if (error == FileViewError.FileNotFound) {
                 writeAdapter()
@@ -222,6 +235,8 @@ Singleton {
 
         JsonAdapter {
             id: adapter
+
+            property int version: 0   // migrate()'s steps this file has had
 
             property JsonObject layout: JsonObject {
                 property int gaps: 3
@@ -254,7 +269,7 @@ Singleton {
             }
 
             property JsonObject input: JsonObject {
-                property string kbLayout: "us"
+                property string kbLayout: ""   // empty: niri's own layout, until one is chosen
                 property bool numlock: false
                 property int repeatDelay: 600
                 property int repeatRate: 25

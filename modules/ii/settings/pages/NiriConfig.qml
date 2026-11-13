@@ -213,7 +213,8 @@ rm -f "$tmp"`]
                         from: 50; to: 300; stepSize: 25
                         onValueChanged: {
                             const newVal = value / 100.0
-                            if (newVal === (monitorConfig.monitors[monitorCanvas.selectedIndex]?.scale ?? 1.0)) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round((monitorConfig.monitors[monitorCanvas.selectedIndex]?.scale ?? 1.0) * 100)) return
                             monitorConfig.updateMonitor(monitorCanvas.selectedIndex, { scale: newVal })
                             monitorConfig.applyAndSave(monitorCanvas.selectedIndex)
                         }
@@ -403,7 +404,8 @@ rm -f "$tmp"`]
                         from: 1; to: 30; stepSize: 1
                         onValueChanged: {
                             const newVal = value / 10.0
-                            if (newVal === NiriConfig.options.input.touchpad.scrollFactor) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.input.touchpad.scrollFactor * 10)) return
                             NiriConfig.options.input.touchpad.scrollFactor = newVal
                         }
                     }
@@ -415,7 +417,8 @@ rm -f "$tmp"`]
                         from: -10; to: 10; stepSize: 1
                         onValueChanged: {
                             const newVal = value / 10.0
-                            if (newVal === NiriConfig.options.input.touchpad.accelSpeed) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.input.touchpad.accelSpeed * 10)) return
                             NiriConfig.options.input.touchpad.accelSpeed = newVal
                         }
                     }
@@ -442,7 +445,8 @@ rm -f "$tmp"`]
                         from: -10; to: 10; stepSize: 1
                         onValueChanged: {
                             const newVal = value / 10.0
-                            if (newVal === NiriConfig.options.input.mouse.accelSpeed) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.input.mouse.accelSpeed * 10)) return
                             NiriConfig.options.input.mouse.accelSpeed = newVal
                         }
                     }
@@ -574,7 +578,8 @@ rm -f "$tmp"`]
                         from: 0; to: 100; stepSize: 5
                         onValueChanged: {
                             const newVal = value / 10.0
-                            if (newVal === NiriConfig.options.decoration.blur.offset) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.decoration.blur.offset * 10)) return
                             NiriConfig.options.decoration.blur.offset = newVal
                         }
                     }
@@ -586,7 +591,8 @@ rm -f "$tmp"`]
                         from: 0; to: 20; stepSize: 1
                         onValueChanged: {
                             const newVal = value / 100.0
-                            if (newVal === NiriConfig.options.decoration.blur.noise) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.decoration.blur.noise * 100)) return
                             NiriConfig.options.decoration.blur.noise = newVal
                         }
                     }
@@ -598,7 +604,8 @@ rm -f "$tmp"`]
                         from: 0; to: 300; stepSize: 10
                         onValueChanged: {
                             const newVal = value / 100.0
-                            if (newVal === NiriConfig.options.decoration.blur.saturation) return
+                            // the box shows the stored value rounded: that is not a change
+                            if (value === Math.round(NiriConfig.options.decoration.blur.saturation * 100)) return
                             NiriConfig.options.decoration.blur.saturation = newVal
                         }
                     }
@@ -676,7 +683,8 @@ rm -f "$tmp"`]
                     from: 1; to: 50; stepSize: 1
                     onValueChanged: {
                         const newVal = value / 10.0
-                        if (newVal === NiriConfig.options.animations.slowdown) return
+                        // the box shows the stored value rounded: that is not a change
+                        if (value === Math.round(NiriConfig.options.animations.slowdown * 10)) return
                         NiriConfig.options.animations.slowdown = newVal
                     }
                 }

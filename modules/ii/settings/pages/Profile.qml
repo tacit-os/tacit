@@ -18,6 +18,8 @@ ContentPage {
         return "distro"
     }
     property string hostnameInput: SystemInfo.hostname
+    // a folder typed as ~/... is in the home folder: Qt.resolvedUrl alone took it as a path beside this page's file
+    readonly property string avatarFolder: Config.options.profile.avatarPath.replace(/^~(?=\/|$)/, FileUtils.trimFileProtocol(Directories.home))
 
     property list<var> onlinePresets: []
     property string onlinePresetsError: ""
@@ -127,7 +129,7 @@ ContentPage {
 
     FolderListModel {
         id: avatarFolderModel
-        folder: Config.options.profile.avatarPath !== "" ? Qt.resolvedUrl(Config.options.profile.avatarPath) : ""
+        folder: page.avatarFolder === "" ? "" : page.avatarFolder.startsWith("/") ? FileUtils.fileUrl(page.avatarFolder) : Qt.resolvedUrl(page.avatarFolder)
         showDirs: false
         nameFilters: ["*.png", "*.svg", "*.jpg", "*.jpeg", "*.webp"]
     }
@@ -360,7 +362,7 @@ ContentPage {
                     onConfirmClicked: {
                         GlobalStates.settingsOpen = false
                         if (Config.options.profile.avatarPath !== "") {
-                            Files.open(Config.options.profile.avatarPath, "")
+                            Files.open(page.avatarFolder, "")
                         }
                     }
                 }
@@ -500,8 +502,8 @@ ContentPage {
                         text: Translation.tr("Description text")
                         icon: "subtitles"
                         currentValue: page.descriptionMode
+                        // Config only: page.descriptionMode follows it, and assigning it here ended that binding
                         onSelected: newValue => {
-                            page.descriptionMode = newValue
                             if (newValue === "distro") Config.options.profile.descriptionText = "::distro::"
                             if (newValue === "uptime") Config.options.profile.descriptionText = "::uptime::"
                         }

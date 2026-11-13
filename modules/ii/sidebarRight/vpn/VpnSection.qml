@@ -190,6 +190,7 @@ Item {
                 Vpn.toggle(row.conn.name);
             }
             altAction: () => { row.more = !row.more; }
+            altOnHold: true   // a touch screen holds the row, a keyboard presses Menu: no right-click there
             contentItem: RowLayout {
                 anchors.fill: parent
                 anchors.leftMargin: 10

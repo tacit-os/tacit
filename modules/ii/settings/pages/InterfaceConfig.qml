@@ -243,26 +243,7 @@ ContentPage {
                         Config.options.overview.scale = value / 100;
                     }
                 }
-                ConfigSelectionArray {
-                    text: Translation.tr("Style")
-                    icon: "style"
-                    currentValue: Config.options.overview.style
-                    onSelected: newValue => {
-                        Config.options.overview.style = newValue
-                    }
-                    options: [
-                        {
-                            displayName: Translation.tr("Default"),
-                            icon: "grid_on",
-                            value: "default"
-                        },
-                        {
-                            displayName: Translation.tr("Niri Like"),
-                            icon: "mobiledata_arrows",
-                            value: "niri"
-                        }
-                    ]
-                }
+                // No Style: SUPER+Tab is always the grid (held, panelFamilies/IllogicalImpulseFamily.qml)
             }
 
             ContentSubsection {
@@ -416,12 +397,7 @@ ContentPage {
             shape: MaterialShape.Shape.Pentagon
 
             GroupedList {
-                ConfigSwitch {
-                    buttonIcon: "water_drop"
-                    text: Translation.tr("Use Hyprlock (instead of Quickshell)")
-                    checked: Config.options.lock.useHyprlock
-                    onSwitched: (value) => { Config.options.lock.useHyprlock = value }
-                }
+                // No Hyprlock switch: the lock is always Tacit's (held, panelFamilies/IllogicalImpulseFamily.qml)
                 ConfigSwitch {
                     buttonIcon: "widgets"
                     enabled: WM.compositor !== "niri"

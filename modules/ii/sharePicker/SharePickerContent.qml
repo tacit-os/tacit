@@ -5,6 +5,7 @@ import Quickshell
 import Quickshell.Wayland
 import Quickshell.Hyprland
 import Quickshell.Widgets
+import qs.services
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
@@ -50,7 +51,7 @@ Item {
         const sc = request.screens ?? [];
         sc.forEach((s, i) => {
             const nice = root.screenName(s.name, i);
-            out.push({ kind: "screen", key: `screen:${s.name}`, label: sc.length > 1 ? nice : qsTr("Whole screen"), meta: sc.length > 1 ? qsTr("Whole screen") : "", name: s.name, cls: "" });
+            out.push({ kind: "screen", key: `screen:${s.name}`, label: sc.length > 1 ? nice : Translation.tr("Whole screen"), meta: sc.length > 1 ? Translation.tr("Whole screen") : "", name: s.name, cls: "" });
         });
         for (const w of (request.windows ?? [])) {
             const app = root.prettyApp(w.class);
@@ -85,10 +86,10 @@ Item {
     }
     // "Built-in screen" for a laptop panel, else the monitor's model when it reads as a name, else "Screen N"
     function screenName(connector: string, i: int): string {
-        if (/^(eDP|LVDS|DSI)/i.test(connector)) return qsTr("Built-in screen");
+        if (/^(eDP|LVDS|DSI)/i.test(connector)) return Translation.tr("Built-in screen");
         const model = Quickshell.screens.find(q => q.name === connector)?.model ?? "";
         if (model.length > 2 && !/^(0x)?[0-9a-f]+$/i.test(model)) return model;
-        return qsTr("Screen %1").arg(i + 1);
+        return Translation.tr("Screen %1").arg(i + 1);
     }
     function appIcon(cls: string): string {
         return cls ? (DesktopEntries.heuristicLookup(cls)?.icon ?? "") : "";
@@ -132,13 +133,16 @@ Item {
         opacity: root.entered ? 1 : 0
         Behavior on opacity { NumberAnimation { duration: 140; easing.type: Easing.OutCubic } }
 
+        // a click anywhere off the slab backs out: the window covers the whole monitor and holds the keyboard, so a
+        // click on the desktop or another window lands here
+        MouseArea { anchors.fill: parent; onClicked: root.cancelled() }
+
         // only the asking window is dimmed
         Rectangle {
             visible: root.askRect !== null
             x: root.askRect?.x ?? 0; y: root.askRect?.y ?? 0; width: root.askRect?.width ?? 0; height: root.askRect?.height ?? 0
             radius: 20
             color: ColorUtils.transparentize(Appearance.colors.colScrim, 0.45)
-            MouseArea { anchors.fill: parent; onClicked: root.cancelled() }
         }
 
         Rectangle {
@@ -170,7 +174,7 @@ Item {
                     MaterialSymbol { text: "screen_share"; iconSize: 24; color: Appearance.colors.colPrimary }
                     StyledText {
                         Layout.fillWidth: true; elide: Text.ElideRight
-                        text: root.appName.length > 0 ? qsTr("Share with %1").arg(root.appName) : qsTr("Share your screen")
+                        text: root.appName.length > 0 ? Translation.tr("Share with %1").arg(root.appName) : Translation.tr("Share your screen")
                         font.pixelSize: 17; font.weight: Font.Medium; color: root.ink
                     }
                 }
@@ -243,7 +247,7 @@ Item {
                                 implicitWidth: 112; implicitHeight: 24
                                 MaterialSymbol { anchors.centerIn: parent; text: "crop"; iconSize: 24; color: root.ink2 }
                             }
-                            StyledText { Layout.fillWidth: true; text: qsTr("Draw a region"); font.pixelSize: 15; color: root.ink }
+                            StyledText { Layout.fillWidth: true; text: Translation.tr("Draw a region"); font.pixelSize: 15; color: root.ink }
                         }
                         MouseArea { id: regionHover; anchors.fill: parent; hoverEnabled: true; onClicked: root.step = "region" }
                     }
@@ -267,14 +271,14 @@ Item {
                             }
                             StyledText {
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: root.appName.length > 0 ? qsTr("Allow %1 next time").arg(root.appName) : qsTr("Allow next time")
+                                text: root.appName.length > 0 ? Translation.tr("Allow %1 next time").arg(root.appName) : Translation.tr("Allow next time")
                                 font.pixelSize: 14; color: root.ink2
                             }
                         }
                     }
                     Item { Layout.fillWidth: true }
-                    TextAction { label: qsTr("Cancel"); onClicked: root.cancelled() }
-                    Primary { label: qsTr("Share"); onClicked: root.share() }
+                    TextAction { label: Translation.tr("Cancel"); onClicked: root.cancelled() }
+                    Primary { label: Translation.tr("Share"); onClicked: root.share() }
                 }
             }
         }
@@ -375,12 +379,12 @@ Item {
                 x: 10; y: 10; spacing: 12
                 StyledText {
                     Layout.leftMargin: 12
-                    text: root.hasRegion ? `${Math.round(root.region.width)} × ${Math.round(root.region.height)}` : qsTr("Drag to draw a region")
+                    text: root.hasRegion ? `${Math.round(root.region.width)} × ${Math.round(root.region.height)}` : Translation.tr("Drag to draw a region")
                     font.family: root.hasRegion ? Appearance.font.family.numbers : Appearance.font.family.main
                     font.pixelSize: 15; color: root.ink
                 }
-                TextAction { label: qsTr("Back"); onClicked: root.back() }
-                Primary { label: qsTr("Share"); dim: !root.hasRegion; onClicked: root.share() }
+                TextAction { label: Translation.tr("Back"); onClicked: root.back() }
+                Primary { label: Translation.tr("Share"); dim: !root.hasRegion; onClicked: root.share() }
             }
         }
     }
