@@ -124,7 +124,8 @@ MouseArea {
         id: wallSource
         anchors.fill: parent
         // Only the blur reads this: skip the decode while the ground file is shown, and decode small (radius 48 hides the detail).
-        source: root.groundReady ? "" : root.wallpaper
+        // A url, not the bare path: a name with # or ? ("Holiday #3.jpg") read as a fragment or a query and drew nothing.
+        source: root.groundReady ? "" : FileUtils.fileUrl(root.wallpaper)
         sourceSize: Qt.size(Math.ceil(width / 4), Math.ceil(height / 4))
         fillMode: Image.PreserveAspectCrop
         asynchronous: true

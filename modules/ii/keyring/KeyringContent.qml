@@ -47,12 +47,10 @@ Item {
     readonly property bool choiceIsButton: root.confirm && root.choiceLabel.length > 0 && root.choiceLabel.length <= 14
     readonly property bool shown: root.active && root.entered
 
-    // gnome-keyring words the unlock as 'An application wants access to the keyring "Login", but it is locked'
-    readonly property var keyringName: {
-        if (root.confirm || root.isNew) return "";
-        const m = (root.p.description ?? "").match(/keyring\s+["“'‘]([^"”'’]+)["”'’]/i);
-        return m ? m[1] : "";
-    }
+    // the keyring the unlock names ('An application wants access to the keyring "Login", but it is locked'), which
+    // Keyring.qml reads from gnome-keyring's wording in any language it speaks
+    property string named: ""
+    readonly property var keyringName: root.confirm || root.isNew ? "" : root.named
     readonly property bool isLogin: root.keyringName.toLowerCase() === "login"
     // gnome-keyring's own placeholder name; not something to show
     readonly property bool isPlain: root.isLogin || root.keyringName.toLowerCase() === "default keyring"

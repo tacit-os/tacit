@@ -27,6 +27,8 @@ Scope {
     // A Shut down, Restart or Sleep the system refused while locked (Session.actionFailed): its label, for the
     // field to say so, since the notification saying it is not drawn under the lock.
     property string refusedAction: ""
+    // Notifications.unread when this lock began: the lock counts only what came after it as "while you were away"
+    property int unreadAtLock: 0
     property bool fingerprintsConfigured: false
     // fingerPam erroring completes at once (reader busy, fprintd down), so retrying from its
     // completion handler is a tight loop. Back off, and stop asking after a few.

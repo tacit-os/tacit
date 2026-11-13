@@ -98,12 +98,42 @@ Scope {
     // you logged into your computer.') is that same ask, without the quoted name: autologin has no password to give
     // PAM until the boot lock's own check does, so an app asking in between got it, and it stayed in the notch after
     // the keyring was already open (2026-11-05, at every boot).
+    // Both wordings in any language gnome-keyring speaks (unlockWords below), not only in English.
     readonly property var unlockAsk: {
         const c = DialogBridge.current;
         const description = c?.params?.description ?? "";
         return c && c.kind === "keyring.password" && !c.params?.passwordNew
-            && (/keyring\s+["“'‘]/i.test(description) || /login keyring did not get unlocked/i.test(description))
+            && (root.keyringNamed(description) !== "" || /login keyring did not get unlocked/i.test(description)
+                || root.unlockWords.login.includes(description))
             ? c : null;
+    }
+
+    // gnome-keyring words its asks in the person's language: on a German login the unlock reads 'Eine Anwendung
+    // versucht, auf den Schlüsselbund »Login« zuzugreifen, …', which the English checks never knew, so a moot ask was
+    // never refused and the sheet came back at every boot under gnome-keyring's own words. Its wording of both asks in
+    // each language it is installed with (scripts/keyring/unlock_words.py), read once; English until it answers.
+    property var unlockWords: ({ named: [], login: [] })
+    Process {
+        running: true
+        command: ["python3", "-I", Quickshell.shellPath("scripts/keyring/unlock_words.py")]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    root.unlockWords = JSON.parse(text);
+                } catch (e) {}
+            }
+        }
+    }
+    // the keyring an unlock ask's description names ('... the keyring "Login" ...', in any of those languages); "" when
+    // it names none
+    function keyringNamed(description: string): string {
+        for (const w of root.unlockWords.named) {
+            const [head, tail] = w.split("%s");
+            if (description.length > head.length + tail.length && description.startsWith(head) && description.endsWith(tail))
+                return description.slice(head.length, description.length - tail.length);
+        }
+        const m = description.match(/keyring\s+["“'‘]([^"”'’]+)["”'’]/i);
+        return m ? m[1] : "";
     }
     Timer {
         interval: 1000
@@ -155,6 +185,7 @@ Scope {
                 KeyringContent {
                     anchors.fill: parent
                     ask: root.ask
+                    named: root.keyringNamed(root.ask?.params?.description ?? "")
                     active: root.asking || root.busy
                     busy: root.busy && !root.asking
                     onAnswered: result => root.answer(result)

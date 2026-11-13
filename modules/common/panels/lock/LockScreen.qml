@@ -65,6 +65,7 @@ Scope {
             target: GlobalStates
             function onScreenLockedChanged() {
                 if (GlobalStates.screenLocked) {
+                    lockContext.unreadAtLock = Notifications.unread;
                     lockContext.reset();
                     lockContext.checkFingerprints();
                     lockContext.tryFingerUnlock();

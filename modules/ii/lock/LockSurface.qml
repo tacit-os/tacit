@@ -23,6 +23,9 @@ MouseArea {
     readonly property bool requirePasswordToPower: Config.options.lock.security.requirePasswordToPower
     readonly property MprisPlayer player: MprisController.activePlayer
     readonly property bool hasMedia: root.player !== null && IslandController.mediaPresent
+    // What came since the screen was locked. Notifications.unread is every arrival since the centre was last opened, so
+    // popups seen and answered all day were "23 notifications while you were away".
+    readonly property int awayCount: Math.max(0, Notifications.unread - root.context.unreadAtLock)
     readonly property string wallpaper: Config.options.background.lockWall !== ""
         ? Config.options.background.lockWall : Config.options.background.wallpaperPath
     // What the notch may say while the screen is locked. IslandController.ambientGlyph also
@@ -119,7 +122,8 @@ MouseArea {
         id: wallSource
         anchors.fill: parent
         // Only the blur reads this: skip the decode while the ground file is shown, and decode small (radius 48 hides the detail).
-        source: root.groundReady ? "" : root.wallpaper
+        // A url, not the bare path: a name with # or ? ("Holiday #3.jpg") read as a fragment or a query and drew nothing.
+        source: root.groundReady ? "" : FileUtils.fileUrl(root.wallpaper)
         sourceSize: Qt.size(Math.ceil(width / 4), Math.ceil(height / 4))
         fillMode: Image.PreserveAspectCrop
         asynchronous: true
@@ -272,11 +276,11 @@ MouseArea {
         StyledText {
             Layout.alignment: Qt.AlignHCenter
             Layout.topMargin: 10
-            visible: Notifications.unread > 0
+            visible: root.awayCount > 0
             // which apps and how many, never what they say: whoever is in front of the locked laptop reads this
             // (owner, 2026-10-09: "app and count only")
             text: {
-                const n = Notifications.unread;
+                const n = root.awayCount;
                 const head = n === 1 ? Translation.tr("1 notification while you were away")
                     : Translation.tr("%1 notifications while you were away").arg(n);
                 const apps = [...new Set(Notifications.list.slice(-n).reverse().map(x => x.appName).filter(a => a))];
