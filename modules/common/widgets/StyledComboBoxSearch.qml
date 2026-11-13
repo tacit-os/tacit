@@ -51,6 +51,18 @@ ComboBox {
             listView.currentItem?.clicked()
     }
 
+    // The row Up, Down and Enter work from (listView.currentIndex, drawn as hovered): the chosen one when the popup
+    // opens, the one under the pointer, and as the person types the first row the search shows
+    onHighlightedIndexChanged: listView.currentIndex = root.highlightedIndex
+    onSearchTextChanged: {
+        if (!root.searchText) {
+            listView.currentIndex = root.currentIndex
+            return
+        }
+        listView.currentIndex = -1
+        root.stepHighlight(1)
+    }
+
     implicitHeight: 40
     Layout.fillWidth: true
 
@@ -133,14 +145,16 @@ ComboBox {
         required property var model
         required property int index
 
+        // the row the keys work from looks hovered, so the person sees which one Enter takes
+        readonly property bool lit: itemDelegate.hovered || itemDelegate.ListView.isCurrentItem
         property color color: {
             if (root.currentIndex === itemDelegate.index) {
                 if (itemDelegate.down) return Appearance.colors.colSecondaryContainerActive;
-                if (itemDelegate.hovered) return Appearance.colors.colSecondaryContainerHover;
+                if (itemDelegate.lit) return Appearance.colors.colSecondaryContainerHover;
                 return Appearance.colors.colSecondaryContainer;
             } else {
                 if (itemDelegate.down) return Appearance.colors.colLayer3Active;
-                if (itemDelegate.hovered) return Appearance.colors.colLayer3Hover;
+                if (itemDelegate.lit) return Appearance.colors.colLayer3Hover;
                 return ColorUtils.transparentize(Appearance.colors.colLayer3);
             }
         }
@@ -301,7 +315,6 @@ ComboBox {
                 clip: true
                 spacing: 2
                 model: root.popup.visible ? root.delegateModel : null
-                currentIndex: root.highlightedIndex
             }
         }
     }

@@ -140,8 +140,10 @@ MouseArea {
                 canvas.flashLines(verticalLines, horizontalLines)
         }
 
-        dragProxy.x = root.x
-        dragProxy.y = root.y
+        // back onto the widget and following it again: a plain assignment dropped the binding for good, so after a
+        // group drag, a clamp to the screen or a restored position the next drag started from where the last one ended
+        dragProxy.x = Qt.binding(() => root.x)
+        dragProxy.y = Qt.binding(() => root.y)
     }
 
     Rectangle {

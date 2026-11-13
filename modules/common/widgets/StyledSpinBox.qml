@@ -34,15 +34,20 @@ SpinBox {
             font.variableAxes: Appearance.font.variableAxes.numbers
             font.pixelSize: Appearance.font.pixelSize.small
             validator: root.validator
-            // An emptied field (or a lone "-") is not a number: keep the value, so the binding above
-            // does not refill the field while the person is retyping it
-            onTextChanged: {
+            // What is typed is taken on Enter or on leaving the field, as Qt's own SpinBox does. Taken key by key, a
+            // first digit below the minimum ("1" on the way to 120, from 60 up) was clamped to it, and the binding
+            // above wrote that over the field and the settings saved it. An emptied field (or a lone "-") is not a
+            // number and keeps the value; either way the field then shows the value
+            function commit() {
                 const typed = parseFloat(text);
                 if (!isNaN(typed))
                     root.value = typed;
+                text = Qt.binding(() => root.value);
             }
-            // Leaving it blank shows the kept value again
-            onEditingFinished: text = Qt.binding(() => root.value)
+            onActiveFocusChanged: if (!activeFocus) commit()
+            // the key goes on afterwards, as it did
+            Keys.onReturnPressed: event => { commit(); event.accepted = false; }
+            Keys.onEnterPressed: event => { commit(); event.accepted = false; }
         }
     }
 

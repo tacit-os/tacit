@@ -61,9 +61,14 @@ Item {
             return
         }
 
+        root.downloaded = false
+        // One still running for an earlier track keeps its own path and starts this one when it exits (onExited).
+        // Starting it now would only queue a second run, and the first one's exit would mark this track's file as
+        // fetched before it is there
+        if (coverArtDownloader.running)
+            return
         coverArtDownloader.targetFile = root.artUrl
         coverArtDownloader.artFilePath = root.artFilePath
-        root.downloaded = false
         coverArtDownloader.running = true
     }
 
@@ -77,7 +82,7 @@ Item {
             `[ -f "$2" ] || { curl -4 -fsSL --max-time 15 "$1" -o "$2.tmp" && mv "$2.tmp" "$2"; } || { rm -f "$2.tmp"; exit 1; }`,
             "_", targetFile, artFilePath]
         onExited: (exitCode, exitStatus) => {
-            // The track changed while this one downloaded: the start was ignored, so go again
+            // The track changed while this one downloaded: fetch the current one now
             if (artFilePath !== root.artFilePath)
                 root.updateArt()
             else
