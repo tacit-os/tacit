@@ -131,6 +131,13 @@ console.log("What Praxis says of an account that needs a step (modules/claude/Ac
       && !bare.words.includes("Open the page") && !early.words.includes("Open the page") && early.sub === "",
     `refused ${JSON.stringify(refused)}, opencode 2 ${JSON.stringify(again)}, none ${JSON.stringify(bare)}, waiting ${JSON.stringify(early)}`);
 
+  // agent-host review r1 [4]: "I have a code" before any code was tried, the host still on its waiting step, whose url
+  // is the automatic address (back to Claude Code's localhost listener, no code on it): the field came with Cancel alone
+  const chosen = cove({ step: "waiting", account: "k1", url: `${manual}&redirect_uri=http%3A%2F%2Flocalhost%3A39855%2Fcallback`, codeUrl: manual, opened: true });
+  check("I have a code while the browser sign-in waits links the page that shows the code, from the waiting step",
+    chosen.field && JSON.stringify(chosen.opened) === JSON.stringify([manual]) && chosen.sub === "" && JSON.stringify(chosen.words) === '["Open the page","Cancel"]',
+    JSON.stringify(chosen));
+
   const m = /\bonFlowChanged:\s*/.exec(stepsSrc);
   const onFlow = m ? readExpression(stepsSrc, m.index + m[0].length).expr : "{}";
   const after = step => {

@@ -209,8 +209,8 @@ Item {
         case "code": {
             if (steps.checkingCode) return { spin: true, line: "Checking the code…", actions: [cancel] };
             // the host's code step: the page that shows the code (a new one when opencode 2 started again), and why it
-            // asks again
-            const page = steps.flow?.step === "code" ? (steps.flow.url ?? "") : "";
+            // asks again; before one, "I have a code" on Claude's sign-in has that page from its waiting step (codeUrl)
+            const page = steps.flow?.step === "code" ? (steps.flow.url ?? "") : (steps.flow?.codeUrl ?? "");
             return { field: true, sub: steps.refusal?.kind === "code" ? `The code didn't go through: ${steps.refusal.message}`
                                                                       : steps.flow?.step === "code" ? (steps.flow.message ?? "") : "",
                      actions: [page ? { word: "Open the page", run: () => Qt.openUrlExternally(page) } : null, cancel].filter(x => x) };

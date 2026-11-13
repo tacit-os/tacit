@@ -31,7 +31,7 @@ console.log("Praxis after agent-host restarts (modules/claude/Host.qml, Conversa
   const expr = m ? readExpression(convSrc, m.index + m[0].length).expr : "";
   const follows = leftover => {
     let n = 0;
-    if (expr) inScope({ conv: { leftover }, followSoon: { restart() { n++; } } }, "", expr.startsWith("{") ? expr.slice(1, -1) : `${expr};`)();
+    if (expr) inScope({ conv: { leftover, sendQueued() {} }, followSoon: { restart() { n++; } } }, "", expr.startsWith("{") ? expr.slice(1, -1) : `${expr};`)();
     return n;
   };
   check("the open session's leftover gone, its transcript is followed once more; while it runs, the follow timer does it",
@@ -42,9 +42,9 @@ console.log("Praxis after agent-host restarts (modules/claude/Host.qml, Conversa
 // [7] a message queued behind the turn when the socket drops: the drop ends the turn as Praxis sees it, and the queue
 // handed its head to a connection that was gone, which refused it, and forgot it
 const sendQueued = qmlFunction(convSrc, "sendQueued");
-function queue({ connected, answered, accepts }) {
+function queue({ connected, answered, accepts, leftover = null }) {
   const sent = [];
-  const conv = { turnOpen: false, locked: false, sendingNow: false, testLog() {},
+  const conv = { turnOpen: false, leftover, locked: false, sendingNow: false, testLog() {},
     queued: [{ text: "and run the tests", images: [], files: [] }, { text: "then commit", images: [], files: [] }],
     host: { connected, rosterAnswered: answered },
     send(text) { sent.push(text); return accepts; } };
@@ -62,6 +62,23 @@ function queue({ connected, answered, accepts }) {
   check("back, the queue waits for the roster's answer, then sends its first message",
     !early.sent.length && JSON.stringify(ready.sent) === '["and run the tests"]' && JSON.stringify(ready.left) === '["then commit"]',
     `before the roster sent ${JSON.stringify(early.sent)}, after ${JSON.stringify(ready.sent)} leaving ${JSON.stringify(ready.left)}`);
+}
+
+// agent-host review r1 [2]: the leftover's roster row says idle as Claude Code ends the turn, before its process exits.
+// The queue sent then, agent-host refused it ("Another Claude Code process (pid N) has this session open") and it went
+// back first in line, and the leftover going (its process gone) sent nothing: the message sat in the queue
+{
+  const idle = queue({ connected: true, answered: true, accepts: true, leftover: { status: "idle", pid: 790 } });
+  const m = /\bonLeftoverChanged:\s*/.exec(convSrc);
+  const expr = m ? readExpression(convSrc, m.index + m[0].length).expr : "";
+  const drains = leftover => {
+    let n = 0;
+    if (expr) inScope({ conv: { leftover, sendQueued() { n++; } }, followSoon: { restart() {} } }, "", expr.startsWith("{") ? expr.slice(1, -1) : `${expr};`)();
+    return n;
+  };
+  check("while the previous host's process is listed, idle or not, the queue waits; its going sends what waits",
+    !idle.sent.length && idle.left.length === 2 && drains(null) === 1 && drains({ status: "idle", pid: 790 }) === 0,
+    `with the leftover idle sent ${JSON.stringify(idle.sent)}; the queue sent ${drains(null)} times when it went, ${drains({ status: "idle", pid: 790 })} while listed`);
 }
 
 // the roster's answer: whole (the script got to its end) it is known what runs, leftovers included; cut short it is not

@@ -564,8 +564,9 @@ Item {
     // a turn agent-host's previous process is finishing (Host.leftovers): followed, and a message waits for its end
     readonly property var leftover: conv.session && !conv.session.fresh ? (conv.host.leftovers[conv.session.id] ?? null) : null
     // gone, its process has ended: its last rows are read once more, as after an exit of the host's own (the follow
-    // timer stops with it, and what it wrote since the last read stayed off screen until the next message)
-    onLeftoverChanged: if (conv.leftover === null) followSoon.restart()
+    // timer stops with it, and what it wrote since the last read stayed off screen until the next message), and what
+    // waits in the queue goes (sendQueued holds it while the leftover is listed)
+    onLeftoverChanged: if (conv.leftover === null) { followSoon.restart(); conv.sendQueued(); }
     readonly property bool running: (conv.live !== null && (conv.live.alive || conv.live.state !== "idle")) || conv.terminal !== null || conv.leftover !== null
     readonly property bool working: (conv.live !== null && conv.live.state === "working") || (conv.terminal !== null && conv.terminal.status === "busy")
         || (conv.leftover !== null && conv.leftover.status === "busy")
@@ -1062,10 +1063,12 @@ Item {
         });
     }
     // When it stops, the next queued message goes: not into a dropped connection, nor before the roster has said whether
-    // the previous host's process is still finishing the turn (that answer sends it), and one refused stays first in line.
+    // the previous host's process is still finishing the turn (that answer sends it), nor while that process is listed,
+    // idle or not (Claude Code says idle as the turn ends, then closes, and agent-host refuses a message until it has; its
+    // going sends it), and one refused stays first in line.
     function sendQueued() {
         if (conv.queued.length) conv.testLog(`sendQueued open=${conv.turnOpen} n=${conv.queued.length} locked=${conv.locked} sending=${conv.sendingNow}`);
-        if (conv.turnOpen || !conv.queued.length || conv.locked || conv.sendingNow || !conv.host.connected || !conv.host.rosterAnswered) return;
+        if (conv.turnOpen || conv.leftover !== null || !conv.queued.length || conv.locked || conv.sendingNow || !conv.host.connected || !conv.host.rosterAnswered) return;
         const next = conv.queued[0];
         conv.queued = conv.queued.slice(1);
         if (!conv.send(next.text, next.images, next.files, true)) conv.queued = [next].concat(conv.queued);
