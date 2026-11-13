@@ -32,9 +32,12 @@ NestableObject {
         const win = HyprlandData.clientForToplevel(activeWindow)
         return win ? win.workspace?.id === activeNumber : true
     }
+    // A window Hyprland lists on this monitor's workspace makes it occupied, focused here or not: with the focus on
+    // another monitor, this one's workspace and its windows were drawn as empty.
     readonly property bool currentWorkspaceNotFake: WM.compositor === "hyprland"
-        ? ((activeWindow?.activated ?? false) && activeWindowHere) // Active empty workspace = fake. At least, that's how I like to call it.
-        : true 
+        ? (HyprlandData.windowList.some(w => w.workspace?.id === activeNumber)
+            || ((activeWindow?.activated ?? false) && activeWindowHere)) // Active empty workspace = fake. At least, that's how I like to call it.
+        : true
     readonly property int fakeWorkspace: currentWorkspaceNotFake ? -9999 : activeNumber
 
     readonly property int group: Math.floor((activeNumber - 1) / shownCount)

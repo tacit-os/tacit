@@ -245,9 +245,9 @@ Singleton {
 
             onPositionChanged: {
                 if (position.latitudeValid && position.longitudeValid) {
-                    root.location.lat = position.coordinate.latitude
-                    root.location.lon = position.coordinate.longitude
-                    root.location.valid = true
+                    // a new object, never its fields: a var property says it changed only when it is assigned, and the
+                    // map in Settings kept showing the city's marker after the fix came
+                    root.location = { valid: true, lat: position.coordinate.latitude, lon: position.coordinate.longitude }
                     gpsAcquisition.stop()
                     root.getData()
                 } else {
@@ -260,7 +260,7 @@ Singleton {
                 if (positionSource.sourceError === PositionSource.NoError) return
                 positionSource.stop()
                 gpsAcquisition.stop()
-                root.location.valid = false
+                root.location = { valid: false, lat: root.location.lat, lon: root.location.lon }
                 Qt.callLater(() => root.gpsFailed = true)
                 console.error("[WeatherService] Position source error:", positionSource.sourceError)
                 root.getData()
@@ -270,7 +270,7 @@ Singleton {
                 if (!positionSource.valid) {
                     positionSource.stop()
                     gpsAcquisition.stop()
-                    root.location.valid = false
+                    root.location = { valid: false, lat: root.location.lat, lon: root.location.lon }
                     Qt.callLater(() => root.gpsFailed = true)
                     console.error("[WeatherService] Could not acquire valid GPS backend.")
                 }

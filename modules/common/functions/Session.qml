@@ -97,9 +97,11 @@ Singleton {
         // updates that are downloaded install on the way, as Settings says ("they install while the computer restarts"): a
         // Restart from the session screen, the palette or the lock ran a plain reboot and they never installed (Discord
         // 2026-11-02, "updates are broken in the graphical interface"). The restart happens even when they can't be readied,
-        // or tacit-update refuses them on a battery under 20 %.
+        // or tacit-update refuses them on a battery under 20 %. A restart logind refuses takes the readied install back
+        // (as Updates.restartNow does), or the next start, whenever it came, installed them unasked.
         const update = Updates.ready ? "systemctl start tacit-update@now.service; " : "";
-        root.runAction(Translation.tr("Restart"), update + "reboot || loginctl reboot");
+        const undo = Updates.ready ? " || { c=$?; systemctl start tacit-update@cancel.service; exit $c; }" : "";
+        root.runAction(Translation.tr("Restart"), update + "reboot || loginctl reboot" + undo);
     }
 
     function rebootToFirmware() {

@@ -135,7 +135,10 @@ ComboBox {
     delegate: ItemDelegate {
         id: itemDelegate
         width: ListView.view ? ListView.view.width : root.width
-        implicitHeight: visible ? 40 : 0
+        // the 2 px between rows is the row's own, under its ground: the list's spacing came after hidden rows too, so a
+        // match far down a long list sat 2 px per row above it out of view
+        implicitHeight: visible ? 42 : 0
+        bottomPadding: padding + 2
         visible: {
             if (!root.searchText || root.searchText.length === 0) return true
             const display = typeof model === "object" ? (model[root.textRole] ?? "") : String(model)
@@ -162,6 +165,7 @@ ComboBox {
 
         background: Rectangle {
             anchors.fill: parent
+            anchors.bottomMargin: 2
             radius: Appearance.rounding.small
             color: itemDelegate.color
             Behavior on color {
@@ -313,7 +317,7 @@ ComboBox {
                 Layout.fillWidth: true
                 Layout.preferredHeight: Math.min(contentHeight, 320 - searchField.implicitHeight - 8 - 46)
                 clip: true
-                spacing: 2
+                spacing: 0
                 model: root.popup.visible ? root.delegateModel : null
             }
         }

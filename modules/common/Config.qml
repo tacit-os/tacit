@@ -157,7 +157,8 @@ Singleton {
         // app. Once, each role chosen gets the rest of its types, those never set one by one (default_apps.py migrate).
         if (from < 6)
             Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/settings/default_apps.py"), "migrate"]);
-        if (from === root.currentConfigVersion) return;
+        // a file a newer build stamped is left as it is: lowered and rewritten here, that build ran its steps again over it
+        if (from >= root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();
     }

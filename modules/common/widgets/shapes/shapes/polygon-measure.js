@@ -88,7 +88,8 @@ class MeasuredPolygon {
         for (let featureIndex = 0; featureIndex < polygon.features.length; featureIndex++) {
             const feature = polygon.features[featureIndex]
             for (let cubicIndex = 0; cubicIndex < feature.cubics.length; cubicIndex++) {
-                if (feature instanceof Feature.Corner && cubicIndex == feature.cubics.length / 2) {
+                // Kotlin's size / 2 is a whole number: 1.5 or 0.5 matched no cubic, and no corner was ever measured
+                if (feature instanceof Feature.Corner && cubicIndex === Math.floor(feature.cubics.length / 2)) {
                     featureToCubic.push({ a: feature, b: cubics.length })
                 }
                 cubics.push(feature.cubics[cubicIndex])
@@ -173,7 +174,8 @@ class LengthMeasurer {
         let remainder = threshold
         let prev = new Point.Point(cubic.anchor0X, cubic.anchor0Y)
 
-        for (let i = 1; i < this.segments; i++) {
+        // 1..segments, as Kotlin's: up to segments - 1 the last third of every cubic went unmeasured
+        for (let i = 1; i <= this.segments; i++) {
             const progress = i / this.segments
             const point = cubic.pointOnCurve(progress)
             const segment = point.minus(prev).getDistance()

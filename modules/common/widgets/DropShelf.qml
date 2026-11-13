@@ -119,7 +119,9 @@ Singleton {
         root.items = root.items.filter(p => p !== path)
     }
 
-    // Drop entries whose file is gone (boring.notch ShelfStateViewModel.cleanupInvalidItems).
+    // Drop entries whose file is gone (boring.notch ShelfStateViewModel.cleanupInvalidItems). One on a drive that is not
+    // mounted (/run/media/<user>/<label>, /media/<user>/<label>, /mnt/<label>, as Pinax reads them) is kept: nothing mounts
+    // a stick at login, and its files are back when it is.
     function prune() {
         if (root.items.length === 0) return
         pruneProc.running = false
@@ -128,7 +130,8 @@ Singleton {
 
     Process {
         id: pruneProc
-        command: ["bash", "-c", `for f in ${root.items.map(p => `'${StringUtils.shellSingleQuoteEscape(p)}'`).join(" ")}; do [ -e "$f" ] || printf '%s\n' "$f"; done`]
+        command: ["bash", "-c", `for f in ${root.items.map(p => `'${StringUtils.shellSingleQuoteEscape(p)}'`).join(" ")}; do [ -e "$f" ] && continue; `
+            + `[[ $f =~ ^/(run/media/[^/]+|media/[^/]+|mnt)/[^/]+ ]] && ! mountpoint -q "$BASH_REMATCH" && continue; printf '%s\n' "$f"; done`]
         stdout: SplitParser {
             onRead: line => { const p = line.trim(); if (p.length > 0) root.remove(p) }
         }

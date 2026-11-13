@@ -48,6 +48,8 @@ StyledImage {
     // the command the running process was started with; a size or file that changes meanwhile is asked for when it exits
     property string generatingCommand: ""
     function requestGeneration() {
+        // a tile with no file (Settings' "add" tile, the Viewer on a file that is not a picture) ran magick on "" six times
+        if (root.sourcePath.length === 0) return;
         if (thumbnailGeneration.running) return;
         if (!root.holdsThumbnailSlot) {
             if (!Images.requestThumbnailSlot(root)) return;
@@ -85,7 +87,9 @@ StyledImage {
         // picture is remade, so an edited or replaced file stops showing its old self.
         // 2 = it could not be made, 3 = the file was still being written (changed in the last 2 s): both are tried
         // again shortly. A screenshot appears in its folder while it is written, and its failed thumbnail stayed
-        // missing until another file came (Discord 2026-10-23). A video's comes from a frame a second in.
+        // missing until another file came (Discord 2026-10-23). A file dated in the future (a camera's clock ahead, an
+        // archive's dates) is not being written: it was taken for one at every try and never got a thumbnail.
+        // A video's comes from a frame a second in.
         // A picture's comes from its first frame, turned upright by its EXIF tag: a GIF, PDF or TIFF would otherwise
         // write one file per frame and none at the thumbnail's name.
         command: {
@@ -94,7 +98,7 @@ StyledImage {
             const src = FileUtils.trimFileProtocol(root.sourcePath);
             return ["bash", "-c",
                 'set -- "$1" "$2" "$3" "$4"; [ -f "$2" ] && [ ! "$1" -nt "$2" ] && exit 0; mkdir -p "$(dirname -- "$2")" || exit 0; '
-                + '[ $(( $(date +%s) - $(stat -c %Y -- "$1" 2>/dev/null || echo 0) )) -lt 2 ] && exit 3; '
+                + 'age=$(( $(date +%s) - $(stat -c %Y -- "$1" 2>/dev/null || echo 0) )); [ $age -ge 0 ] && [ $age -lt 2 ] && exit 3; '
                 + 'case "${1,,}" in *.mp4|*.webm|*.mkv|*.mov|*.avi|*.m4v) '
                 + 'for t in 1 0; do ffmpeg -nostdin -v error -y -ss $t -i "$1" -frames:v 1 -vf "scale=$4:$4:force_original_aspect_ratio=decrease" "$2" && [ -s "$2" ] && exit 1; done; rm -f -- "$2"; exit 2 ;; esac; '
                 + 'magick "$1[0]" -auto-orient -resize "$3" "$2" && exit 1; rm -f -- "$2"; exit 2',

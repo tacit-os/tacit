@@ -1,10 +1,11 @@
 #!/usr/bin/env python3
-import json, re, subprocess, time, os
+import json, re, subprocess, sys, time, os
 
 # Per session, not per boot: /tmp survives a logout on any distro that does not put it on tmpfs,
 # and there the guard made autostart a one-time event forever.
+# --now (Settings' run button) starts them whatever ran before: the lock is there so a shell reload does not.
 lockfile = os.path.join(os.environ.get('XDG_RUNTIME_DIR', '/tmp'), 'qs-autostart.lock')
-if os.path.exists(lockfile):
+if os.path.exists(lockfile) and '--now' not in sys.argv[1:]:
     exit(0)
 
 # The lock is taken once the config has been read: on a new account the file is not there yet at the

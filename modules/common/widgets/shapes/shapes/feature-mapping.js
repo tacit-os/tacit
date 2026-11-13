@@ -53,8 +53,10 @@ class MappingHelper {
             return;
         }
 
-        const index = this.mapping.findIndex(x => x.a === f1.progress);
-        const insertionIndex = -index - 1;
+        // where Kotlin's binarySearchBy puts it, so the mapping stays in order of progress: findIndex looked for an equal
+        // progress, found none, and put every new pair first
+        let insertionIndex = this.mapping.findIndex(x => x.a > f1.progress);
+        if (insertionIndex < 0) insertionIndex = this.mapping.length;
         const n = this.mapping.length;
 
         if (n >= 1) {

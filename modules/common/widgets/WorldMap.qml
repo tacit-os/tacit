@@ -20,15 +20,21 @@ Item {
     function projectX(lon) { return ((lon + 180) / 360) * width }
     function projectY(lat) { return ((90 - lat) / 180) * height }
 
+    // By words, accents and case aside (the table's names are plain: "São Paulo" is sao paulo): the city itself, else the
+    // longest one named in what was typed ("London, UK", "Santiago de Chile"), else one it names part of ("Ho Chi Minh").
+    // Never inside a word: "Nice" put the marker on Venice.
     function findCityCoords(cityName) {
         if (!cityName || cityName.length === 0) return null
-        const key = cityName.trim().toLowerCase()
-        if (WorldCities.cityCoords[key]) return WorldCities.cityCoords[key]
-
+        const words = s => ` ${s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `
+        const key = words(cityName)
+        if (key.trim().length === 0) return null
+        let best = null
         for (const name in WorldCities.cityCoords) {
-            if (name.includes(key) || key.includes(name)) return WorldCities.cityCoords[name]
+            if (` ${name} ` === key) return WorldCities.cityCoords[name]
+            if (key.includes(` ${name} `) && (best === null || name.length > best.length)) best = name
         }
-        return null
+        if (best === null) best = Object.keys(WorldCities.cityCoords).find(name => ` ${name} `.includes(key)) ?? null
+        return best === null ? null : WorldCities.cityCoords[best]
     }
 
     function nearestCity(lat, lon) {

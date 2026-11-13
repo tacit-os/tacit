@@ -199,7 +199,9 @@ Singleton {
 
     // The first link a body carries: an <a href> when it has markup, else a bare URL.
     // The row's open button and a click on the row open it, so the text stays plain.
-    readonly property var urlPattern: /\b(?:https?:\/\/[^\s<"]+|www\.[^\s<"]+|[\w-]+(?:\.[\w-]+)*\.(?:com|org|net|io|dev|app|co|me|gg|tv|ai|sh|edu|gov|uk|de)(?:\/[^\s<"]*)?)/i
+    // A bare name is a site only where its name ends at the domain (app.config is not app.co, report.de.pdf not report.de),
+    // and never by .sh: that is the script a notification names ("Finished install.sh"), and https://install.sh opened.
+    readonly property var urlPattern: /\b(?:https?:\/\/[^\s<"]+|www\.[^\s<"]+|[\w-]+(?:\.[\w-]+)*\.(?:com|org|net|io|dev|app|co|me|gg|tv|ai|edu|gov|uk|de)(?![\w-]|\.[\w-])(?:\/[^\s<"]*)?)/i
     function firstLink(body) {
         const href = /<a\s[^>]*href="([^"]+)"/i.exec(body ?? "")
         // an href is the sender's exact link (entities decoded, &amp; last); trailing punctuation is trimmed only

@@ -164,7 +164,8 @@ Scope {
     Process {
         id: fingerprintCheckProc
         running: true
-        command: ["bash", "-c", "fprintd-list $(whoami)"]
+        // in English whatever the session's language: the heading below is matched, and fprintd's tools translate it
+        command: ["bash", "-c", "LC_ALL=C fprintd-list \"$(whoami)\""]
         stdout: StdioCollector {
             id: fingerprintOutputCollector
             onStreamFinished: {

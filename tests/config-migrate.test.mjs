@@ -69,5 +69,9 @@ check(`a 99 chosen in a version ${now} file stays 99, and the file is not writte
   `${chosen.options.audio.protection.maxAllowed}, written ${chosen.wrote} times`);
 const again = migrate(structuredClone(migrate(structuredClone(oldFile("lived.json"))).options));
 check("a migrated file migrates to itself, unwritten", same(again.options, migrate(structuredClone(oldFile("lived.json"))).options) && again.wrote === 0);
+// a newer build's file (a build tried and left, or a dev checkout beside the installed shell): its stamp stays, unwritten
+const newer = migrate({ ...structuredClone(fresh.options), configVersion: now + 1 });
+check(`a file stamped ${now + 1} by a newer build keeps its stamp and is not written`, newer.options.configVersion === now + 1 && newer.wrote === 0,
+  `version ${newer.options.configVersion}, written ${newer.wrote} times`);
 
 done();
