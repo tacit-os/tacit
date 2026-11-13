@@ -8,6 +8,37 @@ hl.monitor({
     scale = "auto"
 })
 
+-- The laptop's own screen is off while its lid is closed and another screen is on: it stayed on, dark under the lid,
+-- and windows, the pointer, notifications and the session screen went to it. It comes back as the lid opens or the other
+-- screen goes, with its rule as it was (hl.monitor keeps the fields not given, so a mode, place or scale from Settings'
+-- monitors.lua stays). The lid is ACPI's "Lid Switch", whose state the kernel keeps in /proc/acpi/button/lid; the panel
+-- is the eDP, LVDS or DSI connector in /sys/class/drm, listed even while off. Read again at every turn of the lid, every
+-- screen that comes or goes, and every reload (Settings' display changes reload, and start Lua afresh).
+local function isPanel(name) return name:match("^eDP%-") or name:match("^LVDS%-") or name:match("^DSI%-") end
+local panelOff = {}
+local function lid(gone)
+    local p = io.popen("cat /proc/acpi/button/lid/*/state 2>/dev/null; ls /sys/class/drm 2>/dev/null")
+    local s = p and p:read("a") or ""
+    if p then p:close() end
+    local other = false
+    for _, m in ipairs(hl.get_monitors()) do
+        if m.name ~= gone and m.name ~= "FALLBACK" and not isPanel(m.name) then other = true end
+    end
+    local off = s:match("state:%s+closed") ~= nil and other
+    for name in s:gmatch("card%d+%-([^\n]+)") do
+        -- only a change: turning a screen off or on is itself a screen going or coming
+        if isPanel(name) and (panelOff[name] or false) ~= off then
+            panelOff[name] = off
+            hl.monitor({ output = name, disabled = off })
+        end
+    end
+end
+lid()
+hl.bind("switch:on:Lid Switch", function() lid() end, { locked = true })
+hl.bind("switch:off:Lid Switch", function() lid() end, { locked = true })
+hl.on("monitor.added", function() lid() end)
+hl.on("monitor.removed", function(m) lid(m and m.name) end)
+
 -- Three fingers do what the window band does, to the window under the pointer (Discord 2026-10-29: the band's line
 -- takes fiddling on a touchpad): down hides it into the dock, left and right take that half, up puts it back to its
 -- size. It acts once the fingers have travelled far enough; a short brush does nothing. (Three fingers moved the window

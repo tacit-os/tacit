@@ -3,9 +3,10 @@
 # offline updates, systemd.offline-updates(7)). tacit-fetch-updates has already downloaded them.
 #   now      the next start installs them (the notch's or Settings' Restart, through tacit-update@now.service)
 #   cancel   takes the link of now away again when the restart was refused (the shell runs as the user, / is root's)
-#   tonight  at 03:00, left on, on the charger, with the screen locked and Caffeine off (tacit-update-night.timer wakes
-#            the computer for it, never on battery)
-#   night    what that timer runs; any of those not so: the next night, and /var/lib/tacit/night says why
+#   tonight  at 03:00, left on, on the charger, with the screen locked, Caffeine off and no agent mid-turn
+#            (tacit-update-night.timer wakes the computer for it, never on battery)
+#   night    what that timer runs; any of those not so: the next night, and /var/lib/tacit/night says why. Nothing
+#            waiting any more ends Tonight.
 #   install  what the start runs before anything else (tacit-system-update.service); then it restarts
 #   pre/post the sleep hook (/usr/lib/systemd/system-sleep/tacit-update links here): asleep on battery, the timer waits
 # How it went is /var/lib/tacit/update-result, which the shell says once in the notch.
@@ -25,6 +26,17 @@ charger() {
 		esac
 	done
 	[ "$mains" = 1 ] || [ "$battery" = 0 ]
+}
+
+# an agent-host session mid-turn (working, or waiting on a permission), from the hello the host sends every client on
+# connect: what Restart and the session screen warn of (SessionWarnings.qml). No host, or no answer in 3 s, is none.
+agent_working() {
+	[ -S "$1" ] || return 1
+	python3 -I -c '
+import json, socket, sys
+s = socket.socket(socket.AF_UNIX); s.settimeout(3); s.connect(sys.argv[1])
+hello = json.loads(s.makefile(encoding="utf-8").readline())
+sys.exit(0 if any(x.get("state") in ("working", "waiting") for x in hello.get("sessions", [])) else 1)' "$1" 2>/dev/null
 }
 
 # What became of a night, for the shell to say: "" once it goes ahead, else why it did not install. Skipped, the unit
@@ -71,6 +83,13 @@ tonight)
 	touch "$state/tonight"
 	;;
 night)
+	# nothing waiting any more (put in meanwhile by Apps' "Update everything" or pacman in a terminal), counted as the
+	# shell counts it, without what IgnorePkg holds: no restart, and Tonight is over. The night restarted into an empty
+	# install, which restarted again, closing every app for nothing.
+	if ! pacman -Qu 2>/dev/null | grep -v ' \[ignored\]$' | grep -q ' -> '; then
+		systemctl disable --now tacit-update-night.timer
+		exit 0
+	fi
 	# three o'clock, not later: a timer that came due while the computer slept fires as it wakes, with the person at the
 	# lock screen. A night missed is never made up as the computer starts or wakes; the next one comes.
 	now=$(date +%s)
@@ -89,6 +108,8 @@ night)
 		# Tacit's lock tells logind; the boot lock and hyprlock, its fallback, do not
 		[ "$(loginctl show-session "$s" -p LockedHint --value)" = yes ] || pgrep -U "$uid" -f 'bootlock[.]qml' >/dev/null \
 			|| pgrep -U "$uid" -x hyprlock >/dev/null || skip unlocked
+		# a Praxis turn left running behind the lock is work going on: the restart cut it off half done
+		agent_working "$run/agent-host.sock" && skip agent
 	done
 	said ""
 	# the timer is stopped only once the download is here: offline at three, the next night tries again (it was stopped

@@ -39,6 +39,7 @@ hl = setmetatable({
     dispatch = function(c) table.insert(sent, c) end,
     dsp = setmetatable({ exec_cmd = function(c) return c end, global = function(c) return "global " .. c end }, { __index = function() return any end }),
     get_active_window = function() return window end,
+    get_monitors = function() return {} end,
 }, { __index = function() return any end })
 HOME = "/home/someone"
 is_file_exists = function() return false end

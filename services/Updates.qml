@@ -92,7 +92,7 @@ Singleton {
     // after nights that skipped without a word. "" when no night has come since it was chosen, or it went ahead.
     property string nightSkipped: ""
     readonly property var nightWords: ({ "asleep": "it was asleep", "battery": "it wasn't plugged in", "caffeine": "Caffeine was on",
-        "unlocked": "the screen wasn't locked", "download": "the download failed" })
+        "unlocked": "the screen wasn't locked", "agent": "an agent was working", "download": "the download failed" })
     // the last three o'clock after Tonight was chosen: what the night wrote of it (tacit-update night), or, with nothing
     // written, a computer started after it was off then. key: said once for it
     function lastNight(night, chosen, booted, now) {

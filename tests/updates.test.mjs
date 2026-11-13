@@ -229,6 +229,9 @@ esac
   check("a night on battery is said once, as why it didn't install, and Settings keeps it",
     battery.nightSkipped === "it wasn't plugged in" && battery.said.length === 1 && battery.said[0].name === "updated"
       && battery.said[0].data.text === "Didn't install last night · it wasn't plugged in" && battery.said[0].data.wide === true, shown(battery));
+  const agent = read("active", { at: s(at) + 20, skipped: "agent" }, at - 5 * hour, at - 30 * hour);
+  check("a night an agent was working through is said as that", agent.nightSkipped === "an agent was working" && agent.said.length === 1
+    && agent.said[0].data.text === "Didn't install last night · an agent was working", shown(agent));
   const off = read("active", null, at - 5 * hour, at + 4 * hour);
   check("a computer started after three o'clock with nothing from the night was switched off", off.nightSkipped === "it was switched off" && off.said.length === 1, shown(off));
   for (const [name, timer, night, chosen, booted] of [

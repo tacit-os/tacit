@@ -1,8 +1,10 @@
 // Tonight (session/updates/tacit-update tonight, night, and pre/post, the sleep hook): the script itself under bash, its
 // system paths moved into a folder of its own, with a pretend clock, logind, pgrep, systemctl and pacman first on PATH
-// and a pretend /sys/class/power_supply. What the night wrote (/var/lib/tacit/night) and what it asked of systemd are read.
-import { execFileSync } from "child_process";
+// and a pretend /sys/class/power_supply, and agent-host's socket in the runtime folder. What the night wrote
+// (/var/lib/tacit/night) and what it asked of systemd are read.
+import { execFile, execFileSync } from "child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { createServer } from "net";
 import { tmpdir } from "os";
 import { join } from "path";
 import { check, done, read } from "./lib/check.mjs";
@@ -34,7 +36,8 @@ try {
 esac`);
   tool("pgrep", `case "$*" in *hyprlock*) [ "$HYPRLOCK" = 1 ] ;; *bootlock*) [ "$BOOTLOCK" = 1 ] ;; *) exit 1 ;; esac`);
   tool("systemctl", `echo "systemctl $*" >> "${log}"\n[ "$*" = "-q is-active tacit-update-night.timer" ] && { [ "$TIMER" = active ]; exit; }\nexit 0`);
-  tool("pacman", `echo "pacman $*" >> "${log}"\n[ "$1" = -Suw ] && [ "$OFFLINE" = 1 ] && exit 1\nexit 0`);
+  // -Qu lists what is waiting, one update unless the case says otherwise ("" for nothing)
+  tool("pacman", `echo "pacman $*" >> "${log}"\n[ "$1" = -Qu ] && { [ -n "$WAITING" ] && printf '%s\\n' "$WAITING"; exit; }\n[ "$1" = -Suw ] && [ "$OFFLINE" = 1 ] && exit 1\nexit 0`);
 
   const at = (h, m, day = 14) => String(Date.UTC(2026, 10, day, h, m, 20) / 1000);
   const plug = on => {
@@ -45,24 +48,48 @@ esac`);
     writeFileSync(join(power, "AC", "type"), "Mains\n");
     writeFileSync(join(power, "AC", "online"), on ? "1\n" : "0\n");
   };
-  function night(c) {
+  function setUp(c) {
     writeFileSync(log, "");
     rmSync(join(state, "night"), { force: true });
     rmSync(join(run, "tacit-caffeine"), { force: true });
     if (c.caffeine) writeFileSync(join(run, "tacit-caffeine"), "");
     plug(c.charger ?? true);
-    let code = 0;
-    try {
-      execFileSync("bash", [join(dir, "tacit-update"), c.cmd ?? "night"], { stdio: "pipe", env: { ...process.env, TZ: "UTC", PATH: `${bin}:${process.env.PATH}`,
-        NOW: c.now ?? at(3, 0), LOCKED: c.locked ?? "yes", HYPRLOCK: c.hyprlock ? "1" : "0", BOOTLOCK: c.bootlock ? "1" : "0",
-        TIMER: c.timer ?? "active", OFFLINE: c.offline ? "1" : "0" } });
-    } catch (e) {
-      code = e.status;
-    }
+    return [join(dir, "tacit-update"), c.cmd ?? "night"];
+  }
+  const env = c => ({ ...process.env, TZ: "UTC", PATH: `${bin}:${process.env.PATH}`,
+    NOW: c.now ?? at(3, 0), LOCKED: c.locked ?? "yes", HYPRLOCK: c.hyprlock ? "1" : "0", BOOTLOCK: c.bootlock ? "1" : "0",
+    TIMER: c.timer ?? "active", OFFLINE: c.offline ? "1" : "0", WAITING: c.waiting ?? "tacit 1.2.15-1 -> 1.2.16-1" });
+  function result(code) {
     const f = join(state, "night");
     return { code, calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean),
       said: existsSync(f) ? JSON.parse(readFileSync(f, "utf8")) : null };
   }
+  function night(c) {
+    const args = setUp(c);
+    let code = 0;
+    try {
+      execFileSync("bash", args, { stdio: "pipe", env: env(c) });
+    } catch (e) {
+      code = e.status;
+    }
+    return result(code);
+  }
+  // the same with agent-host listening in the runtime folder: it says hello with its sessions' states (null: it takes the
+  // connection and never answers). Run beside it, not blocking it, so the pretend host can answer.
+  const sock = join(run, "agent-host.sock");
+  const withHost = (c, states) => new Promise(res => {
+    const srv = createServer(conn => {
+      if (states) conn.write(JSON.stringify({ ev: "hello", version: "0.1.8", proto: 6, agents: {},
+        sessions: states.map((state, i) => ({ id: `s${i}`, tool: "claude", state, alive: true })) }) + "\n");
+    });
+    srv.listen(sock, () => {
+      const args = setUp(c), t = Date.now();
+      execFile("bash", args, { env: env(c), timeout: 20000 }, err => {
+        srv.close();
+        res({ ...result(err ? err.code : 0), ms: Date.now() - t });
+      });
+    });
+  });
   const restarted = r => r.calls.includes("systemctl reboot");
   const line = r => `exit ${r.code}, wrote ${JSON.stringify(r.said)}, asked ${JSON.stringify(r.calls)}`;
 
@@ -87,11 +114,33 @@ esac`);
     const r = night(c);
     check(`${name} up, which tells logind nothing: it installs`, restarted(r) && r.said?.skipped === "", line(r));
   }
+  // a Praxis turn running behind the lock (agent-host's working, or waiting on a permission): the next night
+  for (const [name, states] of [["working", ["idle", "working"]], ["waiting on a permission", ["waiting"]]]) {
+    const r = await withHost({}, states);
+    check(`locked with an agent ${name}: no restart, and the night says "agent"`, !restarted(r) && r.code === 0 && r.said?.skipped === "agent", line(r));
+  }
+  for (const [name, states, slow] of [["every agent idle", ["idle", "idle"]], ["no sessions", []], ["an agent-host that never answers", null, true]]) {
+    const r = await withHost({}, states);
+    check(`locked with ${name}: it installs${slow ? ", after the 3 s wait" : ""}`, restarted(r) && r.said?.skipped === "" && r.ms < 10000 && (!slow || r.ms >= 2500), `${line(r)}, ${r.ms} ms`);
+  }
+  {
+    rmSync(sock, { force: true });
+    const r = night({});
+    check("no agent-host at all: it installs", restarted(r) && r.said?.skipped === "", line(r));
+    const u = await withHost({ locked: "no" }, ["working"]);
+    check("unlocked with an agent working: the night says the screen wasn't locked", !restarted(u) && u.said?.skipped === "unlocked", line(u));
+  }
   // offline at three: said, the timer kept for the next night
   {
     const r = night({ offline: true });
     check("a download that fails says so, restarts nothing and keeps the timer", r.code === 1 && r.said?.skipped === "download" && !restarted(r)
       && !r.calls.some(l => l.includes("disable")), line(r));
+  }
+  // the updates put in meanwhile (Apps, a terminal): no restart into an empty install, and Tonight is over
+  for (const [name, waiting] of [["with nothing waiting any more", ""], ["with only a held package (IgnorePkg) waiting", "qt6-base 6.10.1-1 -> 6.10.2-1 [ignored]"]]) {
+    const r = night({ waiting });
+    check(`${name}: no restart, no download, and the timer is turned off`, r.code === 0 && !restarted(r) && !r.calls.some(l => l.startsWith("pacman -Suw"))
+      && r.calls.includes("systemctl disable --now tacit-update-night.timer"), line(r));
   }
   // Tonight notes when it was chosen, and fails as the timer does
   {
