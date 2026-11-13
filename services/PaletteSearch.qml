@@ -84,8 +84,10 @@ Singleton {
         // search: no symbol has a "/" in its name, and "~/" is read as home below
         if (/^(\.{1,2}|~)\//.test(q))
             return "";
+        // a section hidden in Settings takes its shortcut with it: ".bashrc" with Symbols off is a search like any other
         const first = q.charAt(0);
-        return root.sectionForPrefix[first] !== undefined ? first : "";
+        const section = root.sectionForPrefix[first];
+        return section !== undefined && root.sectionEnabled(section) ? first : "";
     }
 
     function bodyOf(q) {
@@ -329,6 +331,11 @@ Singleton {
         return root.appMatches.filter(e => !(root.isFlatpak(e) && natives[root.fold(e.name)])
             && !root.systemEntries.some(system => system.id.length > 0 && system.id === e.id));
     }
+    // A Terminal=true entry's Exec words, each its own word after -e: "htop --tree" joined into one was a program
+    // named that, which the terminal could not start
+    function inTerminal(command) {
+        Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} -e "$@"`, "bash"].concat(command));
+    }
     readonly property list<var> appEntries: {
         return root.appMatchesOnce.map(entry => resultComp.createObject(null, {
             type: root.sectionTitles.apps,
@@ -346,7 +353,7 @@ Singleton {
                 if (!entry.runInTerminal)
                     AppScope.launch(entry);
                 else
-                    Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(entry.command.join(" "))}'`]);
+                    root.inTerminal(entry.command);
             },
             actions: entry.actions.map(action => resultComp.createObject(null, {
                 name: action.name,
@@ -357,7 +364,7 @@ Singleton {
                     if (!action.runInTerminal)
                         AppScope.launch(action);
                     else
-                        Quickshell.execDetached(["bash", "-c", `${Config.options.apps.terminal} -e '${StringUtils.shellSingleQuoteEscape(action.command.join(" "))}'`]);
+                        root.inTerminal(action.command);
                 }
             }))
         }));
@@ -580,13 +587,15 @@ Singleton {
             return [];
         if (root.activeSection === "" && root.query.length === 0)
             return [];
-        // The old word (/dark) and the plain name both find a row; only the old word carries arguments.
-        const typed = root.query.slice(root.pfxAction.length).toLowerCase();
+        // The old word (/dark) and the plain name both find a row; only the old word carries arguments. Without the
+        // prefix the name is the whole query: cutting a "/" that is not there made "add" look for "dd".
+        const typed = (root.activeSection === "actions" ? root.body : root.query).toLowerCase().trim();
         return LauncherSearch.allActions.map(action => {
             const actionString = `${root.pfxAction}${action.action}`;
             const byWord = actionString.startsWith(root.query) || root.query.startsWith(actionString);
             const label = action.label ?? action.action;
-            const byName = !byWord && label.toLowerCase().split(" ").some(w => w.startsWith(typed.trim()));
+            const byName = !byWord && (typed.length > 0 || root.activeSection === "actions")
+                && label.toLowerCase().split(" ").some(w => w.startsWith(typed));
             if (!byWord && !byName)
                 return null;
             const args = byWord ? root.query.slice(actionString.length).trim() : "";

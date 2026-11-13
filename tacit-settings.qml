@@ -962,8 +962,10 @@ ApplicationWindow {
     signal anchorAsked(string anchor)
     signal anchorArrived(string anchor)
     function showPage(key) {
+        // a page's key, or the old panel's name for it, in any case ("Network" from a script written for the old panel)
         const parts = (key ?? "").split(":");
-        const i = root.categories.findIndex(c => c.key === parts[0]);
+        const head = SettingsApp.keyFor(parts[0]);
+        const i = root.categories.findIndex(c => c.key === head);
         if (i < 0)
             return;
         root.pageAnchor = parts.slice(1).join(":");
@@ -4475,7 +4477,7 @@ ApplicationWindow {
                     visible: PowerMode.available
                     glyph: "power"
                     label: root.hasBattery ? "On the charger" : "Power mode"
-                    description: (root.hasBattery && PowerMode.charging ? "In use now. " : "") + PowerMode.say(PowerMode.onCharger)
+                    description: PowerMode.refused ? "Only an administrator can change this" : (root.hasBattery && PowerMode.charging ? "In use now. " : "") + PowerMode.say(PowerMode.onCharger)
                     options: PowerMode.modes
                     current: PowerMode.onCharger
                     onPicked: value => PowerMode.set("charger", value)
@@ -4484,7 +4486,7 @@ ApplicationWindow {
                     visible: PowerMode.available && root.hasBattery
                     glyph: "battery_full"
                     label: "On battery"
-                    description: (!PowerMode.charging ? "In use now. " : "") + PowerMode.say(PowerMode.onBattery)
+                    description: PowerMode.refused ? "Only an administrator can change this" : (!PowerMode.charging ? "In use now. " : "") + PowerMode.say(PowerMode.onBattery)
                     options: PowerMode.modes
                     current: PowerMode.onBattery
                     onPicked: value => PowerMode.set("battery", value)
@@ -5373,7 +5375,39 @@ ApplicationWindow {
             property real diskSize: 0
             property real diskFree: 0
             // the probes run when About opens (the shell's Settings does the same), not at login
-            Component.onCompleted: if (SystemInfo.cpu === "") SystemInfo.refresh()
+            Component.onCompleted: {
+                if (SystemInfo.cpu === "")
+                    SystemInfo.refresh();
+                about.takeAnchor(root.pageAnchor);
+            }
+            // about:updates (the notch's What's new): the Updates group, the page's last, at the top, its notes with it.
+            // The rows above fill in as the probes answer and push it down, so it is kept there for two seconds, unless
+            // the page is scrolled by hand. Spent once taken, as the Notch page's sections are.
+            property bool toUpdates: false
+            function takeAnchor(anchor) {
+                if (anchor === "updates") {
+                    about.toUpdates = true;
+                    toUpdatesEnd.restart();
+                    Qt.callLater(about.showUpdates);
+                }
+                root.pageAnchor = "";
+            }
+            function showUpdates() {
+                if (!about.toUpdates)
+                    return;
+                const y = updatesGroup.mapToItem(pageColumn, 0, 0).y + pageColumn.y;
+                pageScroll.contentY = Math.max(0, Math.min(pageScroll.contentHeight - pageScroll.height, y - 20));
+            }
+            onImplicitHeightChanged: Qt.callLater(about.showUpdates)
+            Timer { id: toUpdatesEnd; interval: 2000; onTriggered: about.toUpdates = false }
+            Connections {
+                target: root
+                function onAnchorAsked(anchor) { about.takeAnchor(anchor); }
+            }
+            Connections {
+                target: pageScroll
+                function onMovementStarted() { about.toUpdates = false; }
+            }
             function gb(bytes) {
                 return `${Math.round(bytes / 1e9)} GB`;
             }

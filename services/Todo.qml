@@ -86,7 +86,8 @@ Singleton {
         onLoaded: {
             const fileContents = todoFileView.text()
             try {
-                const parsed = JSON.parse(fileContents)
+                // an empty file (cut short by a crash or a power cut) is an empty list, as Notes has it
+                const parsed = fileContents.trim() === "" ? [] : JSON.parse(fileContents)
                 if (Array.isArray(parsed)) {
                     root.list = parsed
                     root.broken = false

@@ -99,8 +99,11 @@ Singleton {
         if (id === root.lastEntryId)
             return;
         const first = root.lastEntryId === "";
+        // cliphist numbers each copy above the last, after a wipe too: a lower one on top is the entry under one just
+        // deleted, not a copy
+        const older = !first && Number(id) < Number(root.lastEntryId);
         root.lastEntryId = id;
-        if (first)  // the shell just started: what was already on the clipboard is not news
+        if (first || older)  // the shell just started: what was already on the clipboard is not news
             return;
         const preview = entry.substring(entry.indexOf("\t") + 1);
         if (preview.trim().length === 0)   // whitespace is not news

@@ -97,7 +97,8 @@ Singleton {
     property int restartBattery: 0
     readonly property bool restarting: restartProc.running
     // What a restart would cut off (the session screen's warnings): said once, and the next Restart goes through, as
-    // the session screen's "press again" does. It goes back to asking after ten seconds.
+    // the session screen's "press again" does. It goes back to asking after fifteen seconds, when the notch's card that
+    // says it and offers Restart anyway is gone (IslandController.holdFor): at ten its last five seconds asked again.
     property string restartWarning: ""
     property bool guarding: false       // the warnings are being read
     // Tonight was chosen: the night's timer is waiting (read with the list, and set at once when chosen)
@@ -169,7 +170,7 @@ Singleton {
     }
     Timer {
         id: disarmTimer
-        interval: 10000
+        interval: 15000
         onTriggered: root.restartWarning = ""
     }
     Process {
@@ -193,9 +194,9 @@ Singleton {
             }
         }
     }
-    // what changed: Settings' About, where the notes are
+    // what changed: Settings' About, at its Updates group, where the notes are (below the machine's rows, out of sight)
     function openNotes() {
-        Quickshell.execDetached(["bash", "-c", '"${TACIT_BIN:-$HOME/.local/bin}"/settings-open about 2>/dev/null || settings-open about']);
+        Quickshell.execDetached(["bash", "-c", '"${TACIT_BIN:-$HOME/.local/bin}"/settings-open about:updates 2>/dev/null || settings-open about:updates']);
     }
     // said only once systemctl has taken it: a start that failed (no rights) set nothing for the night
     function tonight() {
@@ -274,6 +275,8 @@ Singleton {
 
     Process {
         id: waitingProc
+        // pacman's words untranslated: the " [ignored]" below is "[Ignoriert]" in German, and a held package counted
+        environment: ({ "LC_ALL": "C" })
         // what is waiting ("name old -> new"), then where each of its files is: file:// once downloaded
         // (only where Tacit installs its updates itself, tacit-session's tacit-update: not on a computer set up by hand,
         // as the owner's Book4 with its held Qt)
@@ -379,6 +382,7 @@ Singleton {
     Process {
         id: watchProc
         property bool full: true
+        environment: ({ "LC_ALL": "C" })   // the " [ignored]" it leaves out, as waitingProc
         // a oneshot is "activating" while it runs, never "active", and one waiting to start is "inactive" with a job queued
         command: ["bash", "-c", "a=0; systemctl is-active tacit-fetch-updates-now.service tacit-fetch-updates.service | grep -qxE 'activating|active' && a=1; "
             + "[ -n \"$(systemctl list-jobs --no-legend tacit-fetch-updates-now.service tacit-fetch-updates.service)\" ] && a=1; "
@@ -510,7 +514,12 @@ Singleton {
     // when the boot lock is still up (the VM install test: the result was marked said and never shown). Marked said only
     // once it is handed over.
     property var pending: []
+    // Only the shell says them (shell.qml sets says): Settings loads this file too, and a line it handed to a notch it
+    // does not have was marked said, so the shell's notch never said "Tacit X is ready".
+    property bool says: false
     function say(name, data, mark) {
+        if (!root.says)
+            return;
         root.pending = root.pending.filter(p => p.name !== name).concat([{ "name": name, "data": data, "mark": mark }]);
         root.flush();
     }

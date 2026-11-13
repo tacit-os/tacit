@@ -34,10 +34,15 @@ Singleton {
      * WM.windowList entries are {id, address, title, appId, workspaceId, focused}
      * (services/HyprlandBackend.qml normalizeWindow, services/NiriBackend.qml).
      * Workspace names come from WM.workspaceById, which on Hyprland only holds ids
-     * 1..100 - anything else (special workspaces) falls back to the raw id.
+     * 1..100 - another numbered one falls back to its id, a special one (below 1) has none.
      *
      * The window you are sitting in sorts last: Enter on it focuses what is already focused,
      * so it must not be the row an untyped palette opens on.
+     *
+     * A window the window band holds is as the dock has it: one about to be closed is not
+     * listed, and a hidden one (on the band's own special workspace, so no "workspace -98")
+     * comes back through the band. Focusing it by address showed that workspace while the
+     * band still had it hidden.
      */
     readonly property var windows: {
         // Only while the palette is on screen. AppSearch.guessIcon below is the most
@@ -51,12 +56,14 @@ Singleton {
             const workspaceId = win.workspaceId ?? -1;
             const workspace = byId[workspaceId];
             const title = (win.title ?? "").length > 0 ? win.title : win.appId;
+            const address = win.address ?? win.id ?? "";
             return {
-                address: win.address ?? win.id ?? "",
+                address: address,
                 title: title,
                 appId: win.appId ?? "",
                 workspaceId: workspaceId,
-                workspaceName: `${workspace?.name ?? workspaceId}`,
+                workspaceName: workspace?.name !== undefined ? `${workspace.name}` : workspaceId >= 1 ? `${workspaceId}` : "",
+                held: WindowBand.held[WindowBand.norm(address)] ?? "",
                 focused: win.focused === true,
                 // AppSearch.guessIcon is the most expensive call in this shell: on a miss it
                 // does five icon-theme lookups and two full fuzzy passes over every desktop
@@ -64,7 +71,7 @@ Singleton {
                 // once per window on every keystroke.
                 iconName: AppSearch.guessIcon(win.appId ?? "")
             };
-        }).sort((a, b) => (a.focused - b.focused) || (a.workspaceId - b.workspaceId) || a.appId.localeCompare(b.appId) || a.title.localeCompare(b.title));
+        }).filter(win => win.held !== "closed").sort((a, b) => (a.focused - b.focused) || ((a.held !== "") - (b.held !== "")) || (a.workspaceId - b.workspaceId) || a.appId.localeCompare(b.appId) || a.title.localeCompare(b.title));
     }
 
     readonly property int count: root.windows.length
@@ -108,9 +115,10 @@ Singleton {
         const limit = Config.options.commandPalette?.resultLimit ?? 40;
         return root.windows.filter(win => root.matches(win, needle)).slice(0, limit).map(win => {
             const address = win.address;
+            const held = win.held;
             return resultComp.createObject(null, {
                 name: win.title,
-                comment: Translation.tr("workspace %1").arg(win.workspaceName),
+                comment: win.workspaceName.length > 0 ? Translation.tr("workspace %1").arg(win.workspaceName) : "",
                 type: root.sectionTitle,
                 verb: Translation.tr("Focus"),
                 iconName: win.iconName,
@@ -118,10 +126,16 @@ Singleton {
                 genericName: win.appId,
                 keywords: [win.appId, win.workspaceName],
                 execute: () => {
-                    root.focusWindow(address);
+                    if (held === "hidden")
+                        WindowBand.reopenAll([address]);
+                    else if (held === "folding")
+                        WindowBand.reopenWhenHidden(address);
+                    else
+                        root.focusWindow(address);
                 },
-                // Focus is the row's own verb; listing it again here showed it twice on the row
-                actions: [resultComp.createObject(null, {
+                // Focus is the row's own verb; listing it again here showed it twice on the row. A held window comes
+                // back to its own place, so it has no Move here.
+                actions: held !== "" ? [] : [resultComp.createObject(null, {
                         name: root.moveHereLabel,
                         iconName: "move_item",
                         iconType: LauncherSearchResult.IconType.Material,

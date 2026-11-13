@@ -25,6 +25,12 @@ Singleton {
     property bool pomodoroLongBreak: Persistent.states.timer.pomodoro.isBreak && (pomodoroCycle + 1 == cyclesBeforeLongBreak);
     property int pomodoroLapDuration: pomodoroLongBreak ? longBreakTime : pomodoroBreak ? breakTime : focusTime // This is a binding that's to be kept
     property int pomodoroSecondsLeft: pomodoroLapDuration // Reasonable init value, to be changed
+    // A new length (from Settings) with no lap running or paused: the whole new length. Left at the old one, it read as
+    // time already counted, and the notch showed a paused timer nobody started.
+    onPomodoroLapDurationChanged: {
+        if (!root.pomodoroRunning && Persistent.states.timer.pomodoro.left <= 0)
+            root.pomodoroSecondsLeft = root.pomodoroLapDuration;
+    }
     property int pomodoroCycle: Persistent.states.timer.pomodoro.cycle
 
     property bool stopwatchRunning: Persistent.states.timer.stopwatch.running

@@ -21,6 +21,9 @@ Singleton {
     property bool available: false
     property string onCharger: "fastest"
     property string onBattery: "balanced"
+    // the last choice could not be written (outside the wheel group, a read-only disk): Settings' rows say so instead
+    // of only snapping back
+    property bool refused: false
 
     readonly property bool charging: !UPower.onBattery
     readonly property string current: root.charging ? root.onCharger : root.onBattery
@@ -72,7 +75,11 @@ Singleton {
         atomicWrites: false
         onFileChanged: reload()
         // not allowed to write (outside the wheel group, a read-only disk): show the modes the file really holds
-        onSaveFailed: reload()
+        onSaveFailed: {
+            root.refused = true;
+            reload();
+        }
+        onSaved: root.refused = false
         onLoaded: {
             root.available = true;
             for (const line of text().split("\n")) {

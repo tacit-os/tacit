@@ -55,6 +55,7 @@ ShellRoot {
         Config.reportsProblems = true
         Battery.suspends = true // the desktop alone suspends on a low battery; the lock and apps load Battery too
         Audio.handsOver = true // ... and alone hands the output to a headset and back
+        Updates.says = true // ... and alone says in the notch that updates are ready and how they went
         // ... and alone clears the cache and runtime folders of what the last session left
         Directories.cleanTemporary()
         MaterialThemeLoader.reapplyTheme()

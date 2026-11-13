@@ -31,8 +31,16 @@ Singleton {
     })
     function keyFor(name: string): string {
         const head = (name ?? "").split(":")[0];
-        if (SettingsCatalog.categories.some(c => c.key === head))
+        const isKey = k => SettingsCatalog.categories.some(c => c.key === k);
+        if (isKey(head))
             return head;
-        return root.oldPages[head] ?? "";
+        if (root.oldPages[head] !== undefined)
+            return root.oldPages[head];
+        // in another case ("Sound", "NETWORK", "hyprland"), after the exact ones: the old "Desktop" is not "desktop"
+        const lower = head.toLowerCase();
+        if (isKey(lower))
+            return lower;
+        const old = Object.keys(root.oldPages).find(k => k.toLowerCase() === lower);
+        return old !== undefined ? root.oldPages[old] : "";
     }
 }
