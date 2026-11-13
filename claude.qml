@@ -963,6 +963,7 @@ ApplicationWindow {
                 host: host
                 session: root.selected
                 active: root.visible
+                elsewhere: !!root.selected?.id && presence.agents.some(a => a.session === root.selected.id && !!a.window)
                 pinned: root.selected ? fm.pins.includes(root.selected.id) : false
                 folders: root.folders
                 viewer: mediaViewer

@@ -10,6 +10,7 @@ import qs.modules.tacit
 import "Markdown.js" as Md
 import "Titles.js" as Titles
 import "ActivityWords.js" as Words
+import "Limit.js" as Limit
 
 /**
  * A session's conversation, laid out after OpenChamber's chat column in the shell's colours.
@@ -442,6 +443,10 @@ Item {
             if (conv.items[i].role === "user" && (conv.items[i].rec ?? "").length) return conv.items[i].rec;
         return "";
     }
+    // A Claude Code fork before its first message has no transcript of its own (Claude Code writes it then, under the
+    // fork's id, with the history it carries): the session it was forked from is shown instead, read-only (no going
+    // back, no undo). That session's id while it lasts, else "".
+    property string borrowedFrom: ""
     property string rewindAt: ""      // the message whose "go back" question is open
     property var rewindFiles: null    // what putting files back would change (a dry run), null while it is asked
     property bool rewinding: false
@@ -551,6 +556,8 @@ Item {
     signal folderChosen(string path)
 
     readonly property var live: conv.session && !conv.session.fresh ? (conv.host.live[conv.session.id] ?? null) : null
+    // stopped by its plan's usage limit (agent-host's limited): "Limit reached · back at 14:00", as the rail says it
+    readonly property string limit: Limit.of(conv.live)
     readonly property var terminal: conv.session && !conv.session.fresh ? (conv.host.terminals[conv.session.id] ?? null) : null
     // a turn agent-host's previous process is finishing (Host.leftovers): followed, and a message waits for its end
     readonly property var leftover: conv.session && !conv.session.fresh ? (conv.host.leftovers[conv.session.id] ?? null) : null
@@ -600,6 +607,25 @@ Item {
     // a subagent still running in the background after its turn ended - and a message sent then sat queued.
     readonly property bool turnOpen: (conv.live !== null && conv.live.state !== "idle") || (conv.leftover !== null && conv.leftover.status === "busy")
     onTurnOpenChanged: { conv.testLog(`turnOpen ${conv.turnOpen}`); conv.sendQueued(); }
+    // open in a terminal that only the window list knows of (Codex, pi or opencode; Claude Code's are in the roster)
+    property bool elsewhere: false
+    // The newest turn was cut off: the transcript ends on your message, a step with no result or a thought, and nothing
+    // holds the session: agent-host does not know it (it stopped since, as a sign-out stops it with the agents it ran),
+    // and no terminal or previous host's process has it. Said once the host is back and its roster has answered, not
+    // while a message is on its way; the next message resumes the session.
+    readonly property bool cutOff: {
+        const s = conv.session;
+        if (!s || s.fresh || conv.shownSession !== s || conv.offset < 0) return false;
+        if (conv.live !== null || conv.running || conv.elsewhere || !conv.host.connected || !conv.host.rosterAnswered) return false;
+        if (conv.pendingUser.length || conv.sendingNow || conv.queued.length) return false;
+        for (let i = conv.items.length - 1; i >= 0; i--) {
+            const it = conv.items[i];
+            if (it.kind === "queue") continue;
+            return (it.role === "user" && (it.kind === "text" || it.kind === "image")) || it.kind === "thinking"
+                || (it.kind === "tool" && it.result === undefined && !it.error);
+        }
+        return false;
+    }
 
     // ── items → blocks (one list row each) ─────────────────────────────────
     function build(items) {
@@ -904,6 +930,7 @@ Item {
         conv.openIds = ({});
         conv.mdCache = ({});
         conv.readFailed = false;
+        conv.borrowedFrom = "";
         conv.rewindAt = "";
         conv.asideThread = [];
         conv.touchIndex = -1;
@@ -930,6 +957,9 @@ Item {
         if (conv.watching.length) { conv.host.request({ op: "unwatch", id: conv.watching }); conv.watching = ""; }
         if (!conv.session || conv.session.fresh) { conv.swapIn([], 0, 0); conv.changes = { files: [], add: 0, del: 0 }; return; }
         const id = conv.session.id;
+        // the host names the session a fork came from until its first message is sent (fork_from)
+        const from = live?.from ?? "";
+        conv.borrowedFrom = from;
         // Only the newest read may change the screen. A session started a moment ago is not on disk
         // yet, its first read can outlast loadTimeout, and that read's late "not found" used to wipe
         // what the retry had already shown (the first message vanished for seconds).
@@ -938,7 +968,7 @@ Item {
         slowRead.restart();
         loadTimeout.restart();
         conv.testLog("switch: transcript asked");
-        conv.host.request({ op: "transcript", id: id, limit: 400 }, m => {
+        conv.host.request({ op: "transcript", id: from || id, limit: 400 }, m => {
             conv.testLog(`switch: reply here (${(m.items ?? []).length} items)`);
             if (gen !== conv.loadGen || !conv.session || conv.session.id !== id) return;
             conv.loading = false;
@@ -949,6 +979,7 @@ Item {
             const findQ = conv.findOnLoad;
             conv.findOnLoad = "";
             if (m.ev !== "transcript") {
+                conv.borrowedFrom = "";
                 // a session started a moment ago has no file yet; for any other it is a read that failed
                 conv.swapIn([], 0, 0);
                 // one started from here a moment ago may not be listed as running yet either
@@ -961,11 +992,11 @@ Item {
                 return;
             }
             conv.byteCursor = m.startByte !== undefined;
-            conv.waiting = conv.applyQueue([], m.items);
+            conv.waiting = from ? [] : conv.applyQueue([], m.items);
             const typed = conv.pendingUser.trim();
             if (typed.length && m.items.some(i => i.role === "user" && (i.text ?? "").trim() === typed)) { conv.pendingUser = ""; conv.pendingImages = []; }
             conv.swapIn(m.items, m.startByte ?? m.start, m.total ?? m.items.length);
-            conv.offset = m.offset;
+            conv.offset = from ? 0 : m.offset;   // a fork's own file is followed from its start
             conv.settled = true;
             conv.applyCut();
             if (findQ.length) conv.findQuietly(findQ);
@@ -1055,6 +1086,8 @@ Item {
             if (!conv.session || conv.session.id !== id || m.ev !== "transcript") return;
             conv.offset = m.offset;
             if (m.items.length) {
+                // a fork's own transcript, from its start, with the history it carries: it takes the borrowed one's place
+                if (conv.borrowedFrom.length) { conv.borrowedFrom = ""; conv.items = []; conv.start = 0; }
                 conv.holdFooter();
                 // The live text and thought give way only to their own finished copies: a follow that brings
                 // the thinking before the text is done used to wipe the text being written (it started over
@@ -1098,13 +1131,13 @@ Item {
     // done(n): called with the number of blocks the earlier part added at the top
     function earlier(done) {
         if (conv.paging || !conv.session || conv.session.fresh) return;
-        const id = conv.session.id;
+        const id = conv.session.id, from = conv.borrowedFrom;
         conv.paging = true;
-        const req = { op: "transcript", id: id, limit: 400 };
+        const req = { op: "transcript", id: from || id, limit: 400 };
         if (conv.byteCursor) req.beforeByte = conv.start; else req.before = conv.start;
         conv.host.request(req, m => {
             conv.paging = false;
-            if (!conv.session || conv.session.id !== id || m.ev !== "transcript") return;
+            if (!conv.session || conv.session.id !== id || conv.borrowedFrom !== from || m.ev !== "transcript") return;
             // the whole list is rebuilt, so it is a swap: no rows ease in, and the end is not chased
             const was = blockModel.count;
             const hitsWere = conv.findHits.length;
@@ -1646,6 +1679,7 @@ Item {
                 // a permission or question card open: the step it holds has no result yet, so `busy` is true too
                 if (conv.pending.length) parts.push("waiting for you");
                 else if (conv.busy) parts.push("working");
+                else if (conv.limit.length) parts.push(conv.limit);
                 else if (conv.locked) parts.push("in a terminal");
                 else if (s.started > 0) parts.push(Qt.formatDateTime(new Date(s.started), "d MMM yyyy"));
                 return parts.filter(p => p.length).join(" · ");
@@ -2104,6 +2138,17 @@ Item {
                         color: Appearance.colors.colInkMeta
                     }
                 }
+                // quiet, as a note row: the turn ended with no reply and no sign of why
+                StyledText {
+                    visible: conv.cutOff
+                    width: parent.width
+                    topPadding: 12
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.Wrap
+                    text: "This turn was cut off when the service stopped. Send a message to carry on."
+                    font.pixelSize: 14
+                    color: Appearance.colors.colInkMeta
+                }
             }
         }
 
@@ -2241,7 +2286,7 @@ Item {
                             model: [{ glyph: "content_copy", tip: "Copy", run: () => Quickshell.clipboardText = d.b.text },
                                     { glyph: "edit", tip: "Edit in the box", run: () => composer.addText(d.b.text), hide: conv.locked },
                                     { glyph: "replay", tip: "Send again", run: () => conv.send(d.b.text.length ? d.b.text : "Look at this.", d.b.images ?? []), hide: conv.locked || conv.busy, pictures: true },
-                                    { glyph: "undo", tip: "Go back to here", run: () => conv.askRewind(d.b.rec), hide: conv.locked || conv.busy || conv.rewinding || !(d.b.rec ?? "").length || !conv.caps?.rewind }]
+                                    { glyph: "undo", tip: "Go back to here", run: () => conv.askRewind(d.b.rec), hide: conv.locked || conv.busy || conv.rewinding || !(d.b.rec ?? "").length || !conv.caps?.rewind || conv.borrowedFrom.length > 0 }]
                             delegate: MaterialSymbol {
                                 required property var modelData
                                 visible: !modelData.hide && (d.b.text.length > 0 || (!!modelData.pictures && (d.b.images ?? []).length > 0))
@@ -2269,7 +2314,7 @@ Item {
                     del: d.b.del
                     cwd: conv.session?.cwd ?? ""
                     undo: (d.b.rec ?? "").length && conv.undoneRecs.includes(d.b.rec) ? "done" : ""
-                    canUndo: (d.b.latest ?? false) && (d.b.rec ?? "").length > 0 && !conv.locked && !conv.busy && !!conv.caps?.rewindFiles
+                    canUndo: (d.b.latest ?? false) && (d.b.rec ?? "").length > 0 && !conv.locked && !conv.busy && !!conv.caps?.rewindFiles && !conv.borrowedFrom.length
                     onViewChanges: conv.changesViewed(d.b.edits ?? [])
                     onUndoAsked: done => conv.undoTurn(d.b.rec, done)
                 }

@@ -1001,8 +1001,10 @@ Item {
                         // in on Tacit's fast spatial curve, out on its quick effects curve
                         property real progress: rail.openKey === row.d.key ? 1 : 0
                         Behavior on progress { Anim { type: rail.openKey === row.d.key ? Anim.FastSpatial : Anim.FastEffects } }
+                        // a search hit, or a session at its usage limit: a second line under the title
+                        readonly property bool twoLines: row.type === "hit" || (row.type === "session" && (row.d.limit ?? "").length > 0)
                         readonly property real base: row.type === "more" && rail.firstFooter(row.d) ? 50
-                            : ({ label: 46, folder: 40, session: 32, hit: 56, more: 32, undo: 32, pause: 14 })[row.type]
+                            : ({ label: 46, folder: 40, session: row.twoLines ? 56 : 32, hit: 56, more: 32, undo: 32, pause: 14 })[row.type]
                             ?? (part.item ? part.item.implicitHeight : 32)
                         // in and out with a fold: in on Tacit's spatial curve, out on its exit curve. The
                         // model fills rows in place, so a row is new when its key changes, not when made
@@ -1138,7 +1140,7 @@ Item {
                             readonly property string key: row.d.key
                             active: row.renaming
                             anchors { left: parent.left; leftMargin: row.type === "folder" ? 12 : 38; right: parent.right; rightMargin: 14 }
-                            y: row.type === "hit" ? 4 : (row.base - 26) / 2
+                            y: row.twoLines ? 4 : (row.base - 26) / 2
                             height: 26
                             sourceComponent: renameBox
                         }
@@ -1192,6 +1194,7 @@ Item {
             readonly property Item r: parent ? parent.rowItem : null
             readonly property var d: sp.r ? sp.r.d : ({})
             readonly property bool hit: sp.d.type === "hit"
+            readonly property bool twoLines: sp.r?.twoLines ?? false
             readonly property bool hover: !!sp.r && (sp.r.hovered || sp.r.keyFocus || sp.r.held) && !sp.d.placeholder && !sp.r.renaming && !rail.dragging
             readonly property real progress: sp.r ? sp.r.progress : 0
             readonly property bool opened: sp.progress > 0
@@ -1230,7 +1233,7 @@ Item {
                 id: title
                 visible: !(sp.r?.renaming ?? false)
                 x: 44
-                y: sp.hit ? 8 : (32 - sp.lineH) / 2
+                y: sp.twoLines ? 8 : (32 - sp.lineH) / 2
                 // open, the room for pin and ⋯ is kept whether or not the pointer is on it: the title
                 // wraps there, and a width that followed the hover moved the rows under the pointer,
                 // which moved the hover (a flicker at the rows' seams)
@@ -1257,11 +1260,12 @@ Item {
                 elide: Text.ElideRight
                 horizontalAlignment: Text.AlignRight
             }
+            // a hit's snippet, or the limit's words ("Limit reached · back at 14:00")
             StyledText {
-                visible: sp.hit
+                visible: sp.twoLines
                 anchors { left: parent.left; leftMargin: 44; right: parent.right; rightMargin: 20; top: title.bottom; topMargin: 3 }
-                textFormat: Text.StyledText
-                text: rail.markedSnippet(sp.d.snippet, field.text)
+                textFormat: sp.hit ? Text.StyledText : Text.PlainText
+                text: sp.hit ? rail.markedSnippet(sp.d.snippet, field.text) : sp.d.limit ?? ""
                 font.family: Appearance.font.family.compact
                 elide: Text.ElideRight
                 font.pixelSize: 14
@@ -1302,7 +1306,7 @@ Item {
             Item {
                 visible: sp.progress > 0
                 x: 44
-                y: (sp.hit ? 54 : 32) - 3 + sp.titleExtra
+                y: (sp.twoLines ? 54 : 32) - 3 + sp.titleExtra
                 width: sp.width - 44 - 20
                 height: Math.max(0, (sp.grownH - sp.titleExtra) * sp.progress)
                 clip: true

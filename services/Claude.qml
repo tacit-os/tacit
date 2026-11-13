@@ -11,6 +11,7 @@ import qs.modules.common
 import qs.modules.common.functions
 import "../modules/claude"
 import "../modules/claude/Titles.js" as Titles
+import "../modules/claude/Limit.js" as Limit
 
 /**
  * Claude as one system (plan: ~/book4-edge/claude-unified-plan.md). What every shell surface
@@ -693,21 +694,10 @@ Singleton {
         }
         return answer.length ? answer.replace(/[*`_]/g, "") : `${root.titleOf(id)} done`;
     }
-    // A turn cut off by a usage limit: the host marks the session limited:{resetsAt} (unix s) until a turn ends well.
-    // Said as the app's session list says it ("Limited · back 14:30"), after the title, in the error tone and with a
-    // clock, not the check mark of a finished turn.
-    function limitText(id) {
-        const at = host.live[id]?.limited?.resetsAt ?? 0;
-        let back = "";
-        if (at > 0) {
-            const d = new Date(at * 1000), now = new Date();
-            const hm = Qt.formatTime(d, "HH:mm");
-            // whole days between the two midnights (a day across a clock change is 23 or 25 hours)
-            const days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(now.getFullYear(), now.getMonth(), now.getDate())) / 86400000);
-            back = days <= 0 ? ` · back ${hm}` : days === 1 ? ` · back tomorrow ${hm}` : ` · back ${Qt.formatDate(d, "MMM d")} ${hm}`;
-        }
-        return `${root.titleOf(id)} limited${back}`;
-    }
+    // A turn cut off by a usage limit: the host marks the session limited:{resetsAt} until the limit resets. Said as
+    // Praxis's rail and header say it ("Limit reached · back at 14:00", Limit.js), in the error tone and with a clock,
+    // not the check mark of a finished turn.
+    function limitText(id) { return Limit.of(host.live[id]); }
     function finished(id) {
         const limited = !!host.live[id]?.limited;
         const text = limited ? root.limitText(id) : root.doneText(id);

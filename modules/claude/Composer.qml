@@ -239,6 +239,8 @@ Item {
             if (!q.length) return;
             composer.asideAsked(q);
             input.text = "";
+            // one question: the next Enter is a message again (the chip again asks a follow-up, in the same thread)
+            composer.aside = false;
             return;
         }
         const t = input.text.trim();

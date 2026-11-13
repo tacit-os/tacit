@@ -31,7 +31,8 @@ Item {
     // how the last sign-in from here began, for Try again
     property string method: ""
     property string provider: ""
-    // a sign-in or install asked for here that the host has not reported on yet: "signin" | "install"
+    // a sign-in or install asked for here that the host has not reported on yet: "signin" | "install"; or "check", a
+    // look asked for with Check again, shown as one until the step changes or a moment has passed
     property string pending: ""
     // the host's error reply to a request from here: { kind: "signin" | "install" | "code", message }
     property var refusal: null
@@ -48,6 +49,7 @@ Item {
             return f === "code" || steps.codeOpen ? "code" : "signingIn";
         if (steps.pending === "signin" && steps.standing !== "ready") return "starting";
         if (steps.pending === "install" && (steps.standing === "notInstalled" || steps.standing === "needsNode")) return "installing";
+        if (steps.pending === "check" && steps.owes(steps.standing)) return "checking";
         if (steps.refusal?.kind === "signin" && steps.standing !== "ready") return "failed";
         // pi and opencode sign in per provider: signed out means no provider yet
         if (steps.standing === "signedOut" && (steps.agent === "pi" || steps.agent === "opencode")) return "noProvider";
@@ -59,7 +61,10 @@ Item {
     Component.onCompleted: steps.owed = steps.owes(steps.shown)
     // on `standing`, not `shown`: `finishing` feeds `shown`, so setting it from shown's own change
     // is a binding loop
-    onStandingChanged: if (steps.standing === "ready" && steps.owed && !steps.finishing) steps.finish()
+    onStandingChanged: {
+        if (steps.pending === "check") steps.pending = "";
+        if (steps.standing === "ready" && steps.owed && !steps.finishing) steps.finish();
+    }
     onShownChanged: {
         if (steps.owes(steps.shown)) steps.owed = true;
         if (steps.shown !== "code") {
@@ -99,6 +104,9 @@ Item {
     // a code the host took but never answered (the page asked again): the field comes back
     Timer { id: checkTimer; interval: 20000; onTriggered: steps.checkingCode = false }
     Timer { id: copiedReset; interval: 1500; onTriggered: steps.copied = false }
+    // the host answers a look at once and pushes what it found as each account is read: a step that is still the
+    // same after this is what the look found
+    Timer { id: checkWait; interval: 4000; onTriggered: if (steps.pending === "check") steps.pending = "" }
 
     // An error reply is the host refusing to start: shown as a failed sign-in or install.
     function refused(kind) {
@@ -120,6 +128,13 @@ Item {
         steps.refusal = null;
         steps.pending = "install";
         steps.model.installAgent(steps.agent, withNode, steps.refused("install"));
+    }
+    // An install or sign-in done in a terminal: the host reads the agents only when asked (or every ten minutes), so
+    // it is asked for all of them, agents included, as the window's focus asks (Composer)
+    function checkAgain() {
+        steps.pending = "check";
+        checkWait.restart();
+        steps.model.check("");
     }
     // Cancel on a sign-in: the host's, or only the refusal shown here
     function cancelSignIn() {
@@ -167,14 +182,15 @@ Item {
         if (!m) return ({});
         const name = m.agentName(steps.agent);
         const cancel = { word: "Cancel", run: () => steps.cancelSignIn() };
+        const checkAgain = { word: "Check again", run: () => steps.checkAgain() };
         // why the last install did not happen: the host's refusal, or the install's failed step
         const instFail = steps.refusal?.kind === "install" ? steps.refusal.message
             : m.install?.agent === steps.agent && m.install.step === "failed" ? (m.install.line ?? "") : null;
         switch (steps.shown) {
         case "signedOut":
-            return { methods: steps.signInMethods() };
+            return { methods: steps.signInMethods(), actions: [checkAgain] };
         case "noProvider":
-            return { methods: steps.providerMethods() };
+            return { methods: steps.providerMethods(), actions: [checkAgain] };
         case "signingIn":
             // the host could not open a browser: the page is the first thing to do
             const unopened = steps.flow?.opened === false && !!steps.flow?.url;
@@ -218,7 +234,7 @@ Item {
                      actions: [{ word: "Try again", run: () => steps.again() }, cancel] };
         }
         case "expired":
-            return { line: m.factsOf(steps.agent, steps.accountId), actions: [{ word: "Sign in again", run: () => steps.again() }] };
+            return { line: m.factsOf(steps.agent, steps.accountId), actions: [{ word: "Sign in again", run: () => steps.again() }, checkAgain] };
         case "noKey":
         case "keyRefused": {
             const p = m.keyProvider(steps.acct);
@@ -233,14 +249,14 @@ Item {
                      actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
         case "notInstalled":
             return { line: "Not installed", sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
-                     actions: [{ word: "Install", run: () => steps.install(false) }] };
+                     actions: [{ word: "Install", run: () => steps.install(false) }, checkAgain] };
         case "installing":
             return { spin: true, lineMono: true, line: m.install?.step === "running" && m.install.line || `Installing ${name}…`,
                      actions: [{ word: "Cancel", run: () => { steps.pending = ""; m.cancelInstall(steps.agent); } }] };
         case "needsNode":
             return { line: `${name} needs one more install first. Installing both asks for your password.`,
                      sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
-                     actions: [{ word: "Install both", run: () => steps.install(true) }] };
+                     actions: [{ word: "Install both", run: () => steps.install(true) }, checkAgain] };
         case "done": {
             const a = Object.assign({}, steps.acct ?? {}, steps.flow?.who ?? {});
             return { check: true, line: steps.standing === "ready" ? m.factsOf(steps.agent, steps.accountId) : (m.planWords(a) || "Signed in") };

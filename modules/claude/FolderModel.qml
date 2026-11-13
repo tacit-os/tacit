@@ -5,6 +5,7 @@ import qs.services
 import qs.modules.common
 import qs.modules.common.functions
 import "Titles.js" as Titles
+import "Limit.js" as Limit
 
 /**
  * The rail's rows and the folders behind them: Pinned, Recent, then one heading per folder.
@@ -764,7 +765,8 @@ Item {
             const r = { type: snippet !== undefined ? "hit" : "session", key: (snippet !== undefined ? "h:" : "s:") + id, id: id,
                         title: fm.titleOf(s), tool: s.tool || "claude", context: "", state: st[id] ?? "past",
                         pinned: !!pinSet[id], archived: !!archivedSet[id], age: Voice.age(s.updated || s.started || now, now),
-                        fkey: fk[id] ?? fm.folderOf(s), session: s, arrived: !!fm.arrivals[id] };
+                        fkey: fk[id] ?? fm.folderOf(s), session: s, arrived: !!fm.arrivals[id],
+                        limit: Limit.of(fm.live[id], now) };   // "Limit reached · back at 14:00", under the title
             r.context = fm.contextWord(r, inGroup);
             if (snippet !== undefined) r.snippet = snippet ?? "";
             return r;

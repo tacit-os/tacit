@@ -4,7 +4,7 @@ import { inScope, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs
 import { check, done, read } from "./lib/check.mjs";
 
 const appSrc = read("claude.qml"), convSrc = read("modules/claude/Conversation.qml"), boxSrc = read("modules/claude/Composer.qml");
-const reviewSrc = read("modules/claude/ChangesPanel.qml");
+const reviewSrc = read("modules/claude/ChangesPanel.qml"), stepsSrc = read("modules/claude/AgentSteps.qml");
 // "<name>: <expression>" in the file (a handler or a binding), run in scope; an absent one does nothing
 function handler(src, name, scope) {
   const m = new RegExp(`\\b${name}:\\s*`).exec(src);
@@ -75,8 +75,10 @@ console.log("What Praxis sends and keeps (claude.qml, modules/claude/Conversatio
   const other = enter("switch", true);
   check("opening another session leaves aside too", !other.on && JSON.stringify(other.sent) === '["fix the login bug"]',
     `aside ${other.on}, sent ${JSON.stringify(other.sent)}, asked aside ${JSON.stringify(other.asides)}`);
+  // the owner's call (decisions2-praxis [2]): one question, then the box is back to messages; a follow-up is the chip again
   const same = enter(true, true);
-  check("in the same session it stays on, for the next question of the thread", same.on && same.asides.length === 1);
+  check("in the same session one question goes aside, and the box is back to messages after it",
+    same.asides.length === 1 && !same.sent.length && !same.on, `asked aside ${JSON.stringify(same.asides)}, sent ${JSON.stringify(same.sent)}, aside still on ${same.on}`);
 }
 
 // [4] Review's comments sent while the conversation could not take a message (reconnecting, still being read): the
@@ -158,5 +160,37 @@ console.log("What Praxis sends and keeps (claude.qml, modules/claude/Conversatio
     JSON.stringify(step) === '[""]' && JSON.stringify(menu) === '[""]', `with a step ${JSON.stringify(step)}, with the menu ${JSON.stringify(menu)}`);
   check("and not when nothing needs a step, nor as the window loses the focus",
     !back({}).length && !back({ active: false, needsStep: true }).length);
+
+  // the owner's call (decisions2-praxis [3]): the step itself has a Check again beside Install and the sign-in, which
+  // asks the host to read the agents and accounts again, and shows Checking… until the step changes
+  const block = name => { const e = qmlProperty(stepsSrc, name); return e && e.startsWith("{") ? e.slice(1, -1) : `return (${e});`; };
+  const shownStep = (standing, agent = "codex") => {
+    const asked = [];
+    const steps = { agent, accountId: "codex-1", standing, pending: "", refusal: null, flow: null, finishing: false, codeOpen: false,
+      provider: "", method: "", acct: null, owed: true, finished: 0, finish() { steps.finished++; }, signIn() {}, again() {}, install() {},
+      cancelSignIn() {}, keyAnchor: p => p, esc: s => s, settingsRequested() {},
+      model: { agentName: a => a, install: null, factsOf: () => "Signed out", check: id => asked.push(id) } };
+    const scope = { steps, Qt: { openUrlExternally() {} }, Quickshell: {}, checkWait: { restart() {} } };
+    for (const f of ["signInMethods", "providerMethods", "owes", "checkAgain"]) {
+      const fn = qmlFunction(stepsSrc, f);
+      if (fn) steps[f] = inScope(scope, fn.params, fn.body);
+    }
+    const shown = inScope(scope, "", block("shown")), view = inScope(scope, "", block("view"));
+    Object.defineProperty(steps, "shown", { get: shown });
+    const again = (view().actions ?? []).find(a => a.word === "Check again");
+    if (again) again.run();
+    const during = steps.shown;
+    steps.standing = "ready";
+    handler(stepsSrc, "onStandingChanged", { steps })();
+    return { offered: !!again, beside: (view().actions ?? []).map(a => a.word), asked, during, after: steps.pending, finished: steps.finished };
+  };
+  const notInstalled = shownStep("notInstalled"), needsNode = shownStep("needsNode"), signedOut = shownStep("signedOut"), expired = shownStep("expired"),
+    noProvider = shownStep("signedOut", "pi");
+  const all = [notInstalled, needsNode, signedOut, expired, noProvider];
+  check("Not installed, one more install, not signed in, signed out and no provider each offer Check again",
+    all.every(r => r.offered), all.map(r => r.offered).join(", "));
+  check("Check again asks the host to look at every agent and account, and says Checking… until the step changes",
+    all.every(r => JSON.stringify(r.asked) === '[""]' && r.during === "checking" && r.after === "" && r.finished === 1),
+    `asked ${JSON.stringify(notInstalled.asked)}, shown ${notInstalled.during}, then pending "${notInstalled.after}", finished ${notInstalled.finished}`);
 }
 done();

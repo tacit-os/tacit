@@ -1,7 +1,7 @@
 // Praxis after agent-host restarts mid-turn (modules/claude/Host.qml, Conversation.qml): the old process finishes the
 // turn on its own, known only from the roster (a leftover), and its last rows were read only while one was listed.
 // The handlers' own code is run under node.
-import { inScope, matchBrace, qmlFunction, readExpression } from "./lib/qml.mjs";
+import { inScope, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const hostSrc = read("modules/claude/Host.qml"), convSrc = read("modules/claude/Conversation.qml"), appSrc = read("claude.qml");
@@ -163,5 +163,48 @@ function queue({ connected, answered, accepts }) {
   conv.load();
   check("another session opened after it starts from its own (Auto, no level), not the restarted one's",
     conv.chosenMode === "auto" && conv.chosenEffort === "", `${conv.chosenMode}, "${conv.chosenEffort}"`);
+}
+
+// should-notch-other [o0], the owner's call (decisions2-praxis [4]): signed out and in mid-turn, agent-host stopped with
+// the agents it ran, and the conversation ended on the last step or on an unanswered message with nothing said
+{
+  const expr = qmlProperty(convSrc, "cutOff");
+  const ask = ({ last, live = null, terminal = null, leftover = null, elsewhere = false, connected = true, answered = true, more = {} }) => {
+    if (!expr) return false;
+    const session = { id: "s1", cwd: "/home/a/dev/app", fresh: false };
+    const conv = { session, shownSession: session, offset: 900, live, terminal, leftover, elsewhere, pendingUser: "", sendingNow: false,
+      queued: [], host: { connected, rosterAnswered: answered },
+      items: [{ role: "user", kind: "text", text: "fix the login" }, { role: "assistant", kind: "text", text: "On it." }, last,
+        { role: "system", kind: "queue", op: "remove", text: "" }],
+      ...more };
+    conv.running = (live !== null && (live.alive || live.state !== "idle")) || terminal !== null || leftover !== null;
+    return inScope({ conv }, "", expr.startsWith("{") ? expr.slice(1, -1) : `return (${expr});`)();
+  };
+  const yours = { role: "user", kind: "text", text: "and run the tests" }, step = { role: "assistant", kind: "tool", tool: "Bash", id: "t1" };
+  const thought = { role: "assistant", kind: "thinking", text: "…" };
+  check("a session no process holds, ending on your message, a step with no result or a thought, was cut off",
+    ask({ last: yours }) && ask({ last: step }) && ask({ last: thought }) && ask({ last: { role: "user", kind: "image", images: [] } }),
+    `message ${ask({ last: yours })}, step ${ask({ last: step })}, thought ${ask({ last: thought })}`);
+  const ended = [{ role: "assistant", kind: "text", text: "Done." }, { ...step, result: "ok" }, { role: "system", kind: "note", text: "Interrupted" },
+    { role: "user", kind: "command", text: "/model" }];
+  check("a turn that ended (a reply, a step's result, Stop, a slash command) is not",
+    ended.every(last => !ask({ last })), ended.map(last => ask({ last })).join(", "));
+  const held = [ask({ last: step, live: { state: "idle", alive: false } }), ask({ last: step, live: { state: "working", alive: true } }),
+    ask({ last: step, terminal: { status: "busy" } }), ask({ last: step, leftover: { status: "busy", pid: 790 } }), ask({ last: step, elsewhere: true })];
+  check("nor one the host knows, one in a terminal, the previous host's still finishing, or an agent open in a terminal", !held.some(x => x),
+    held.join(", "));
+  const early = [ask({ last: yours, connected: false }), ask({ last: yours, answered: false }), ask({ last: yours, more: { pendingUser: "go on" } }),
+    ask({ last: yours, more: { sendingNow: true } }), ask({ last: yours, more: { queued: [{ text: "go on" }] } }), ask({ last: yours, more: { offset: -1 } })];
+  check("and nothing is said before the host is back with its roster's answer, nor with a message on its way, nor before the read",
+    !early.some(x => x), early.join(", "));
+  const at = convSrc.indexOf("visible: conv.cutOff");
+  const text = at < 0 ? "" : readExpression(convSrc, convSrc.indexOf("text:", at) + 5).expr;
+  check("the note under it says what happened and how to go on",
+    text === '"This turn was cut off when the service stopped. Send a message to carry on."', text || "no note");
+  const m = /\belsewhere:\s*/.exec(appSrc);
+  const where = m ? readExpression(appSrc, m.index + m[0].length).expr : "false";
+  const open = (agents, id = "s1") => inScope({ root: { selected: { id } }, presence: { agents } }, "", `return !!(${where});`)();
+  check("Praxis tells the conversation of a Codex, pi or opencode session open in a terminal window",
+    open([{ session: "s1", window: "0x55" }]) && !open([{ session: "s2", window: "0x55" }]) && !open([{ session: "s1", window: "" }]));
 }
 done();
