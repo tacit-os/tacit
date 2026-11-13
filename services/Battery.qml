@@ -79,6 +79,14 @@ Singleton {
         root.timeToFull = root.shown(root.timeToFull, isCharging && rate > 0.3 && left > 0 ? left / rate * 3600 : 0);
         root.timeToEmpty = root.shown(root.timeToEmpty, !isPluggedIn && rate < -0.3 ? device.energy / -rate * 3600 : 0);
     }
+    // For the Settings app, which runs in its own process: its copy of this singleton starts with no samples each
+    // time it opens, and had no time for four minutes. The shell's has measured since login, as the notch shows it.
+    IpcHandler {
+        target: "battery"
+        function times(): string {
+            return JSON.stringify({ timeToEmpty: root.timeToEmpty, timeToFull: root.timeToFull, drainingOnAc: root.drainingOnAc });
+        }
+    }
     Timer {
         interval: 20000
         repeat: true

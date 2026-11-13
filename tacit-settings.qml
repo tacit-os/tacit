@@ -721,10 +721,22 @@ ApplicationWindow {
     }
 
     // The battery, read from UPower here for its level and health, chosen the way the shell's Battery
-    // service chooses it (services/Battery.qml). Its times are that service's: only the shell suspends
-    // with it (Battery.suspends), and its notices are the shell's IslandController's.
+    // service chooses it (services/Battery.qml). Its times are the shell's Battery's, asked of the shell, as
+    // the notch shows them: that service's copy in this process starts with no samples each time Settings
+    // opens, and had none for four minutes. Undefined until the shell answers; null when it does not, and
+    // then UPower's own, as 1.2.14 showed them.
     readonly property var batteryDevice: UPower.devices.values.find(d => d.isLaptopBattery && (d.nativePath ?? "").includes("book4-ec")) ?? UPower.displayDevice
     readonly property bool hasBattery: root.batteryDevice?.isLaptopBattery ?? false
+    property var shellBattery: undefined
+    function askBattery() {
+        root.callShell(["battery", "times"], () => root.shellBattery = null, out => {
+            try {
+                root.shellBattery = JSON.parse(out);
+            } catch (e) {
+                root.shellBattery = null;
+            }
+        });
+    }
     function batteryTime(secs) {
         const t = Math.round(secs / 60), h = Math.floor(t / 60), m = t % 60;
         return h > 0 ? `${h} h ${m} min` : `${m} min`;
@@ -887,17 +899,19 @@ ApplicationWindow {
 
     // What the desktop itself carries out (a wallpaper, a file pick, Do not disturb, brightness, night light) is asked of
     // the shell with `qs ipc call`, which goes unanswered while the shell reloads or after it stopped. qs exits 255 when
-    // no shell runs, but 0 with the shell's refusal on stderr ("Not ready to accept queries yet." while it reloads,
-    // "Target not found."), and waits for good on a shell that hangs. Each call is read: one not answered in 5 s, or
-    // refused, puts its setting back (failed) and the top of the page says so, until a call goes through or another
-    // page opens.
+    // no shell runs, but 0 with the shell's refusal ("Not ready to accept queries yet." while it reloads, "Target not
+    // found."), printed on stdout as all its words are (Quickshell 0.3.2's LogManager), and waits for good on a shell
+    // that hangs. Each call is read: one not answered in 5 s, or refused, puts its setting back (failed) and the top of
+    // the page says so, until a call goes through or another page opens. A call that asks the shell something
+    // (answered, given what it printed) is no setting: it leaves the line as it is.
     property bool desktopSilent: false
-    function shellAnswered(code, err) {
+    function shellAnswered(code, said, asking) {
         // qs's own words for a call the shell did not take (Quickshell's src/io/ipccomm.cpp and src/ipc/ipc.cpp)
         const refused = ["Target not found", "Function not found", "Not ready to accept queries", "Unable to parse argument",
             "arguments provided", "invalid IPC response", "Socket Error"];
-        const ok = code === 0 && !refused.some(w => err.includes(w));
-        root.desktopSilent = !ok;
+        const ok = code === 0 && !refused.some(w => said.includes(w));
+        if (!asking)
+            root.desktopSilent = !ok;
         return ok;
     }
     Component {
@@ -905,19 +919,25 @@ ApplicationWindow {
         Process {
             id: call
             property var failed: null
+            property var answered: null
+            stdout: StdioCollector { id: callOut }
             stderr: StdioCollector { id: callErr }
             // a call killed for taking too long crashed: its code says nothing
             onExited: (code, status) => {
-                if (!root.shellAnswered(status === 0 ? code : -1, callErr.text) && call.failed)
-                    call.failed();
+                if (!root.shellAnswered(status === 0 ? code : -1, callOut.text + callErr.text, call.answered !== null)) {
+                    if (call.failed)
+                        call.failed();
+                } else if (call.answered) {
+                    call.answered(callOut.text);
+                }
                 call.destroy();
             }
             readonly property Timer patience: Timer { interval: 5000; running: true; onTriggered: call.running = false }
         }
     }
-    function callShell(args, failed) {
+    function callShell(args, failed, answered) {
         const call = shellCall.createObject(root, { command: ["qs", "-p", Directories.shellFile, "ipc", "call"].concat(args),
-            failed: failed ?? null });
+            failed: failed ?? null, answered: answered ?? null });
         call.running = true;
     }
     // the list arrives as JSON text, as one path, or already unwrapped (claude.qml's picked)
@@ -1773,16 +1793,37 @@ ApplicationWindow {
             // the notch's own few settings stay on the page; the longer sections open as pages
             property string viewing: ""
             onViewingChanged: root.revealPage()
-            // notch:<section>; the link is spent once the page has taken it, so choosing the page again opens its list
+            // notch:<section>; the link is spent once the page has taken it, so choosing the page again opens its list.
+            // notch:advanced (Notifications' line for the centre's corner, Advanced's last row): Advanced, the page's
+            // last group, opens scrolled into view, as About's Updates group does. The page is placed only once it is
+            // laid out, so the scroll is kept there for two seconds, unless the page is scrolled by hand.
+            property bool toAdvanced: false
             function takeAnchor(anchor) {
                 if (["tells", "reminders", "music"].includes(anchor)) nt.viewing = anchor;
-                else if (anchor === "advanced") notchAdvanced.open = true;
+                else if (anchor === "advanced") {
+                    notchAdvanced.open = true;
+                    nt.toAdvanced = true;
+                    toAdvancedEnd.restart();
+                    Qt.callLater(nt.showAdvanced);
+                }
                 root.pageAnchor = "";
             }
+            function showAdvanced() {
+                if (!nt.toAdvanced || !notchAdvanced.visible)
+                    return;
+                const y = notchAdvanced.mapToItem(pageColumn, 0, 0).y + pageColumn.y;
+                pageScroll.contentY = Math.max(0, Math.min(pageScroll.contentHeight - pageScroll.height, y - 20));
+            }
+            onImplicitHeightChanged: Qt.callLater(nt.showAdvanced)
+            Timer { id: toAdvancedEnd; interval: 2000; onTriggered: nt.toAdvanced = false }
             Component.onCompleted: nt.takeAnchor(root.pageAnchor)
             Connections {
                 target: root
                 function onAnchorAsked(anchor) { nt.takeAnchor(anchor); }
+            }
+            Connections {
+                target: pageScroll
+                function onMovementStarted() { nt.toAdvanced = false; }
             }
             readonly property var tellKeys: ["notification", "power", "network", "workspace", "focus", "download", "activity"]
             readonly property int tellsOn: nt.tellKeys.filter(k => Config.options.island.states[k]).length
@@ -2972,10 +3013,11 @@ ApplicationWindow {
             Process {
                 id: writeSilent
                 property bool was: false
+                stdout: StdioCollector { id: writeSilentOut }
                 stderr: StdioCollector { id: writeSilentErr }
                 // not answered (root.shellAnswered): Do not disturb is as it was, until the shell's own answer
                 onExited: (code, status) => {
-                    if (!root.shellAnswered(status === 0 ? code : -1, writeSilentErr.text))
+                    if (!root.shellAnswered(status === 0 ? code : -1, writeSilentOut.text + writeSilentErr.text))
                         np.silent = writeSilent.was;
                     readSilent.running = true;
                 }
@@ -4668,23 +4710,33 @@ ApplicationWindow {
                 }
             }
 
+            // the shell's battery times, asked as often as its Battery measures (root.shellBattery)
+            Timer {
+                interval: 20000
+                repeat: true
+                running: root.hasBattery
+                triggeredOnStart: true
+                onTriggered: root.askBattery()
+            }
             Summary {
                 visible: root.hasBattery
                 readonly property var b: root.batteryDevice
                 readonly property int pct: Math.round((b?.percentage ?? 0) * 100)
+                readonly property var times: root.shellBattery === undefined ? ({ timeToEmpty: 0, timeToFull: 0 })
+                    : root.shellBattery ?? { timeToEmpty: b?.timeToEmpty ?? 0, timeToFull: b?.timeToFull ?? 0 }
                 // plugged in while the pack drains (a capped charger) is not charging, as the notch says
-                readonly property bool charging: b?.state === UPowerDeviceState.Charging && !Battery.drainingOnAc
+                readonly property bool charging: b?.state === UPowerDeviceState.Charging && !times.drainingOnAc
                 glyph: charging ? "battery_charging_full" : pct >= 95 ? "battery_full" : `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
                 eyebrow: "Battery"
                 title: `${pct}%`
-                // The times are Battery's, from the pack's own energy over the last minutes, as the notch shows
-                // them: UPower's swung between 3, 4 and 9 h. One shows once there are four minutes of it. A trickle
-                // charge gives a day or more; past 12 h it is "slowly".
-                subtitle: [Battery.drainingOnAc ? "Plugged in, not charging"
-                        : charging ? (Battery.timeToFull > 43200 ? "Charging slowly"
-                            : Battery.timeToFull > 0 ? `Charging · full in ${root.batteryTime(Battery.timeToFull)}` : "Charging")
+                // The times are the shell's Battery's, from the pack's own energy over the last minutes, as the notch
+                // shows them: UPower's swung between 3, 4 and 9 h. One shows once there are four minutes of it. A
+                // trickle charge gives a day or more; past 12 h it is "slowly".
+                subtitle: [times.drainingOnAc ? "Plugged in, not charging"
+                        : charging ? (times.timeToFull > 43200 ? "Charging slowly"
+                            : times.timeToFull > 0 ? `Charging · full in ${root.batteryTime(times.timeToFull)}` : "Charging")
                         : !UPower.onBattery ? "Plugged in"
-                        : (Battery.timeToEmpty > 0 ? `${root.batteryTime(Battery.timeToEmpty)} left` : "On battery"),
+                        : (times.timeToEmpty > 0 ? `${root.batteryTime(times.timeToEmpty)} left` : "On battery"),
                     (b?.healthSupported ?? false) ? `health ${Math.round(b.healthPercentage)}%` : ""].filter(x => x.length > 0).join(" · ")
                 live: charging
             }

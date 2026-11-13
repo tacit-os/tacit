@@ -2,8 +2,9 @@
 // one puts its setting back, and the top of the page says "The desktop isn't answering. Try again in a moment." until a
 // call goes through or another page opens (tacit-settings.qml's callShell and its users). The tree's own blocks run under
 // qmltestrunner offscreen beside a stand-in Process that answers as Quickshell 0.3.2's qs does: exit 255 with no shell,
-// exit 0 with "Not ready to accept queries yet." on stderr while it reloads, nothing at all from a shell that hangs, and
-// exit 0 with nothing said when it takes the call.
+// exit 0 with "Not ready to accept queries yet." while it reloads, nothing at all from a shell that hangs, and exit 0
+// with nothing said when it takes the call. qs prints its words on stdout, as all its log lines (its LogManager), and
+// nothing on stderr: a run of qs 0.3.2 with no shell, and one refused ("Target not found."), printed so.
 import { inScope, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { logged, module, objectWith, runScene } from "./lib/qtscene.mjs";
 import { check, done, read } from "./lib/check.mjs";
@@ -26,7 +27,7 @@ if (writeSilent && parts.startPick && parts.applyWallpaper && parts.setNight) {
   const files = {
     ...module("Quickshell.Io", { FakeShell: `QtObject { property string mode: "up" }` }, {
       StdioCollector: `QtObject { property string text: "" }`,
-      // as Quickshell's Process: stderr's text is in before exited, which comes before running reads false; a Process
+      // as Quickshell's Process: stdout's text is in before exited, which comes before running reads false; a Process
       // stopped while it runs ends as a crash (status 1)
       Process: `QtObject {
     id: p
@@ -48,8 +49,8 @@ if (writeSilent && parts.startPick && parts.applyWallpaper && parts.setNight) {
         }
     }
     function end() {
-        if (p.stderr) p.stderr.text = FakeShell.mode === "gone" ? " INFO: No running instances for \\"/x/shell.qml\\"\\n"
-            : FakeShell.mode === "reloading" ? " ERROR: Not ready to accept queries yet.\\n" : "";
+        if (p.stdout) p.stdout.text = FakeShell.mode === "gone" ? "No running instances for \\"/x/shell.qml\\"\\n"
+            : FakeShell.mode === "reloading" ? "Not ready to accept queries yet.\\n" : "";
         p.live = false;
         p.exited(FakeShell.mode === "gone" ? 255 : 0, 0);
         p.running = false;
@@ -124,6 +125,11 @@ TestCase {
         settle();
         out.dndAfter = np.silent;
         out.dndReread = readSilent.running;
+        FakeShell.mode = "reloading";
+        np.silent = false;
+        (${dndToggled})(true);
+        settle();
+        out.dndReloading = np.silent;
 
         FakeShell.mode = "hung";
         root.desktopSilent = false;
@@ -153,6 +159,7 @@ TestCase {
     check("one the shell takes still waits for the Files window's answer", out.pickUp === true);
     check("Do not disturb turned on with no shell is off again, and read back from the shell",
       out.dndAtOnce === true && out.dndAfter === false && out.dndReread === true, JSON.stringify(out));
+    check("and turned on while the shell reloads (qs exits 0, \"Not ready\") is off again", out.dndReloading === false, JSON.stringify(out));
     check("a shell that holds the call is waited for, then taken as not answering after 5 s",
       JSON.stringify(out.hungAt1s) === "[false,true]" && JSON.stringify(out.hungAt56s) === "[true,false]", JSON.stringify(out));
   }
