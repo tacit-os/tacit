@@ -654,8 +654,9 @@ Singleton {
             return "stacks";
         if (Notifications.unread > 0)
             return "circle";
-        // Apps updated the whole system under the running desktop: a restart finishes it (Updates.restartDue)
-        if (Updates.restartDue)
+        // Apps updated the whole system under the running desktop: a restart finishes it (Updates.restartDue); or
+        // tacit-thyris was updated under a running Thyris, which reopening finishes (Updates.thyrisStale)
+        if (Updates.restartDue || Updates.thyrisStale)
             return "restart_alt";
         // Uncommitted work sitting for over an hour: a reminder, so it ranks with night light.
         if (root.workUnsaved)

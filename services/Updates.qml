@@ -71,6 +71,7 @@ Singleton {
         if (!waitingProc.running && !fetchProc.running)
             waitingProc.running = true;
         restartDueProc.running = true;
+        thyrisStaleProc.running = true;
     }
     // Apps brought the whole system up to date under the running desktop (Get X and the updates): a restart finishes it.
     // Its backend marks that with this start's boot id (stored.py's restart-needed), so it holds until the computer
@@ -81,6 +82,29 @@ Singleton {
         command: ["bash", "-c", '[ "$(cat "$1" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id)" ]', "_",
             `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/tacit/restart-needed`]   // home is a file:// url
         onExited: (code, status) => root.restartDue = code === 0
+    }
+    // A Thyris still running from before tacit-thyris was updated under it (Apps' "update everything", pacman in a
+    // terminal): its new pages start the new engine's helper, and reopening it finishes the update. Its program was
+    // replaced, so /proc names it "(deleted)". The notch says so once and keeps the quiet mark at rest that the restart
+    // above has, until that Thyris is gone (the owner, 2026-11-13). Read with every look and, while it holds, every
+    // 15 s, so the mark goes soon after Thyris is reopened.
+    property bool thyrisStale: false
+    Process {
+        id: thyrisStaleProc
+        command: ["bash", "-c", 'for p in $(pgrep -x "${1##*/}"); do [ "$(readlink "/proc/$p/exe")" = "$1 (deleted)" ] && exit 0; done; exit 1', "_",
+            "/usr/lib/tacit/thyris/browser"]
+        onExited: (code, status) => {
+            const was = root.thyrisStale;
+            root.thyrisStale = code === 0;
+            if (root.thyrisStale && !was)
+                root.say("note", { "icon": "restart_alt", "text": "Thyris was updated · reopen it to finish" }, () => {});
+        }
+    }
+    Timer {
+        interval: 15000
+        repeat: true
+        running: root.thyrisStale
+        onTriggered: thyrisStaleProc.running = true
     }
     // Check now is the download too: the package list is otherwise only as fresh as the last timer run, so a check
     // could not find a release published an hour ago.
