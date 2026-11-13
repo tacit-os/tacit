@@ -127,6 +127,16 @@ Singleton {
         function volumeDown(): void {
             root.decrementVolume();
         }
+        // the volume keys (keybinds.lua), with when they were pressed (ms): a key waits a second for the shell, then sets
+        // the volume with wpctl itself, so a press read here later than that (the shell was stuck) has been made
+        function volumeUpAt(pressed: string): void {
+            if (Date.now() - Number(pressed) < 1000)
+                root.incrementVolume();
+        }
+        function volumeDownAt(pressed: string): void {
+            if (Date.now() - Number(pressed) < 1000)
+                root.decrementVolume();
+        }
     }
 
     function setDefaultSink(node) {

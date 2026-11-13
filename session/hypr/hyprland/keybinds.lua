@@ -8,6 +8,12 @@ local qsScripts = "$TACIT_SHELL/scripts"
 local hyprScripts = "$TACIT_HYPR/hyprland/scripts"
 local qsIpcCall = "qs -p $TACIT_SHELL ipc call"
 local qsIsAlive = qsIpcCall .. " TEST_ALIVE"
+-- A key the shell answers, with its own way when it does not. Quickshell's client waits for the answer with no end
+-- (waitForReadyRead(-1), ipc.hpp) and a stuck shell's socket still takes the call, so such a key did nothing and its
+-- presses landed together when the shell came back. It now gives the shell a second, with the time it was pressed: one
+-- the shell reads later than that, its own way has made already (the ...At calls in Audio.qml and Brightness.qml).
+local qsKeyCall = "timeout 1 " .. qsIpcCall
+local pressedAt = " $(date +%s%3N)"
 
 hl.bind("SUPER + SUPER_L", hl.dsp.global("quickshell:searchToggleRelease"), { description = "Shell: Palette" })
 hl.bind("SUPER + SUPER_R", hl.dsp.global("quickshell:searchToggleRelease"))
@@ -33,14 +39,14 @@ hl.bind("CTRL + ALT + Delete", hl.dsp.exec_cmd(qsIsAlive .. " || pkill wlogout |
 -- Unbound (sweep D8): end-4's welcome window; all it offers is in Settings and the palette.
 -- hl.bind("SHIFT + SUPER + ALT + Slash", hl.dsp.exec_cmd("qs -p $HOME/.config/quickshell/$qsConfig/welcome.qml"))
 
-hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(qsIpcCall .. " brightness increment || brightnessctl --class backlight -n2 set 5%+"),
+hl.bind("XF86MonBrightnessUp", hl.dsp.exec_cmd(qsKeyCall .. " brightness incrementAt" .. pressedAt .. " || brightnessctl --class backlight -n2 set 5%+"),
     { locked = true, repeating = true, description = "Screen: Brightness up" })
-hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qsIpcCall .. " brightness decrement || brightnessctl --class backlight -n2 set 5%-"),
+hl.bind("XF86MonBrightnessDown", hl.dsp.exec_cmd(qsKeyCall .. " brightness decrementAt" .. pressedAt .. " || brightnessctl --class backlight -n2 set 5%-"),
     { locked = true, repeating = true, description = "Screen: Brightness down" })
 -- through the shell (Audio.qml), which stops at "Loudest allowed"; wpctl only when the shell does not answer
-hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(qsIpcCall .. " audio volumeUp || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.0"),
+hl.bind("XF86AudioRaiseVolume", hl.dsp.exec_cmd(qsKeyCall .. " audio volumeUpAt" .. pressedAt .. " || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%+ -l 1.0"),
     { locked = true, repeating = true, description = "Media: Volume up" })
-hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(qsIpcCall .. " audio volumeDown || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
+hl.bind("XF86AudioLowerVolume", hl.dsp.exec_cmd(qsKeyCall .. " audio volumeDownAt" .. pressedAt .. " || wpctl set-volume @DEFAULT_AUDIO_SINK@ 2%-"),
     { locked = true, repeating = true, description = "Media: Volume down" })
 
 hl.bind("CTRL + SUPER + T", hl.dsp.global("quickshell:wallpaperSelectorToggle"),

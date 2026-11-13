@@ -93,7 +93,7 @@ try {
     return { ...root, said };
   };
   const r = outcome(1, refusal || "tacit: battery 12\n");
-  check("the notch says to plug in, with the level", r.said.join() === "Plug in to restart: the battery is at 12%", JSON.stringify(r.said));
+  check("the notch says to plug in, with the level", r.said.join() === "Plug in to restart · the battery is at 12%", JSON.stringify(r.said));
   check("and the restart is marked refused for the battery", r.restartFailed === "battery" && r.restartBattery === 12,
     `restartFailed ${JSON.stringify(r.restartFailed)}, restartBattery ${r.restartBattery}`);
   const off = outcome(1, "error: failed retrieving file 'qt6-base.pkg.tar.zst'\n");

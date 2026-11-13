@@ -47,6 +47,8 @@ Singleton {
         if (!root.active || root.busy)
             return;
         root.downing = true;
+        // and for the other process: Settings runs a Vpn of its own, and the shell took a down from there for a drop
+        Persistent.states.network.vpnDownAt = Date.now();
         root.start(["nmcli", "connection", "down", root.active.name]);
     }
     // nmcli's refusal in its own words, without "Error: Connection activation failed: " and the journalctl hint
@@ -209,14 +211,16 @@ Singleton {
         }
     }
     // A drop the rule is not bringing back: still on a network that is not trusted, nothing coming up, and no rule run
-    // since (leaving one Wi-Fi for another drops the tunnel, and the rule's own try then speaks for itself)
+    // since (leaving one Wi-Fi for another drops the tunnel, and the rule's own try then speaks for itself). A down that
+    // Settings asked for, in the 30 s an nmcli call is given, is not one.
     Timer {
         id: dropCheck
         interval: 4000   // past ruleLater's 2.5 s
         onTriggered: {
             const wifi = Network.active;
             const trusted = Network.ethernet ? Network.isWiredTrusted(Network.wiredName) : (wifi && Network.isTrusted(wifi.ssid));
-            if (root.autoVpn !== "" && !root.active && !root.busy && (wifi !== null || Network.ethernet) && !trusted && root.ruleTriedAt < root.droppedAt)
+            const asked = root.droppedAt - Persistent.states.network.vpnDownAt < 30000;
+            if (root.autoVpn !== "" && !root.active && !root.busy && (wifi !== null || Network.ethernet) && !trusted && root.ruleTriedAt < root.droppedAt && !asked)
                 root.failed(Translation.tr("it dropped"));
         }
     }

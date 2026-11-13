@@ -217,14 +217,14 @@ Singleton {
                     root.restartBattery = parseInt(restartOut.text.match(/^tacit: battery (\d+)/m)?.[1]) || 0;
                     root.restartFailed = "battery";
                     if (root.says)
-                        IslandController.request("note", { "icon": "battery_alert", "text": `Plug in to restart: the battery is at ${root.restartBattery}%` }, 65);
+                        IslandController.request("note", { "icon": "battery_alert", "text": `Plug in to restart · the battery is at ${root.restartBattery}%` }, 65);
                     return;
                 }
                 root.restartFailed = code === 3 ? "reboot" : "prepare";
                 const why = ({ "busy": "the package manager is busy", "conflict": "a conflicting update", "live": "on the live USB",
                                "offline": "check the connection" })[root.restartCause];
                 if (root.says)
-                    IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update" }, 65);
+                    IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update", "wide": code !== 3 }, 65);
             }
         }
     }
@@ -251,7 +251,7 @@ Singleton {
             if (code === 0)
                 IslandController.request("updated", { "icon": "schedule", "text": "Tonight at 03:00 if left on · plugged in, locked, Caffeine off", "wide": true }, 65);
             else
-                IslandController.request("copied", { "icon": "error", "text": "Couldn't set the update for tonight" }, 65);
+                IslandController.request("note", { "icon": "error", "text": "Couldn't set the update · for tonight", "wide": true }, 65);
         }
     }
     // Settings' Cancel beside Tonight: the timer off again (tacit-update cancel-tonight). There was no way back but

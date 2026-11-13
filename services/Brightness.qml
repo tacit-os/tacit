@@ -396,6 +396,16 @@ Singleton {
         function decrement() {
             onPressed: root.decreaseBrightness()
         }
+        // the brightness keys (keybinds.lua), with when they were pressed (ms): a key waits a second for the shell, then
+        // steps with brightnessctl itself, so a press read here later than that (the shell was stuck) has been made
+        function incrementAt(pressed: string): void {
+            if (Date.now() - Number(pressed) < 1000)
+                root.increaseBrightness();
+        }
+        function decrementAt(pressed: string): void {
+            if (Date.now() - Number(pressed) < 1000)
+                root.decreaseBrightness();
+        }
 
         // The Settings app runs in its own process; a brightnessctl write from there would be
         // undone by the next key press, which steps from the value held here. 0..1, for the

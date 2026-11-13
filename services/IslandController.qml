@@ -1865,7 +1865,7 @@ Singleton {
     readonly property int jobCount: Jobs.running.length   // and the jobs (their IPC, and the sweep of what finished while the shell was down)
     readonly property int deviceCount: Devices.list.length   // and the disks (udisks monitor from the start)
     // a stick that just appeared: a peek; pulled: one too, only if it had been mounted (and not ejected: Eject powers it
-    // off, so it goes from the list as well)
+    // off, so it goes from the list as well). Pulled and safe to pull out are lines to read (note), not a 1.2 s flash.
     Connections {
         target: Devices
         function onAdded(dev) {
@@ -1874,13 +1874,13 @@ Singleton {
         }
         function onRemoved(dev) {
             if (root.warmedUp && (dev.mountpoint ?? "").length > 0 && !dev.loop && !Devices.leaving[dev.path])
-                root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} pulled out · without Eject` }, 70);
+                root.request("note", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} pulled out · without Eject`, "wide": true }, 70);
         }
         // Eject done: a USB drive is unmounted and powered off. Only the window's foot line said so, and only in the
         // window that was clicked, while a stick writes out what it holds for up to a minute after a big copy.
         function onUnmounted(dev) {
             if (root.warmedUp && dev.usb)
-                root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} is safe to pull out` }, 70);
+                root.request("note", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} · safe to pull out` }, 70);
         }
         function onFailed(what) {
             root.request("copied", { "icon": "error", "text": Voice.cant(what) }, 70);

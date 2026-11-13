@@ -118,6 +118,7 @@ def zone():
         m.run = run
         m.as_root = lambda *cmd: None
         m.wifi, m.wired, m.layouts, m.live_keyboard, m.survey = (lambda: []), (lambda: False), (lambda: []), (lambda: "us"), (lambda: None)
+        m.power = lambda: {"ac": True, "battery": None}   # the hello's, not this computer's battery
         m.act({"op": "hello"})
         time.sleep(0.2)     # the first lookup, on its own thread
         online[0] = online_at in ("hello", "answers")

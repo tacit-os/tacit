@@ -1,4 +1,4 @@
-// "<drive> is safe to pull out" in the notch once an Eject is done: services/Devices.qml's own absorb() and unmount() with
+// "<drive> · safe to pull out" in the notch once an Eject is done: services/Devices.qml's own absorb() and unmount() with
 // the eject process's onExited, wired to the notch's Devices handlers (services/IslandController.qml), under node. lsblk
 // is a pretend listing, as in stick-pulled.test.mjs.
 import { inScope, matchBrace, qmlFunction } from "./lib/qml.mjs";
@@ -45,7 +45,7 @@ function desk() {
   d.plug(listing(true));
   d.Devices.unmount(d.Devices.list[0]);
   d.ends(0);
-  check("once Eject is done the notch says the stick is safe to pull out", JSON.stringify(d.peeks) === JSON.stringify(["USB 14.9G is safe to pull out"]), JSON.stringify(d.peeks));
+  check("once Eject is done the notch says the stick is safe to pull out", JSON.stringify(d.peeks) === JSON.stringify(["USB 14.9G · safe to pull out"]), JSON.stringify(d.peeks));
   d.list(nothing);                     // powered off: gone from the list
   check("and nothing more when it leaves the list", d.peeks.length === 1, JSON.stringify(d.peeks));
 }

@@ -1,6 +1,7 @@
 // The volume keys and the volume protection (services/Audio.qml) run under node on a pretend output: the file's own
 // incrementVolume(), its bindings (value, keyMaxValue, hardMaxValue) and its protection handler, with the settings an
 // old settings file comes out of Config.migrate() with. And the bar on Settings > Sound against that protection.
+import { execFileSync } from "child_process";
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
@@ -89,20 +90,21 @@ console.log("The volume keys and the volume protection (services/Audio.qml)");
 // Before this the key ran wpctl with its own limit of 100% (-l 1.0), and only the notch's wheel went through Audio.qml.
 {
   const lua = read("session/hypr/hyprland/keybinds.lua");
-  const ipc = JSON.parse(lua.match(/local qsIpcCall = ("[^"]*")/)[1]);
   const m = lua.match(/hl\.bind\("XF86AudioRaiseVolume", hl\.dsp\.exec_cmd\((.+?)\),\s*\n/);
-  const cmd = m[1].replace(/qsIpcCall \.\. "([^"]*)"/, (_, rest) => JSON.stringify(ipc + rest)).replace(/^"|"$/g, "");
+  // the command as Hyprland gets it, put together by lua with the file's own locals
+  const cmd = execFileSync("lua", ["-e", `${lua.match(/^local (?:qs\w+|pressedAt) = .+$/gm).join("\n")}\nio.write(${m[1]})`], { encoding: "utf8" });
   const o = settings(releaseFile("1.2.13"));
   o.audio.protection.maxAllowed = 150;
   const d = desktop(o, 0.9);
   d.heard();
-  // the shell answers "qs ipc call <target> <function>" from the IpcHandler of that target in Audio.qml
+  // the shell answers "qs ipc call <target> <function>" from the IpcHandler of that target in Audio.qml, at once, with the
+  // time of the press when the key gives it
   const key = () => {
     const call = cmd.match(/ipc call (\w+) (\w+)/);
     if (call) {
       const at = audioSrc.indexOf(`target: "${call[1]}"`);
       const f = at >= 0 ? qmlFunction(audioSrc.slice(at), call[2]) : null;
-      if (f) return inScope({ root: d.root }, f.params, f.body)();
+      if (f) return inScope({ root: d.root }, f.params.replace(/:\s*\w+/g, ""), f.body)(String(Date.now()));
     }
     const w = cmd.match(/wpctl set-volume @DEFAULT_AUDIO_SINK@ (\d+)%\+(?: -l ([\d.]+))?/);
     const a = d.root.sink.audio;

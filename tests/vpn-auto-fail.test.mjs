@@ -2,7 +2,7 @@
 // trusted: the notch says "VPN didn't connect · <reason>" (services/Vpn.qml, services/IslandController.qml). Vpn's own
 // applyRule(), connect(), disconnect(), toggle(), failReason(), its wait timer, the action Process's onExited, the
 // list's onStreamFinished and the drop check run under node with a pretend nmcli and clock, and the notch's onFailed
-// and holdFor() hear them.
+// and holdFor() hear them. Settings runs a Vpn of its own: a second one, sharing the shell's clock and Persistent.
 import { adapterDefaults, inScope, matchBrace, qmlFunction } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -28,9 +28,10 @@ notch.holdFor = inScope({ root: notch, Config: { options: { island: { hold } } }
 const failedAt = ic.indexOf("function onFailed", ic.indexOf("target: Vpn"));
 const onFailed = failedAt < 0 ? null : (() => { const f = qmlFunction(ic.slice(failedAt), "onFailed"); return inScope({ root: notch, Translation }, f.params, f.body); })();
 
-function desktop({ ssid = "Cafe", trusted = [] } = {}) {
-  let clock = 1000;
-  const Date = { now: () => clock };
+function desktop({ ssid = "Cafe", trusted = [], shell = null } = {}) {
+  const time = shell ? shell.time : { clock: 1000 };
+  const Date = { now: () => time.clock };
+  const Persistent = shell ? shell.Persistent : { states: { network: { vpnDownAt: 0 } } };
   const net = { active: ssid ? { ssid } : null, ethernet: false, isTrusted: s => trusted.includes(s), splitTerse: l => l.split(":") };
   const vpn = { lastError: "", pendingConnect: "", ruleSkipped: false, connections: [{ name: "Proton", kind: "wireguard", active: false }],
     refresh() {}, busy: false, connecting: "", downing: false, droppedAt: 0, ruleTriedAt: 0 };
@@ -40,7 +41,7 @@ function desktop({ ssid = "Cafe", trusted = [] } = {}) {
   const proc = { exec(cmd) { proc.cmd = cmd; } };
   const timer = { restart() {}, stop() {} };
   const drop = { running: false, restart() { drop.running = true; }, stop() { drop.running = false; } };
-  const scope = { root: vpn, Network: net, Translation, Date, waitTimer: timer, ruleLater: timer, refreshLater: timer, dropCheck: drop,
+  const scope = { root: vpn, Network: net, Translation, Date, Persistent, waitTimer: timer, ruleLater: timer, refreshLater: timer, dropCheck: drop,
     actionProc: proc };
   for (const name of ["applyRule", "connect", "disconnect", "start", "toggle", "failReason"]) {
     const f = untyped(qmlFunction(vpnSrc, name));
@@ -53,15 +54,15 @@ function desktop({ ssid = "Cafe", trusted = [] } = {}) {
   const listed = run("listProc", "onStreamFinished:", "text");
   const dropCheck = run("dropCheck", "onTriggered:");
   return {
-    vpn, net,
-    later: ms => { clock += ms; },
+    vpn, net, time, Persistent,
+    later: ms => { time.clock += ms; },
     // nmcli connection up/down ends: its stderr, then its exit
     nmcli: (code, err = "") => { stderr(err); exited(code); },
     timeout: () => waited(),
     // nmcli monitor saw a change: the list read again
     list: (...up) => listed(["Proton", "Work"].map(n => `${n}:wireguard:${up.includes(n) ? "yes" : "no"}`).join("\n") + "\n"),
     // dropCheck's 4 s, if it was started
-    settle: () => { clock += 4000; if (drop.running) { drop.running = false; dropCheck(); } },
+    settle: () => { time.clock += 4000; if (drop.running) { drop.running = false; dropCheck(); } },
   };
 }
 const lines = from => said.slice(from).filter(s => s.name === "vpn" || /VPN didn't connect/.test(s.text));
@@ -150,5 +151,24 @@ const refused = "Error: Connection activation failed: The VPN service stopped un
   const l = lines(n);
   check("a drop whose retry by the rule is refused says it once, with the refusal's reason",
     l.length === 1 && /stopped unexpectedly/.test(l[0].text), JSON.stringify(l.map(x => x.text)));
+}
+{
+  const n = said.length, d = desktop();
+  d.vpn.connections = [{ name: "Proton", active: true }];
+  const settings = desktop({ shell: d });   // Settings > Network, its own process, with Proton up too
+  settings.vpn.connections = [{ name: "Proton", active: true }];
+  d.later(600000);
+  settings.vpn.toggle("Proton");           // its switch turns Proton off at the café
+  settings.nmcli(0);
+  d.later(700);
+  d.list();                                // the shell sees it go, with no down of its own
+  d.settle();
+  check("the auto VPN turned off in Settings says nothing in the notch", lines(n).length === 0, JSON.stringify(lines(n).map(x => x.text)));
+  d.vpn.connections = [{ name: "Proton", active: true }];
+  d.later(600000);
+  d.list();                                // ten minutes on, back up and then gone with nobody asking
+  d.settle();
+  const l = lines(n);
+  check("and a drop long after it is still said", l.length === 1 && l[0].text === "VPN didn't connect · it dropped", JSON.stringify(l.map(x => x.text)));
 }
 done();

@@ -116,6 +116,7 @@ Singleton {
                 property list<string> untrustedWired: []    // cables (by profile) marked not trusted; any other cable is trusted
                 property bool trustedBySsid: false  // entries saved under a profile's name were moved to its SSID (Network.qml)
                 property string autoVpn: ""         // the VPN that comes up on an untrusted network
+                property real vpnDownAt: 0          // when a VPN was last taken down on purpose, in any process (Vpn.qml)
                 property string hotspotName: ""
                 property string hotspotPassword: ""
             }
