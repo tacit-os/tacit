@@ -53,6 +53,8 @@ Rectangle {
             Layout.fillWidth: true
             implicitWidth: titleBarRow.implicitWidth + 24
             implicitHeight: root.headerHeight
+            // a layout keeps an item's last height when its implicit height falls to 0: a folded header kept 1 or 2 px
+            Layout.preferredHeight: root.headerHeight
             Behavior on opacity {
                 Anim {
                     type: Anim.DefaultEffects

@@ -739,13 +739,17 @@ Singleton {
 
     Process {
         id: updateNetworkName
-        // the link's own profile, never a VPN riding on it (a VPN can list first)
-        command: ["sh", "-c", "nmcli -t -f NAME,TYPE c show --active | grep -E ':(802-11-wireless|802-3-ethernet)$' | head -1 | cut -d: -f1"]
+        // the link's own profile, never a VPN riding on it (a VPN can list first); split as nmcli escapes it, since a
+        // profile's name can hold a ":" ("Cafe: Guest" is Cafe\: Guest, and cut made it "Cafe\")
+        command: ["nmcli", "-t", "-f", "NAME,TYPE", "c", "show", "--active"]
         running: true
         stdout: StdioCollector {
-            // Collected, not per line: with no link the pipeline prints nothing at all, and a
+            // Collected, not per line: with no link nmcli prints nothing at all, and a
             // parser that only fires on a line kept the last network's name for good.
-            onStreamFinished: root.networkName = text.trim()
+            onStreamFinished: {
+                const link = text.split("\n").map(l => root.splitTerse(l)).find(f => /^(802-11-wireless|802-3-ethernet)$/.test(f[1] ?? ""));
+                root.networkName = link ? link[0].trim() : "";
+            }
         }
     }
 

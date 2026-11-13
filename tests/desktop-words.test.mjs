@@ -1,7 +1,7 @@
 // The desktop's words go through Translation.tr (the tags' menu and drop ghost, the Notes, To-Do, Image converter, You and
-// media widgets): each phrase is looked for as a Translation.tr key in its file, and the tags' menu (DesktopTags.qml's
-// openMenu() and onPicked) and the drop ghost's name run under node with the words in German, since a pick that went by
-// the words would stop working once they are translated.
+// media widgets, the Open with menu): each phrase is looked for as a Translation.tr key in its file, and the tags' menu
+// (DesktopTags.qml's openMenu() and onPicked) and the drop ghost's name run under node with the words in German, since a
+// pick that went by the words would stop working once they are translated.
 import { inScope, qmlFunction, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -16,6 +16,8 @@ const phrases = {
     "Converting to PDF...", "Merging %1 images into PDF...", "%1 pages → %2", "PDF failed.\nIs ImageMagick installed?", "Could not read file path."],
   "modules/ii/background/widgets/usercard/UserCardWidget.qml": ["Hi, %1", "Up %1"],
   "modules/ii/background/widgets/media/MediaWidget.qml": ["Play"],
+  "modules/ii/openWith/OpenWithContent.qml": ["Open %1 with", "Open with", "No app on this computer can open this file. Press Esc to close.", "Recommended",
+    "Always use for %1"],
 };
 for (const [file, list] of Object.entries(phrases)) {
   const src = read(file);

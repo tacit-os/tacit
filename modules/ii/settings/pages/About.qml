@@ -16,12 +16,14 @@ ContentPage {
 
     function runSystemUpdate() {
         // The terminal named in apps.update need not exist on this machine, so say so
-        // instead of doing nothing. Only a command that was not found (exit 127) says it: a
-        // terminal exits with the update's own status, so a cancelled or failed update is not it.
+        // instead of doing nothing. Only a command bash cannot find says it (bash's
+        // command_not_found_handle, which takes itself away first so a missing notify-send
+        // cannot call it again): a terminal exits with the update's own status, and pkexec's
+        // 127 for a password it could not get is not a missing command.
         const title = StringUtils.shellSingleQuoteEscape(Translation.tr("Update didn't start"));
         const body = StringUtils.shellSingleQuoteEscape(Translation.tr("Could not run the update command in the config file (apps.update)."));
         Quickshell.execDetached(["bash", "-c",
-            `${Config.options.apps.update} || { [ $? -eq 127 ] && notify-send '${title}' '${body}' -a 'Shell'; }`
+            `command_not_found_handle() { unset -f command_not_found_handle; notify-send '${title}' '${body}' -a 'Shell'; return 127; }; ${Config.options.apps.update}`
         ])
         Qt.callLater(() => GlobalStates.settingsOpen = false)
     }

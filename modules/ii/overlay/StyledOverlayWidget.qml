@@ -40,9 +40,11 @@ AbstractOverlayWidget {
     property real resizeMargin: 8
     property real padding: 12
     // 34 px strip and its hairline; closed, a pinned widget has no header.
-    property real headerHeight: GlobalStates.overlayOpen ? 35 : 0
+    readonly property real openHeaderHeight: 35
+    property real headerHeight: GlobalStates.overlayOpen ? openHeaderHeight : 0
     Behavior on headerHeight {
         NumberAnimation {
+            id: headerFold
             duration: GlobalStates.overlayOpen ? Appearance.animationCurves.expressiveDefaultSpatialDuration : 450
             easing.type: Easing.BezierSpline
             easing.bezierCurve: GlobalStates.overlayOpen ? Appearance.animationCurves.expressiveDefaultSpatial : Appearance.animationCurves.emphasizedDecel
@@ -65,7 +67,8 @@ AbstractOverlayWidget {
     draggable: GlobalStates.overlayOpen
     drag.target: undefined
     animateXPos: !dragHandler.active
-    animateYPos: !dragHandler.active
+    // the fold moves the widget a frame at a time to keep its body still: a glide on top would swing it
+    animateYPos: !dragHandler.active && !headerFold.running
     z: dragHandler.active ? 2 : 1
     cursorShape: {
         if (dragHandler.active) return root.resizing ? cursorShape : Qt.ArrowCursor;
@@ -91,8 +94,15 @@ AbstractOverlayWidget {
     function onScreen(pos, size, limit) {
         return limit > 0 ? Math.max(0, Math.min(pos, limit - size)) : pos;
     }
+    // The saved y is the top with the header shown. The header folds away when the overlay closes, and the widget
+    // moves down by as much as has folded, so a pinned widget's body stays where it was put (a crosshair's mark on
+    // the aim point); kept on the screen at its open height.
+    function onScreenY(pos) {
+        const folded = root.openHeaderHeight - root.headerHeight;
+        return onScreen(pos, root.height + folded, root.parent?.height ?? 0) + folded;
+    }
     x: Math.round(onScreen(persistentStateEntry.x, root.width, root.parent?.width ?? 0)) // Round or it'll be blurry
-    y: Math.round(onScreen(persistentStateEntry.y, root.height, root.parent?.height ?? 0)) // Round or it'll be blurry
+    y: Math.round(onScreenY(persistentStateEntry.y)) // Round or it'll be blurry
     pinned: persistentStateEntry.pinned
     clickthrough: persistentStateEntry.clickthrough
     drag {
@@ -157,6 +167,9 @@ AbstractOverlayWidget {
             root.resizeYDirection = event.y < root.height / 2 ? -1 : 1;
         }
     }
+    // a press on the border with no drag never starts the DragHandler, whose end is the other place this is cleared:
+    // left set, the next drag by the title resized the widget instead of moving it
+    onReleased: root.resizing = false
     onPositionChanged: (event) => {
         if (!resizing) return;
         contentContainer.implicitWidth = Math.max(root.persistentStateEntry.width + dragHandler.xAxis.activeValue * root.resizeXDirection, root.minimumWidth);

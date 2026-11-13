@@ -6,6 +6,7 @@ import Quickshell.Widgets
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
+import qs.services
 
 /**
  * The "Open with" menu (DialogBridge kind "open.choose"): a dark slab on the window ground with a hairline, centred
@@ -96,7 +97,7 @@ Item {
             StyledText {
                 Layout.fillWidth: true; Layout.leftMargin: 10; Layout.topMargin: 4; Layout.bottomMargin: 6
                 elide: Text.ElideMiddle
-                text: root.request.file ? qsTr("Open %1 with").arg(root.request.file) : qsTr("Open with")
+                text: root.request.file ? Translation.tr("Open %1 with").arg(root.request.file) : Translation.tr("Open with")
                 font.pixelSize: 14; color: root.ink2
             }
 
@@ -105,7 +106,7 @@ Item {
                 visible: root.apps.length === 0
                 Layout.fillWidth: true; Layout.leftMargin: 10; Layout.rightMargin: 10; Layout.bottomMargin: 6
                 wrapMode: Text.Wrap
-                text: qsTr("No app on this computer can open this file. Press Esc to close.")
+                text: Translation.tr("No app on this computer can open this file. Press Esc to close.")
                 font.pixelSize: 14; color: root.ink
             }
 
@@ -158,7 +159,7 @@ Item {
                         }
                         StyledText {
                             visible: row.index === 0 && row.modelData.tacit
-                            text: qsTr("Recommended"); font.pixelSize: 14
+                            text: Translation.tr("Recommended"); font.pixelSize: 14
                             color: row.on ? root.onAccent : root.ink2
                         }
                     }
@@ -191,7 +192,7 @@ Item {
                     }
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
-                        text: qsTr("Always use for %1").arg(root.request.kind ?? "")
+                        text: Translation.tr("Always use for %1").arg(root.request.kind ?? "")
                         font.pixelSize: 14; color: root.ink2
                     }
                 }

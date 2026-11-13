@@ -200,12 +200,14 @@ ContentPage {
                         // none chosen yet: the layout in use, which is not written back as a choice
                         readonly property string inUse: Config.options.hyprland.input.kbLayout || HyprlandXkb.layoutCodes.join(",")
                         Component.onCompleted: value = inUse
+                        // xkb's list has no spaces, though the placeholder's "us, es" does
+                        readonly property string typed: value.trim().replace(/\s*,\s*/g, ",")
                         // applied on Enter or the check, not while typing: half a layout is not one
-                        confirmButtonVisible: value.trim().length > 0 && value.trim() !== inUse
+                        confirmButtonVisible: typed.length > 0 && typed !== inUse
                         onConfirmClicked: {
                             if (!confirmButtonVisible) return   // Enter with nothing new, or nothing at all
-                            Config.options.hyprland.input.kbLayout = value.trim()
-                            HyprlandConfig.set("input:kb_layout", value.trim())
+                            Config.options.hyprland.input.kbLayout = typed
+                            HyprlandConfig.set("input:kb_layout", typed)
                         }
                     }
                     ConfigSwitch {

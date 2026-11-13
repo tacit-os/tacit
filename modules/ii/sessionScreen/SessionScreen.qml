@@ -26,6 +26,16 @@ Scope {
 
     property var focusedScreen: Quickshell.screens.find(s => s.name === root.focusedScreenName)
         ?? Quickshell.screens[0]
+    // The screen the sheet opened on, kept while it is open: with focus following the pointer, the window and its
+    // keyboard went to whichever screen the pointer crossed to, an armed Shut down with them
+    property var sessionScreen: null
+    Binding {
+        target: root
+        property: "sessionScreen"
+        value: root.focusedScreen
+        when: !GlobalStates.sessionOpen
+        restoreMode: Binding.RestoreNone
+    }
 
     Loader {
         id: sessionLoader
@@ -33,6 +43,7 @@ Scope {
         onActiveChanged: {
             if (sessionLoader.active) {
                 SessionWarnings.refresh();
+                Session.refreshCapabilities();
                 // Opened from the control panel's footer: the panel hands over its corner.
                 GlobalStates.sidebarRightOpen = false;
             }
@@ -49,7 +60,7 @@ Scope {
 
         sourceComponent: PanelWindow {
             id: sessionRoot
-            screen: root.focusedScreen
+            screen: root.sessionScreen
             visible: sessionLoader.active
 
             function hide() {
@@ -70,8 +81,8 @@ Scope {
                 right: true
             }
 
-            implicitWidth: root.focusedScreen?.width ?? 0
-            implicitHeight: root.focusedScreen?.height ?? 0
+            implicitWidth: root.sessionScreen?.width ?? 0
+            implicitHeight: root.sessionScreen?.height ?? 0
 
             // The eight actions, in reading order. The first four are the big row. `busy` is the
             // word the screen waits under, and only the twoPress five carry one: they are the
@@ -91,8 +102,10 @@ Scope {
             // window with them and there is no undo: they ask a second time. The other three run on the first press.
             readonly property var twoPress: [0, 1, 4, 5, 6]
             property int armedIndex: -1
+            // when it was armed: a second press as quick as a double click's is that click, not a "Press again"
+            property double armedAt: 0
             function shown(i) {
-                return i !== 5 || Session.canHibernate;
+                return (i !== 5 || Session.canHibernate) && (i !== 6 || Session.canRebootToFirmware);
             }
             // systemctl queues the job and returns at once, so there is no exit code to wait for:
             // the session going away is the only success a power action has. The screen therefore
@@ -107,10 +120,13 @@ Scope {
                     return;
                 if (sessionRoot.twoPress.includes(i) && sessionRoot.armedIndex !== i) {
                     sessionRoot.armedIndex = i;
+                    sessionRoot.armedAt = Date.now();
                     sessionRoot.focusIndex = i;
                     disarmTimer.restart();
                     return;
                 }
+                if (sessionRoot.armedIndex === i && Date.now() - sessionRoot.armedAt < Qt.styleHints.mouseDoubleClickInterval)
+                    return;
                 sessionRoot.armedIndex = -1;
                 sessionRoot.failedText = "";
                 if (sessionRoot.twoPress.includes(i)) {
@@ -144,6 +160,7 @@ Scope {
                 if (i >= 0 && sessionRoot.twoPress.includes(i)) {
                     sessionRoot.focusIndex = i;
                     sessionRoot.armedIndex = i;
+                    sessionRoot.armedAt = Date.now();
                     disarmTimer.restart();
                 }
             }
@@ -178,8 +195,8 @@ Scope {
                     } else {
                         return;
                     }
-                    // Hibernate is left out where it cannot work: the focus steps over it
-                    if (!sessionRoot.shown(sessionRoot.focusIndex))
+                    // Hibernate and Firmware are left out where they cannot work: the focus steps over them
+                    while (!sessionRoot.shown(sessionRoot.focusIndex))
                         sessionRoot.focusIndex = (sessionRoot.focusIndex + (back ? n - 1 : 1)) % n;
                     event.accepted = true;
                 }
@@ -324,6 +341,8 @@ Scope {
                 implicitWidth: 56
                 implicitHeight: 56
                 padding: 0
+                // a click took the keyboard from `keys`, and Esc, the arrows and Enter went nowhere
+                focusPolicy: Qt.NoFocus
                 // One action at a time: while the session is on its way out the rest go quiet.
                 enabled: sessionRoot.waitingFor.length === 0
                 buttonRadius: Appearance.rounding.full
@@ -346,6 +365,7 @@ Scope {
                 readonly property bool current: sessionRoot.focusIndex === actionIndex
                 implicitHeight: 32
                 padding: 0
+                focusPolicy: Qt.NoFocus
                 enabled: sessionRoot.waitingFor.length === 0
                 buttonRadius: Appearance.rounding.full
                 colBackground: current ? Appearance.colors.colLayer2 : ColorUtils.transparentize(Appearance.colors.colLayer2, 1)

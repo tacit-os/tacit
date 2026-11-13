@@ -18,6 +18,7 @@ Item {
         "d": "centerDot",
         "a": "centerDotOpacity",
         "z": "centerDotSize",
+        "0b": "innerLines",
         "0a": "innerLineOpacity",
         "0l": "innerLineLength",
         "0v": "innerLineVerticalLength",

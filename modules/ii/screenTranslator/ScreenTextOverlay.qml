@@ -22,6 +22,30 @@ Item {
     required property string screenshotPath
 
     readonly property string textColorDetectionScriptPath: Quickshell.shellPath("scripts/images/text-color-venv.sh")
+    // The translated paragraphs' colours, read from the capture by one run of the script for all of them: a run per
+    // paragraph started a Python with OpenCV for each at the same moment, and a page of text stalled the desktop.
+    property var colorWaiting: []
+    function sampleColors() {
+        const items = root.colorWaiting;
+        root.colorWaiting = [];
+        if (items.length === 0)
+            return;
+        colorSampler.runSequence([
+            [root.textColorDetectionScriptPath, root.screenshotPath,
+                ...items.map(ti => [ti.unscaledX, ti.unscaledY, ti.unscaledWidth, ti.unscaledHeight].map(Math.round).join(","))],
+            out => {
+                let colors = [];
+                try { colors = JSON.parse(out); } catch (e) {}
+                items.forEach((ti, i) => {
+                    if (colors[i]?.background)
+                        ti.takeColors(colors[i]);
+                });
+            }
+        ]);
+    }
+    MultiTurnProcess {
+        id: colorSampler
+    }
 
     property bool loading: true
     property var visionParagraphs: []
@@ -274,7 +298,9 @@ Item {
     component VisionBoundingBoxRect: Rectangle {
         required property var modelData
         property real scaleFactor: root.scaleFactor
-        property list<var> boundingVertices: modelData.boundingBox.vertices
+        // Vision's JSON leaves out a coordinate that is 0: a paragraph at the screen's left or top edge has vertices
+        // without x or y, and its width or height came out NaN
+        property list<var> boundingVertices: modelData.boundingBox.vertices.map(v => ({ x: v.x ?? 0, y: v.y ?? 0 }))
         property real unscaledX: boundingVertices[0].x
         property real unscaledY: boundingVertices[0].y
         property real unscaledWidth: boundingVertices[1].x - boundingVertices[0].x
@@ -298,23 +324,16 @@ Item {
             animation: Appearance.animation.elementMoveFast.colorAnimation.createObject(this)
         }
 
-        Loader {
-            active: ti.visible
-            sourceComponent: MultiTurnProcess {
-                Component.onCompleted: {
-                    runSequence([ //
-                        [ //
-                            "bash", "-c", //
-                            `magick ${StringUtils.shellSingleQuoteEscape(root.screenshotPath)} +repage -crop ${StringUtils.shellSingleQuoteEscape(ti.unscaledWidth)}x${StringUtils.shellSingleQuoteEscape(ti.unscaledHeight)}+${StringUtils.shellSingleQuoteEscape(ti.unscaledX)}+${StringUtils.shellSingleQuoteEscape(ti.unscaledY)} png:- | ${root.textColorDetectionScriptPath}`
-                        ],
-                        (out => {
-                            var colorData = JSON.parse(out);
-                            ti.color = ColorUtils.transparentize(colorData.background, 0.4);
-                            tiText.color = colorData.text;
-                        })
-                    ]);
-                }
+        // its colours from the capture, asked for with every other paragraph's (root.sampleColors)
+        Component.onCompleted: {
+            if (ti.translatedText != ti.text) {
+                root.colorWaiting.push(ti);
+                Qt.callLater(root.sampleColors);
             }
+        }
+        function takeColors(colorData) {
+            ti.color = ColorUtils.transparentize(colorData.background, 0.4);
+            tiText.color = colorData.text;
         }
 
         SqueezedAnnotationStyledText {

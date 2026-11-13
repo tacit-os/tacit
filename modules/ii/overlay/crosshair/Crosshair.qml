@@ -25,7 +25,7 @@ StyledOverlayWidget {
     }
     function shownY() {
         return Math.round(root.inMiddle ? (root.parent.height - root.height - root.headerHeight) / 2
-            : root.onScreen(root.persistentStateEntry.y, root.height, root.parent?.height ?? 0));
+            : root.onScreenY(root.persistentStateEntry.y));
     }
     x: root.shownX()
     y: root.shownY()

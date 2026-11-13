@@ -78,11 +78,30 @@ Singleton {
     // the session screen leaves Hibernate out where logind says it cannot
     property bool canHibernate: false
     Process {
+        id: hibernateCheck
         running: true
         command: ["busctl", "call", "org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "CanHibernate"]
         stdout: StdioCollector {
             onStreamFinished: root.canHibernate = /"(yes|challenge)"/.test(text)
         }
+    }
+    // and whether it can restart into its firmware's setup: logind says "na" where the firmware offers no way to (a VM
+    // or a computer without it), and the session screen leaves Firmware out instead of failing after "Restarting…"
+    property bool canRebootToFirmware: false
+    Process {
+        id: firmwareCheck
+        running: true
+        command: ["busctl", "call", "org.freedesktop.login1", "/org/freedesktop/login1", "org.freedesktop.login1.Manager", "CanRebootToFirmwareSetup"]
+        stdout: StdioCollector {
+            onStreamFinished: root.canRebootToFirmware = /"(yes|challenge)"/.test(text)
+        }
+    }
+    // asked again when the session screen opens: a swap file made since the shell started counts
+    function refreshCapabilities() {
+        hibernateCheck.running = false;
+        hibernateCheck.running = true;
+        firmwareCheck.running = false;
+        firmwareCheck.running = true;
     }
 
     function hibernate() {

@@ -167,26 +167,12 @@ ContentPage {
                     text: Translation.tr("Clock String Format")
                     placeholderText: Translation.tr("Clock String Format")
                     value: Config.options.time.format
+                    // applied on Enter or the check, not on a pause in the typing: half a format (a quote not yet
+                    // closed) changed the clock and the lock screen
                     confirmButtonVisible: true
-                    onValueChanged: {
-                        clockFormatDebounceTimer.restart();
-                    }
                     onConfirmClicked: {
-                        clockFormatDebounceTimer.stop();
                         if (clockFormatField.value.length > 0)
                             page.applyTimeFormat(clockFormatField.value);
-                    }
-
-                    Timer {
-                        id: clockFormatDebounceTimer
-                        interval: 600
-                        repeat: false
-                        // not an empty field mid-retype, and not the value the page opened with
-                        onTriggered: {
-                            const v = clockFormatField.value;
-                            if (v.length > 0 && v !== Config.options.time.format)
-                                page.applyTimeFormat(v);
-                        }
                     }
                 }
                 

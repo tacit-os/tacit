@@ -36,7 +36,9 @@ def to_lua_value(key, value):
         return str(float(value))
     except ValueError:
         pass
-    return f'"{value}"'
+    # escaped: a quote or backslash typed in Settings (a keyboard layout) ended the string, and the Lua error that
+    # followed lost every setting in the file
+    return lua_string(value)
 
 
 # "device:<name>:<option>": one option of one input device (Hyprland's hl.device), e.g. a touchpad's own speed. The name

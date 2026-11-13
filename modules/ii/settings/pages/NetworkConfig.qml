@@ -162,6 +162,7 @@ ContentPage {
                     Layout.fillWidth: true
                     spacing: 10
                     ConfigComboBox {
+                        id: methodBox
                         Layout.fillWidth: true
                         buttonIcon: "settings_ethernet"
                         text: Translation.tr("Address")
@@ -177,7 +178,9 @@ ContentPage {
                     SmallAction {
                         label: ipSection.saving ? Translation.tr("Applying") : Translation.tr("Apply")
                         primary: true
-                        enabled: ipSection.loaded && !ipSection.saving
+                        // a method the list does not have (a hotspot's "shared", "link-local", "disabled") until one of
+                        // its own is picked: Apply wrote any other as automatic, and the hotspot stopped sharing
+                        enabled: ipSection.loaded && !ipSection.saving && methodBox.model.some(m => m.value === ipSection.method)
                         onClicked: {
                             ipSection.saving = true;
                             ipSection.failed = false;

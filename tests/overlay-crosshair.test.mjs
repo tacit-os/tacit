@@ -24,7 +24,7 @@ const margin = 8, contentW = 250, contentH = 100;
 function widget(W, H, header, saved = { x: +spot[1], y: +spot[2] }) {
   const w = {
     persistentStateEntry: { ...saved, width: contentW, height: contentH, pinned: true, clickthrough: true },
-    parent: { width: W, height: H }, headerHeight: header, resizeMargin: margin,
+    parent: { width: W, height: H }, headerHeight: header, openHeaderHeight: 35, resizeMargin: margin,
     get width() { return contentW + 2 * margin; }, get height() { return w.headerHeight + contentH + 2 * margin; },
     border: { column: { get width() { return contentW; } }, titleBar: { get implicitHeight() { return w.headerHeight; } } },
     contentContainer: { implicitWidth: contentW, implicitHeight: contentH, height: contentH },
@@ -32,7 +32,7 @@ function widget(W, H, header, saved = { x: +spot[1], y: +spot[2] }) {
     Qt: { binding: f => f, point: (x, y) => ({ x, y }) },
   };
   w.root = w;
-  for (const name of ["onScreen", "shownX", "shownY", "savePosition", "center"]) {
+  for (const name of ["onScreen", "onScreenY", "shownX", "shownY", "savePosition", "center"]) {
     const f = fn(name);
     if (f) w[name] = inScope(w, f.params, f.body);
   }
@@ -58,10 +58,12 @@ for (const [W, H] of [[2560, 1440], [1366, 768], [1920, 1080]]) {
   }
 }
 
-// one dragged away stays where it was put
+// one dragged away stays where it was put (with the overlay open, where it was dragged), its mark too once it closes
 {
-  const w = widget(2560, 1440, 0, { x: 300, y: 200 });
-  check("one dragged to 300,200 stays there", w.x === 300 && w.y === 200, `at ${w.x},${w.y}`);
+  const open = widget(2560, 1440, 35, { x: 300, y: 200 }), closed = widget(2560, 1440, 0, { x: 300, y: 200 });
+  const a = open.mark(), b = closed.mark();
+  check("one dragged to 300,200 stays there, and its mark stays put when the overlay closes",
+    open.x === 300 && open.y === 200 && a.x === b.x && a.y === b.y, `at ${open.x},${open.y}; the mark at ${a.x},${a.y} open, ${b.x},${b.y} closed`);
 }
 
 // Recenter, pressed with the overlay open, then the overlay closed to play

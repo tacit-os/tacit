@@ -319,8 +319,6 @@ Item {
                             // Offset on the canvas
                             xOffset: (root.workspaceImplicitWidth + root.cardGap) * root.workspaceIds.indexOf(windowData?.workspace.id)
                             yOffset: 0
-                            property real xWithinWorkspaceWidget: Math.max((windowData?.at[0] - (monitor?.x ?? 0) - monitorData?.reserved[0]) * root.scale, 0)
-                            property real yWithinWorkspaceWidget: Math.max((windowData?.at[1] - (monitor?.y ?? 0) - monitorData?.reserved[1]) * root.scale, 0)
 
                             readonly property bool chosen: root.switching && window.address === root.choiceAddress
                             Binding {
@@ -342,10 +340,11 @@ Item {
                                 repeat: false
                                 running: false
                                 // Back to its place as a binding, not a plain write: a write ends the binding for good and the
-                                // tile would stop following its window when Hyprland's data changes.
+                                // tile would stop following its window when Hyprland's data changes. The tile's own place, which
+                                // scales a window from a monitor of another size to this one's cards.
                                 onTriggered: {
-                                    window.x = Qt.binding(() => Math.round(window.xWithinWorkspaceWidget + window.xOffset))
-                                    window.y = Qt.binding(() => Math.round(window.yWithinWorkspaceWidget + window.yOffset))
+                                    window.x = Qt.binding(() => Math.round(window.initX))
+                                    window.y = Qt.binding(() => Math.round(window.initY))
                                 }
                             }
 

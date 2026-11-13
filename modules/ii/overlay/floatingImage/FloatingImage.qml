@@ -174,7 +174,8 @@ StyledOverlayWidget {
             onDone: (path, width, height) => {
                 root.imageWidth = width;
                 root.imageHeight = height;
-                animatedImage.source = path;
+                // a path is read as a url: a # or ? in the name would cut it there
+                animatedImage.source = FileUtils.fileUrl(path);
             }
         }
     }
