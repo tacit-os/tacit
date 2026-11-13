@@ -64,7 +64,7 @@ const glyph = restartDue => inScope({
   root: { chargerFault: false, micLive: false, prReviews: [], activityAmbient: false, diskPct: 10, memoryFull: false, workUnsaved: false },
   AgentSessions: { waiting: false, justDone: false, sessions: [] }, Claude: { waiting: false }, Notifications: { silent: false, unread: 0 },
   Battery: { available: false, isCharging: false }, Vpn: { connected: false }, Idle: { inhibit: false }, Audio: { sink: { name: "alsa" }, source: null },
-  DropShelf: { items: [] }, Hyprsunset: { temperatureActive: false }, Updates: { restartDue },
+  DropShelf: { items: [] }, Hyprsunset: { temperatureActive: false }, Updates: { restartDue }, Camera: { live: false },
 }, "", ambient.replace(/^\{|\}$/g, ""))();
 check("the notch keeps a quiet mark at rest for it until then", glyph(true) === "restart_alt" && glyph(false) === "", `${JSON.stringify(glyph(true))}, without it ${JSON.stringify(glyph(false))}`);
 const attention = read("modules/ii/island/IslandHeader.qml").match(/readonly property bool attention: (\[[^\]]*\])/)?.[1] ?? "[]";

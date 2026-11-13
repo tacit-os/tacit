@@ -62,7 +62,7 @@ const controller = read("services/IslandController.qml");
   const quiet = {
     Audio: { source: { audio: { muted: false } }, sink: { name: "alsa_output" } }, AgentSessions: { waiting: false, justDone: false, sessions: [] },
     Claude: { waiting: false }, Notifications: { silent: false, unread: 0 }, Battery: { available: false }, Vpn: { connected: false },
-    Idle: { inhibit: false }, DropShelf: { items: [] }, Hyprsunset: { temperatureActive: false },
+    Idle: { inhibit: false }, DropShelf: { items: [] }, Hyprsunset: { temperatureActive: false }, Updates: { restartDue: false },
   };
   const glyph = ({ camera, mic = false, muted = false }) => inScope({
     ...quiet, Audio: { ...quiet.Audio, source: { audio: { muted } } }, Camera: { live: camera },
