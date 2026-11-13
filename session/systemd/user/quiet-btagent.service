@@ -1,10 +1,10 @@
 [Unit]
 Description=Bluetooth pairing agent for the Tacit shell
-# BlueZ is the whole point of the program: with no bluetoothd there is nothing to register with.
+# BlueZ is the whole point of the program, but it does not wait for it: with no bluetoothd the agent stays up and
+# registers when org.bluez appears, again after each restart of bluetoothd. So no condition on an adapter: a unit
+# skipped at login is never tried again, and a USB dongle plugged in later got no agent (pairing Refused, no sheet).
 After=tacit-session.target
 PartOf=tacit-session.target
-# no Bluetooth in the computer, nothing to do: it restarted every 5 s for ever (the VM install test, 2026-10-16)
-ConditionPathIsDirectory=/sys/class/bluetooth
 StartLimitIntervalSec=120
 StartLimitBurst=5
 

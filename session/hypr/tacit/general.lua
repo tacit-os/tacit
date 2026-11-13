@@ -89,15 +89,8 @@ hl.animation({
     style = "slide"
 })
 
--- Upstream's 3-finger swipe/pinch and 4-finger up/horizontal gestures are kept.
--- 4-finger down is re-declared to open the palette instead of the overview.
-hl.gesture({
-    fingers = 4,
-    direction = "down",
-    action = function()
-        hl.dispatch(hl.dsp.global("quickshell:searchToggle"))
-    end
-})
+-- Four fingers down opens the palette: one gesture with up, in hyprland/general.lua (a second one here for down was
+-- taken for sideways swipes that set off leaning down).
 
 -- ---------------------------------------------------------------------------
 -- Material 3 Expressive frost.

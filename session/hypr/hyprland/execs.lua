@@ -44,11 +44,14 @@ hl.on("hyprland.start", function ()
     -- one holding org.freedesktop.ScreenSaver hears an app's D-Bus inhibit (a browser's, while a video plays), so
     -- the other locked, darkened and suspended in the middle of a film; the lock, the dark and the suspend each ran
     -- twice besides. `systemctl start` is a no-op on a unit already up, and starts it here when nothing else did.
-    -- WAYLAND_DISPLAY is imported first because the unit's ConditionEnvironment asks for it: this line runs before
-    -- the session has exported it, and a skipped unit would leave the desktop with no idle daemon at all.
+    -- What the unit needs is imported first, here: its environment is fixed when it starts, and the imports in the
+    -- lines above and below run at the same time as this one. WAYLAND_DISPLAY for the unit's ConditionEnvironment (a
+    -- skipped unit left the desktop with no idle daemon at all), XDG_CONFIG_DIRS to find Tacit's hypridle.conf, and
+    -- HYPRLAND_INSTANCE_SIGNATURE and TACIT_SHELL for its commands: a hypridle that started without them never turned
+    -- the screen off, or on again after sleep, for the whole session.
     -- First, a hypridle.conf Settings copied into ~/.config/hypr to change a time is brought up to Tacit's, the times kept:
     -- hypridle reads that copy first, and a fix to Tacit's file never reached it.
-    hl.exec_cmd("bash -c '[ -d /run/archiso ] || { python3 $TACIT_SHELL/scripts/hyprland/hypridle_refresh.py; systemctl --user import-environment WAYLAND_DISPLAY; exec systemctl --user start hypridle; }'")
+    hl.exec_cmd("bash -c '[ -d /run/archiso ] || { python3 $TACIT_SHELL/scripts/hyprland/hypridle_refresh.py; systemctl --user import-environment WAYLAND_DISPLAY HYPRLAND_INSTANCE_SIGNATURE TACIT_SHELL TACIT_BIN TACIT_HYPR XDG_CONFIG_DIRS PATH; exec systemctl --user start hypridle; }'")
     -- Documents, Pictures, Downloads, Music, Videos in the person's language, made if missing: xdg-user-dirs.service
     -- waits on graphical-session-pre.target, which this session never starts, so a new account had none of them
     hl.exec_cmd("xdg-user-dirs-update")

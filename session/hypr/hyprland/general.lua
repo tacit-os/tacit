@@ -45,11 +45,15 @@ hl.on("monitor.removed", function(m) lid(m and m.name) end)
 -- before; the band's line still does.) Up used to close it, and people swiping up to bring a window back lost it
 -- (Discord, Mustiya and Noid, #70); closing stays with the band's line, its menu, a middle click and Super+Q.
 -- "back" is the way out of the other three: a window filled to the screen is restored, a window taken to a half goes
--- back to where it was and how big; with neither, the plugin answers "nothing to undo" and nothing moves.
-local function bandVerb(verb)
-    if verb ~= "back" then return verb end
-    local w = hl.get_active_window()
-    return (w and tonumber(w.fullscreen) == 1) and "fill" or "unside"
+-- back to where it was and how big; with neither, the plugin answers "nothing to undo" and nothing moves. A window in
+-- true fullscreen (a three-finger pinch, Super+F: mode 2) leaves it: the plugin's fill knows only the filled (mode 1)
+-- one, so up there said "nothing to undo".
+local function bandAction(verb)
+    local w = verb == "back" and hl.get_active_window()
+    local mode = w and tonumber(w.fullscreen) or 0
+    if mode == 2 then return hl.dsp.window.fullscreen({ mode = "fullscreen", action = "unset" }) end
+    if verb == "back" then verb = mode == 1 and "fill" or "unside" end
+    return hl.dsp.exec_cmd("hyprctl tacitgrip " .. verb .. " active")
 end
 -- One gesture for the four ways, decided when the fingers lift by where they went in all. Hyprland picks a gesture's
 -- direction from the first 5 units of movement, so a swipe up that set off a little sideways was taken as left or
@@ -77,7 +81,7 @@ hl.gesture({
         finish = function(e)
             local verb = swipeVerb()
             if not e.cancelled and verb then
-                hl.dispatch(hl.dsp.exec_cmd("hyprctl tacitgrip " .. bandVerb(verb) .. " active"))
+                hl.dispatch(bandAction(verb))
             end
         end
     }
@@ -92,12 +96,30 @@ hl.gesture({
     direction = "horizontal",
     action = "workspace"
 })
+-- Up opens the overview and down the palette: one gesture, decided when the fingers lift as the three-finger one is.
+-- They were two, each run at the lift however short the swipe, even one taken back, and a sideways swipe whose first 5
+-- units leaned up or down was taken for one of them instead of the desktop change. Such a swipe, sideways in all, now
+-- changes desktop when the fingers lift, the way the workspace swipe goes (fingers to the left bring the next one,
+-- unless the person inverted it).
 hl.gesture({
     fingers = 4,
-    direction = "up",
-    action = function()
-        hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))
-    end
+    direction = "vertical",
+    action = {
+        start = function() swipeX, swipeY = 0, 0 end,
+        update = swipeAdd,
+        finish = function(e)
+            local verb = swipeVerb()
+            if e.cancelled or not verb then return end
+            if verb == "back" then
+                hl.dispatch(hl.dsp.global("quickshell:overviewWorkspacesToggle"))
+            elseif verb == "hide" then
+                hl.dispatch(hl.dsp.global("quickshell:searchToggle"))
+            else
+                local nextOne = (verb == "left") == (hl.get_config("gestures:workspace_swipe_invert") ~= false)
+                hl.dispatch(hl.dsp.focus({ workspace = nextOne and "r+1" or "r-1" }))
+            end
+        end
+    }
 })
 
 hl.config({

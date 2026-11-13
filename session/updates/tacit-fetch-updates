@@ -70,6 +70,14 @@ install -d /var/lib/tacit && touch /var/lib/tacit/updates-checked
 # a restart succeeded: a postponed restart, a failed install or an update done in Apps left them all. What stays: the
 # files the waiting update installs (pacman -Sc would take those too: they are not installed yet) and the versions
 # installed now (paccache is pacman-contrib's, which Tacit does not install). A lookup that fails prunes nothing.
+# It holds pacman's own lock while it works, taken as pacman takes it (made only if there is none) and kept open, so the
+# stale-lock test above sees it held: an install from Apps or a terminal downloads into the cache, and its package,
+# neither installed yet nor in the waiting update, was deleted under it and the install failed. A pacman already at
+# work: no prune this time; one that starts meanwhile is refused as busy, as during the download.
+lock=/var/lib/pacman/db.lck
+{ set -C; exec 9> "$lock"; } 2>/dev/null || exit 0
+set +C
+trap 'rm -f -- "$lock"' EXIT
 cache=/var/cache/pacman/pkg
 waiting=$(pacman -Sup --print-format '%f') || exit 0
 installed=$(pacman -Q | awk '{print $1 "-" $2}')

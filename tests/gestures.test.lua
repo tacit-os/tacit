@@ -1,10 +1,12 @@
--- The touchpad gestures in session/hypr/hyprland/general.lua, replayed the way Hyprland 0.56.2 feeds them
+-- The touchpad gestures in session/hypr/hyprland/general.lua, then tacit/general.lua (loaded after it, as hyprland.lua
+-- does), replayed the way Hyprland 0.56.2 feeds them
 -- (src/managers/input/trackpad/TrackpadGestures.cpp, LuaFunctionGesture.cpp): nothing until the fingers have moved 5
 -- units on either axis; then the first gesture, in the order the file adds them, whose direction is that way, its axis,
 -- or "swipe" gets begin and update with that same event, update for each event after, and end when the fingers lift.
 -- A gesture an earlier one overshadows is refused when it is added, as Hyprland's addGesture does.
 local tree = os.getenv("TACIT_TREE") or ((arg[0]:match("^(.*)/[^/]*$") or ".") .. "/..")
 local file = tree .. "/session/hypr/hyprland/general.lua"
+local tacitFile = tree .. "/session/hypr/tacit/general.lua"
 
 local failed = 0
 local function check(name, ok, why)
@@ -20,7 +22,7 @@ local DIR = { swipe = "swipe", left = "left", l = "left", right = "right", r = "
 local AXIS = { up = "vertical", down = "vertical", vertical = "vertical", left = "horizontal", right = "horizontal",
     horizontal = "horizontal", swipe = "swipe", pinch = "pinch", pinchin = "pinch", pinchout = "pinch" }
 
-local gestures, refused, sent, window = {}, {}, {}, { fullscreen = 0 }
+local gestures, refused, sent, window, conf = {}, {}, {}, { fullscreen = 0 }, {}
 -- anything the file calls that this replay does not care about: callable, indexable, and itself again
 local any = setmetatable({}, { __call = function(t) return t end, __index = function(t) return t end })
 hl = setmetatable({
@@ -37,13 +39,18 @@ hl = setmetatable({
         table.insert(gestures, { fingers = spec.fingers, dir = dir, action = spec.action })
     end,
     dispatch = function(c) table.insert(sent, c) end,
-    dsp = setmetatable({ exec_cmd = function(c) return c end, global = function(c) return "global " .. c end }, { __index = function() return any end }),
+    dsp = setmetatable({ exec_cmd = function(c) return c end, global = function(c) return "global " .. c end,
+        focus = function(t) return "focus " .. tostring(t.workspace) end,
+        window = setmetatable({ fullscreen = function(t) return "fullscreen " .. t.mode .. " " .. t.action end }, { __index = function() return any end }) },
+        { __index = function() return any end }),
     get_active_window = function() return window end,
+    get_config = function(k) return conf[k] end,
     get_monitors = function() return {} end,
 }, { __index = function() return any end })
 HOME = "/home/someone"
 is_file_exists = function() return false end
 dofile(file)
+dofile(tacitFile)
 
 -- one swipe: the deltas as libinput hands them over, fingers on the pad, and whether it ended cancelled
 local function swipe(deltas, fingers, cancelled)
@@ -91,7 +98,7 @@ local cases = {
     { "a swipe up taken back before lifting", rep(15, 0, 10, rep(15, 0, -10)), "nothing" },
 }
 
-print("Touchpad gestures (session/hypr/hyprland/general.lua, as Hyprland 0.56.2 feeds them)")
+print("Touchpad gestures (session/hypr/hyprland/general.lua and tacit/general.lua, as Hyprland 0.56.2 feeds them)")
 check("Hyprland accepts every gesture the file adds", #refused == 0, table.concat(refused, "; "))
 for _, c in ipairs(cases) do
     local got = swipe(c[2], 3)
@@ -102,8 +109,33 @@ check("three fingers, a swipe up that ends cancelled: nothing", got == "nothing"
 window = { fullscreen = 1 }
 got = swipe(rep(30, 0, -10), 3)
 check("three fingers up on a window filling the screen: " .. "hyprctl tacitgrip fill active", got == "hyprctl tacitgrip fill active", "got " .. got)
+window = { fullscreen = 2 }
+got = swipe(rep(30, 0, -10), 3)
+check("three fingers up on a window in true fullscreen (a pinch, Super+F): it leaves fullscreen", got == "fullscreen fullscreen unset", "got " .. got)
+got = swipe(rep(20, 0, 10), 3)
+check("three fingers down on it still hides it", got == hide, "got " .. got)
 window = { fullscreen = 0 }
-got = swipe(rep(30, 0, -10), 4)
-check("four fingers up: the overview", got == "global quickshell:overviewWorkspacesToggle", "got " .. got)
+local overview, palette = "global quickshell:overviewWorkspacesToggle", "global quickshell:searchToggle"
+-- a sideways swipe whose first 5 units lean up (or down), so Hyprland takes it as vertical
+local function leaning(x, y, t) table.insert(t, 1, { x, y }) table.insert(t, 1, { x, y }) return t end
+for _, c in ipairs({
+    { "a straight swipe up, 300", rep(30, 0, -10), overview },
+    { "a straight swipe down", rep(20, 0, 10), palette },
+    { "a straight swipe left", rep(20, -10, 0), "hyprland's own workspace" },
+    { "a brush up, 60", rep(6, 0, -10), "nothing" },
+    { "a brush down, 60", rep(6, 0, 10), "nothing" },
+    { "a swipe up taken back before lifting", rep(15, 0, 10, rep(15, 0, -10)), "nothing" },
+    { "left, setting off leaning up", leaning(-1, -3, rep(20, -10, 0)), "focus r+1" },
+    { "right, setting off leaning down", leaning(1, 3, rep(20, 10, 0)), "focus r-1" },
+}) do
+    got = swipe(c[2], 4)
+    check(string.format("four fingers, %s: %s", c[1], c[3]), got == c[3], "got " .. got)
+end
+got = swipe(rep(30, 0, -10), 4, true)
+check("four fingers, a swipe up that ends cancelled: nothing", got == "nothing", "got " .. got)
+conf["gestures:workspace_swipe_invert"] = false
+got = swipe(leaning(-1, -3, rep(20, -10, 0)), 4)
+check("four fingers left, setting off leaning up, with the workspace swipe inverted: focus r-1", got == "focus r-1", "got " .. got)
+conf["gestures:workspace_swipe_invert"] = nil
 
 os.exit(failed == 0 and 0 or 1)
