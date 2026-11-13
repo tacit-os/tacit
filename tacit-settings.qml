@@ -2298,16 +2298,47 @@ ApplicationWindow {
                 subtitle: now.line
                 live: !!Audio.sink && !(Audio.sink?.audio.muted ?? false)
                 // Written through the sink like the volume keys, so the ear protection that watches
-                // the sink catches a jump from here the same way.
+                // the sink catches a jump from here the same way. It takes back any rise over "Largest
+                // jump allowed at once", here and in the shell, so a click far up the bar or an arrow
+                // key's tenth is climbed to in steps under that instead, as a drag would.
                 Ruler {
                     id: volumeSlider
+                    property real target: 0
+                    property real wrote: 0
                     Layout.fillWidth: true
                     Layout.topMargin: 2
                     label: (Audio.sink?.audio.muted ?? false) ? "Muted" : `${Math.round(volumeSlider.value * 100)}%`
                     from: 0
                     to: 1
                     enabled: !!Audio.sink
-                    onMoved: if (Audio.sink) Audio.sink.audio.volume = volumeSlider.value
+                    onMoved: {
+                        volumeSlider.target = volumeSlider.value;
+                        volumeSlider.wrote = Audio.sink?.audio.volume ?? 0;
+                        volumeSlider.climb();
+                    }
+                    function climb() {
+                        const audio = Audio.sink?.audio;
+                        // gone, or the last step was taken back since (by the shell): stop where it is
+                        if (!audio || audio.volume < volumeSlider.wrote - 0.005) {
+                            climbTimer.stop();
+                            return;
+                        }
+                        const p = Config.options.audio.protection;
+                        // a little under the limit: the level is kept as a float, a hair off what was written
+                        const step = p.enable ? p.maxAllowedIncrease / 100 * 0.9 : Infinity;
+                        const was = audio.volume;
+                        audio.volume = Math.min(volumeSlider.target, was + step);
+                        volumeSlider.wrote = audio.volume;
+                        // there, or taken back at once (over "Loudest allowed")
+                        if (Math.abs(audio.volume - volumeSlider.target) < 0.005 || audio.volume <= was) climbTimer.stop();
+                        else climbTimer.start();
+                    }
+                    Timer {
+                        id: climbTimer
+                        interval: 50
+                        repeat: true
+                        onTriggered: volumeSlider.climb()
+                    }
                     Binding on value {
                         value: Audio.sink?.audio.volume ?? 0
                         when: !volumeSlider.pressed
@@ -4302,12 +4333,17 @@ ApplicationWindow {
                         readScreens.running = true;
                 }
             }
-            // a screen plugged in or out while the page is open (Hyprland says so; no polling); not while a write is landing
+            // a screen plugged in or out while the page is open (Hyprland says so; no polling), and a reload, which is
+            // how Go back and the Keep bar running out put the old file back (Hyprland applies the monitor lines
+            // before it says configreloaded), so the next change is not built on the screens as refused; not while a
+            // write is landing
             Connections {
                 target: Hyprland
                 function onRawEvent(event) {
-                    if (["monitoradded", "monitorremoved"].includes(event.name) && !writeMonitors.running)
+                    if (["monitoradded", "monitorremoved", "configreloaded"].includes(event.name) && !writeMonitors.running) {
                         readScreens.running = true;
+                        readMonitorsFile.running = true;
+                    }
                 }
             }
             Timer {
@@ -5468,14 +5504,20 @@ ApplicationWindow {
                         : updatesGroup.waiting > 0 ? "Check for updates gets them now"
                         : updatesGroup.checkedText
                     control: Row {
-                        visible: updatesGroup.ready && !updatesGroup.tonight && !Updates.restarting
+                        visible: updatesGroup.ready && !Updates.restarting
                         spacing: 4
+                        // with Tonight chosen, Restart still installs them now instead (tacit-update now takes
+                        // Tonight away)
                         TextButton {
+                            visible: !updatesGroup.tonight
                             label: "Tonight"
                             onPressed: Updates.tonight()
                         }
+                        // it closes every app: asked once in place, as the session screen and Apps do; after a
+                        // warning, Restart anyway is already the second press
                         TextButton {
                             label: Updates.restartWarning.length > 0 ? "Restart anyway" : "Restart"
+                            confirm: Updates.restartWarning.length > 0 ? "" : "Press again to restart"
                             onPressed: Updates.restartNow()
                         }
                     }
@@ -6299,39 +6341,76 @@ ApplicationWindow {
     }
 
     // An action in quiet words (the photo editor's "Change", "Join"): a word and an optional glyph,
-    // a soft wash on hover, the accent ring for keyboard focus; no outline.
+    // a soft wash on hover, the accent ring for keyboard focus; no outline. `confirm` asks in place,
+    // as the kit's Slab and WordAction do: the first press shows it in the risk ink after the warning
+    // glyph, a second says pressed(); Esc, the keyboard or the pointer leaving, or 4 s untouched put
+    // the words back.
     component TextButton: Rectangle {
         id: btn
         property string label: ""
         property string glyph: ""
+        property string confirm: ""
+        property bool asked: false
+        property bool askedByPointer: false
+        readonly property bool asking: btn.confirm !== "" && btn.asked
         signal pressed()
+        function press(byPointer) {
+            if (btn.confirm !== "" && !btn.asked) {
+                btn.askedByPointer = byPointer;
+                btn.asked = true;
+                btn.forceActiveFocus();
+                askWait.restart();
+                return;
+            }
+            btn.cancelAsk();
+            btn.pressed();
+        }
+        function cancelAsk() {
+            btn.asked = false;
+            askWait.stop();
+        }
+        onConfirmChanged: if (btn.confirm === "") btn.cancelAsk()
+        onActiveFocusChanged: if (!btn.activeFocus) btn.cancelAsk()
+        Timer {
+            id: askWait
+            interval: Tacit.motion.confirmWait.ms
+            onTriggered: btn.cancelAsk()
+        }
         implicitHeight: 32
         implicitWidth: btnRow.implicitWidth + 20
         radius: 8
-        color: btnArea.containsMouse ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.95) : "transparent"
+        color: btn.asking ? ColorUtils.transparentize(Tacit.risk, 0.86)
+            : btnArea.containsMouse ? ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.95) : "transparent"
         border.width: btn.activeFocus && (btn.focusReason === Qt.TabFocusReason || btn.focusReason === Qt.BacktabFocusReason) ? 2 : 0
         border.color: ColorUtils.transparentize(Appearance.colors.colPrimary, 0.15)
         activeFocusOnTab: btn.visible && btn.enabled
-        Keys.onReturnPressed: btn.pressed()
-        Keys.onEnterPressed: btn.pressed()
-        Keys.onSpacePressed: btn.pressed()
+        Keys.onReturnPressed: btn.press(false)
+        Keys.onEnterPressed: btn.press(false)
+        Keys.onSpacePressed: btn.press(false)
+        // only while asking: otherwise Esc goes on to the page, which closes Settings
+        Keys.onEscapePressed: event => {
+            if (btn.asked)
+                btn.cancelAsk();
+            else
+                event.accepted = false;
+        }
         Behavior on color { ColorAnimation { duration: 80 } }
         Row {
             id: btnRow
             anchors.centerIn: parent
             spacing: 7
             MaterialSymbol {
-                visible: btn.glyph.length > 0
+                visible: btn.asking || btn.glyph.length > 0
                 anchors.verticalCenter: parent.verticalCenter
-                text: btn.glyph
+                text: btn.asking ? "warning" : btn.glyph
                 iconSize: 17
-                color: Tacit.inkSec
+                color: btn.asking ? Tacit.risk : Tacit.inkSec
             }
             StyledText {
                 anchors.verticalCenter: parent.verticalCenter
-                text: btn.label
+                text: btn.asking ? btn.confirm : btn.label
                 font.pixelSize: 15
-                color: btn.enabled ? Tacit.inkMain : Appearance.colors.colInkFaint
+                color: !btn.enabled ? Appearance.colors.colInkFaint : btn.asking ? Tacit.risk : Tacit.inkMain
             }
         }
         MouseArea {
@@ -6339,7 +6418,8 @@ ApplicationWindow {
             anchors.fill: parent
             hoverEnabled: true
             cursorShape: Qt.PointingHandCursor
-            onClicked: btn.pressed()
+            onClicked: btn.press(true)
+            onExited: if (btn.askedByPointer) btn.cancelAsk()
         }
     }
 }

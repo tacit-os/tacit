@@ -1,10 +1,10 @@
 // The volume keys and the volume protection (services/Audio.qml) run under node on a pretend output: the file's own
 // incrementVolume(), its bindings (value, keyMaxValue, hardMaxValue) and its protection handler, with the settings an
-// old settings file comes out of Config.migrate() with.
+// old settings file comes out of Config.migrate() with. And the bar on Settings > Sound against that protection.
 import { readFileSync } from "fs";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { adapterDefaults, inScope, loadInto, matchBrace, qmlFunction, qmlProperty, runMigrate } from "./lib/qml.mjs";
+import { adapterDefaults, inScope, loadInto, matchBrace, qmlFunction, qmlProperty, readExpression, runMigrate } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const audioSrc = read("services/Audio.qml");
@@ -111,6 +111,94 @@ console.log("The volume keys and the volume protection (services/Audio.qml)");
   for (let i = 0; i < 40; i++) key();
   const v = d.root.sink.audio.volume;
   check("with Loudest allowed at 150%, the real volume-up key reaches 150%", Math.abs(v - 1.5) < 1e-9, `it stops at ${pct(v)} (${cmd})`);
+}
+
+// Settings > Sound's bar (the Ruler with id volumeSlider in tacit-settings.qml): its own onMoved, functions and timer,
+// with two protections listening to the output as on a desktop, Settings' own Audio and the shell's. The output keeps
+// its level as a float, as Quickshell does (QVector<float>), and a write is heard at once in the process that made it.
+const settingsSrc = read("tacit-settings.qml");
+const rulerAt = settingsSrc.lastIndexOf("Ruler {", settingsSrc.indexOf("id: volumeSlider"));
+const ruler = settingsSrc.slice(rulerAt, matchBrace(settingsSrc, settingsSrc.indexOf("{", rulerAt)) + 1);
+function soundPage(options, volume) {
+  const said = [], rises = [], listeners = [];
+  const a = { muted: false, _v: Math.fround(volume) };
+  Object.defineProperty(a, "volume", { get: () => a._v, set: x => {
+    const v = Math.fround(Math.max(0, x));
+    if (v === a._v) return;
+    rises.push(v - a._v);
+    a._v = v;
+    for (const l of listeners) l();
+  } });
+  const audio = { sink: { audio: a, ready: true }, sinkProtectionTriggered: reason => said.push(reason) };
+  for (let i = 0; i < 2; i++) {
+    const conn = Object.assign(Object.create({ root: audio, sink: audio.sink, Config: { options },
+      Translation: { tr: s => ({ arg: x => s.replace("%1", x) }) } }), structuredClone(connProps));
+    const run = inScope(conn, handler.params, handler.body);
+    let depth = 0;
+    const heard = () => { if (depth > 8) throw new Error("the protection keeps setting the volume"); depth++; try { run(); } finally { depth--; } };
+    heard();                           // the first look takes the level as it is
+    listeners.push(heard);
+  }
+  const bar = { value: a.volume, pressed: false };
+  const scope = { volumeSlider: bar, Audio: audio, Config: { options } };
+  for (const m of ruler.matchAll(/^\s*property\s+\w+\s+(\w+)\s*:\s*(.+)$/gm)) bar[m[1]] = inScope(scope, "", `return (${m[2]});`)();
+  const timers = [];
+  for (const m of ruler.matchAll(/\bTimer\s*\{/g)) {
+    const body = ruler.slice(m.index, matchBrace(ruler, m.index + m[0].length - 1));
+    const t = { running: false, start() { this.running = true; }, stop() { this.running = false; }, restart() { this.running = true; } };
+    scope[body.match(/\bid:\s*(\w+)/)[1]] = t;
+    const on = body.indexOf("onTriggered:");
+    t.fire = inScope(scope, "", readExpression(body, on + "onTriggered:".length).expr);
+    timers.push(t);
+  }
+  for (const m of ruler.matchAll(/\bfunction\s+(\w+)\s*\(/g)) { const f = qmlFunction(ruler, m[1]); bar[m[1]] = inScope(scope, f.params, f.body); }
+  const on = ruler.indexOf("onMoved:") + "onMoved:".length;
+  const open = ruler.slice(on).match(/^\s*\{/);
+  const moved = inScope(scope, "", open ? ruler.slice(on + open[0].length, matchBrace(ruler, on + open[0].length - 1)) : readExpression(ruler, on).expr);
+  // the timers' ticks until none runs, at most 200 of them
+  let ticks = 0;
+  const wait = () => { while (timers.some(t => t.running) && ticks < 200) { ticks++; for (const t of timers) if (t.running) t.fire(); } };
+  return {
+    a, said, rises, bar, timers, ticks: () => ticks,
+    // a press at x moves the knob there and says moved; on release the Binding puts the knob on the real level
+    click(x) { bar.pressed = true; bar.value = x; moved(); wait(); bar.pressed = false; bar.value = a.volume; },
+    // a Slider's arrow key with no stepSize: a tenth of its range
+    key() { bar.value = Math.min(1, bar.value + 0.1); moved(); wait(); bar.value = a.volume; },
+  };
+}
+const fresh = () => runMigrate(configSrc, adapterDefaults(configSrc)).options;
+
+// before this a click more than 10% up went to the output and was taken back at once, so the knob came back
+{
+  const p = soundPage(fresh(), 0.2);
+  p.click(0.7);
+  const v = p.a.volume, most = Math.max(...p.rises);
+  check("at 20%, a click on the Sound page's bar at 70% takes the output to 70%, in steps the ear protection lets through",
+    Math.abs(v - 0.7) < 0.006 && !p.said.length && most <= 0.1 && Math.abs(p.bar.value - v) < 1e-9,
+    `it ends at ${pct(v)}, the biggest rise written was ${pct(most)}${p.said.length ? `, the protection said "${p.said.at(-1)}"` : ""}`);
+}
+{
+  const p = soundPage(fresh(), 0.5);
+  p.key();
+  const v = p.a.volume;
+  check("at 50%, the bar's arrow key takes the output to 60%", Math.abs(v - 0.6) < 0.006 && !p.said.length,
+    `it ends at ${pct(v)}${p.said.length ? `, the protection said "${p.said.at(-1)}"` : ""}`);
+}
+{
+  const p = soundPage(fresh(), 0.7);
+  p.click(0.3);
+  check("a click lower, at 30% from 70%, goes there with one write", Math.abs(p.a.volume - 0.3) < 0.006 && p.rises.length === 1,
+    `it ends at ${pct(p.a.volume)} after ${p.rises.length} writes`);
+}
+{
+  const o = fresh();
+  o.audio.protection.maxAllowed = 60;
+  const p = soundPage(o, 0.2);
+  p.click(0.9);
+  const v = p.a.volume;
+  check("with Loudest allowed at 60%, a click at 90% climbs to under 60% and stops writing",
+    v > 0.5 && v <= 0.6 && !p.timers.some(t => t.running) && p.ticks() < 200,
+    `it ends at ${pct(v)} after ${p.ticks()} ticks${p.timers.some(t => t.running) ? ", still climbing" : ""}`);
 }
 
 done();
