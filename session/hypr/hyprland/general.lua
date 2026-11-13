@@ -350,6 +350,10 @@ hl.config({
         repeat_rate = 35,
 
         follow_mouse = 1,
+        -- the pointer gives focus to the window it moves into, not to the one it already rests on: with no_warps (below)
+        -- it stays where it was when a key moves the focus (Alt+Tab, a window picked in the overview), and the next
+        -- brush of the touchpad used to hand focus back to the window under it, mid-sentence. A click there still does.
+        mouse_refocus = false,
         off_window_axis_events = 2,
 
         touchpad = {

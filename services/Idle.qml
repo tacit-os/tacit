@@ -30,8 +30,9 @@ Singleton {
         return toplevel?.activated ? HyprlandData.clientForToplevel(toplevel) : null;
     }
 
-    // Something playing in the window in front of you: the one holding the keyboard, or a
-    // fullscreen one. Music left playing behind other work is not watching a film, and must not
+    // Something playing in the window in front of you: a fullscreen one, or the one holding the
+    // keyboard when it plays a video, which its player reports with no album (a song names one).
+    // Music, in front or left playing behind other work, is not watching a film, and must not
     // keep the machine up all night. Not while locked either: the lock, the dark and the suspend
     // are then what the person asked for, and a video still playing behind the lock is no reason
     // to hold them off.
@@ -41,7 +42,7 @@ Singleton {
         const focused = root.focusedWindow;
         const windows = HyprlandData.windowList;
         return MprisController.players.some(player => player.isPlaying && windows.some(win =>
-            ((win.fullscreen & 2) !== 0 || (focused !== null && win.address === focused.address))
+            ((win.fullscreen & 2) !== 0 || (focused !== null && win.address === focused.address && !player.trackAlbum))
             && MprisController.playsIn(win, player)));
     }
 

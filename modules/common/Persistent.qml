@@ -113,6 +113,7 @@ Singleton {
             }
             property JsonObject network: JsonObject {
                 property list<string> trusted: []   // networks marked home/work: no VPN needed there
+                property bool trustedBySsid: false  // entries saved under a profile's name were moved to its SSID (Network.qml)
                 property string autoVpn: ""         // the VPN that comes up on an untrusted network
                 property string hotspotName: ""
                 property string hotspotPassword: ""

@@ -245,11 +245,11 @@ Scope {
     // The window below stays loadable: a kept bar still opens it from its media widget
     // (modules/ii/bar/Media.qml), and it is the whole surface when the notch is off.
     readonly property bool islandOwnsMedia: IslandController.ownsMedia
-    // true when the request went to the notch instead of this popup
-    function toNotch(): bool {
+    // true when the request went to the notch instead of this popup; `toggles`: a second press puts its sheet away
+    function toNotch(toggles): bool {
         if (!root.islandOwnsMedia)
             return false;
-        IslandController.openMedia();
+        IslandController.openMedia(toggles);
         return true;
     }
 
@@ -259,7 +259,7 @@ Scope {
         // Write the same state the shortcuts do: assigning the Loader's active
         // property directly would break its binding and strand every shortcut.
         function toggle(): void {
-            if (root.toNotch())
+            if (root.toNotch(true))
                 return;
             GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen;
         }
@@ -269,7 +269,7 @@ Scope {
         }
 
         function open(): void {
-            if (root.toNotch())
+            if (root.toNotch(false))
                 return;
             GlobalStates.mediaControlsOpen = true;
         }
@@ -280,7 +280,7 @@ Scope {
         description: "Toggles media controls on press"
 
         onPressed: {
-            if (root.toNotch())
+            if (root.toNotch(true))
                 return;
             GlobalStates.mediaControlsOpen = !GlobalStates.mediaControlsOpen;
         }
@@ -290,7 +290,7 @@ Scope {
         description: "Opens media controls on press"
 
         onPressed: {
-            if (root.toNotch())
+            if (root.toNotch(false))
                 return;
             GlobalStates.mediaControlsOpen = true;
         }

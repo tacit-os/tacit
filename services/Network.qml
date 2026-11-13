@@ -419,6 +419,34 @@ Singleton {
         Persistent.states.network.trusted = list;
         Vpn.applyRule();
     }
+    // Before 1.2.15 the Trusted switch under Known networks saved the profile's name ("MyWifi 1"), which the VPN's rule,
+    // asking by the network's name ("MyWifi"), never found. Once the profiles have been read, each such entry is moved
+    // to its network's name, once: a name that is also a saved network's own (the switch above the list saved those)
+    // stays as well, and one no profile has is left as it is.
+    function migrateTrusted(): void {
+        if (!Persistent.ready || !Persistent.loadedCleanly || Persistent.states.network.trustedBySsid || root.savedConnections.length === 0)
+            return;
+        const ssids = root.savedConnections.map(c => c.ssid);
+        const was = Persistent.states.network.trusted ?? [];
+        const list = [];
+        const add = s => { if (!list.includes(s)) list.push(s); };
+        for (const t of was) {
+            const c = root.savedConnections.find(c => c.name === t && c.ssid !== t);
+            if (!c || ssids.includes(t))
+                add(t);
+            if (c)
+                add(c.ssid);
+        }
+        Persistent.states.network.trustedBySsid = true;
+        if (list.join("\n") !== Array.from(was).join("\n")) {
+            Persistent.states.network.trusted = list;
+            Vpn.applyRule();
+        }
+    }
+    Connections {
+        target: Persistent
+        function onReadyChanged() { root.migrateTrusted(); }
+    }
 
     // ---- IPv4 of a saved connection (caelestia Nmcli.getIpv4Config / setIpv4Config)
     function getIpv4Config(name: string, callback: var): void {
@@ -525,6 +553,7 @@ Singleton {
         const list = root.listedProfiles.map(c => ({ name: c.name, uuid: c.uuid, ssid: root.profileSsids[c.uuid] || c.name, lastUsed: c.lastUsed }));
         root.savedConnections = list;
         root.savedProfiles = list.map(c => c.ssid);
+        root.migrateTrusted();
     }
     function readProfileSsids(): void {
         if (ssidProc.running)

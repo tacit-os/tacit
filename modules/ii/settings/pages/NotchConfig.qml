@@ -62,13 +62,6 @@ ContentPage {
                 onSwitched: (value) => { Config.options.island.enable = value }
             }
             ConfigSwitch {
-                buttonIcon: "toast"
-                enabled: Config.options.island.enable
-                text: Translation.tr("Hide the bar (the notch replaces it)")
-                checked: Config.options.island.hideBar
-                onSwitched: (value) => { Config.options.island.hideBar = value }
-            }
-            ConfigSwitch {
                 buttonIcon: "mouse"
                 text: Translation.tr("Open the sheet on hover")
                 checked: Config.options.island.hoverExpand

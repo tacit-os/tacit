@@ -79,8 +79,8 @@ hl.bind("Escape", hl.dsp.global("quickshell:islandCollapse"),
     { non_consuming = true, description = "Shell: Close the notch" })
 
 -- Super + Space -> the notch's sheet, with the keyboard: arrows over the rows, Enter does what
--- a click does, Esc closes. Nothing binds this combination upstream.
-hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -p $TACIT_SHELL ipc call island open"), { description = "Shell: Open the notch" })
+-- a click does, Esc or Super + Space again closes. Nothing binds this combination upstream.
+hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -p $TACIT_SHELL ipc call island toggle"), { description = "Shell: Open the notch" })
 
 -- Super + Shift + Space -> Ask in the notch: a quick Claude chat (the screen, a window, a file)
 hl.bind("SUPER + SHIFT + Space", hl.dsp.global("quickshell:islandAsk"), { description = "Shell: Ask Claude in the notch" })

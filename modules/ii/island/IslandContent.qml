@@ -43,6 +43,9 @@ Item {
     // A tile being dragged OUT of the shelf keeps the sheet open until the drag ends, and a
     // sheet opened for a drop on the desktop stays until the pointer has visited it.
     property bool rowDragging: false  // a recents row being dragged out
+    // the key last pressed to open this sheet (IslandController.openRequested: "space", "media"): pressed again, it
+    // puts the sheet away; however else the sheet closes, it is forgotten
+    property string keySheet: ""
 
     // Keyboard: the selected row while the sheet was opened from a key. Up/Down move over
     // sessions then arrivals, Enter does what a click does, Esc closes. Focus is released
@@ -79,6 +82,7 @@ Item {
             signinBack.restart();
         if (!root.open) {
             root.selected = -1;
+            root.keySheet = "";
             if (root.keyScreen)
                 IslandController.keyboard = false;
             // the card went unused: it folds away into a line
@@ -664,21 +668,32 @@ Item {
         id: requests
         target: IslandController
 
-        function onOpenRequested() {
+        function onOpenRequested(key) {
             if (!root.keyScreen)
                 return;
+            // Super+Space or Super+M again: the sheet that key opened goes (Ask, the address and the rest have their own keys)
+            if (key && root.open && root.keySheet === key && (root.view === "home" || root.view === "shelf")) {
+                pinTimer.stop();
+                root.pinnedUntilVisit = false;
+                root.open = false;
+                return;
+            }
             if (root.signinShown) {
                 root.signinFold(() => {
                     IslandController.signinWait("ask");
                     root.view = "home";
                     root.open = false;
                     root.openSheet();
+                    if (key && root.open)
+                        root.keySheet = key;
                     root.pinnedUntilVisit = true;
                     pinTimer.restart();
                 });
                 return;
             }
             root.openSheet();
+            if (key && root.open)
+                root.keySheet = key;
             root.pinnedUntilVisit = true;
             pinTimer.restart();
         }

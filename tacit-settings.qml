@@ -2481,6 +2481,9 @@ ApplicationWindow {
             // the Wi-Fi network you are on: with a cable up networkName may be the cable's profile, so
             // the scan's active access point names it then
             readonly property string wifiName: Network.ethernet ? (Network.active?.ssid ?? "") : Network.networkName
+            // what its trust is kept under: the network's own name, as the VPN's rule asks; wifiName can be the profile's
+            // ("MyWifi 1"), so that is looked up when the scan has not named the network
+            readonly property string wifiSsid: Network.active?.ssid ?? Network.savedConnections.find(c => c.name === netPage.wifiName)?.ssid ?? netPage.wifiName
             // a computer with only a cable: the device list has been read and holds no Wi-Fi device. NetworkManager
             // can still report the radio as enabled then, so the switch is judged by the device, not the radio.
             readonly property bool noAdapter: Network.devicesKnown && Network.wifiDevice.length === 0
@@ -2515,13 +2518,13 @@ ApplicationWindow {
                     label: netPage.wifiName
                     selected: true
                     description: current.portal ? "Sign in to use this network"
-                        : ["Connected", Network.wifiStatus === "limited" ? "No internet" : "", Network.isTrusted(netPage.wifiName) ? "Trusted" : ""].filter(x => x).join(" · ")
+                        : ["Connected", Network.wifiStatus === "limited" ? "No internet" : "", Network.isTrusted(netPage.wifiSsid) ? "Trusted" : ""].filter(x => x).join(" · ")
                     onActivated: if (current.portal) Network.openPublicWifiPortal()
                     control: RowMenu {
                         items: [
                             { label: "Disconnect", run: () => Network.disconnectWifiNetwork() },
-                            { label: "Trusted: home or work", checked: Network.isTrusted(netPage.wifiName),
-                              run: () => Network.setTrusted(netPage.wifiName, !Network.isTrusted(netPage.wifiName)) },
+                            { label: "Trusted: home or work", checked: Network.isTrusted(netPage.wifiSsid),
+                              run: () => Network.setTrusted(netPage.wifiSsid, !Network.isTrusted(netPage.wifiSsid)) },
                             { label: "Forget this network", run: () => Network.forgetWifiNetwork(netPage.wifiName) }
                         ]
                     }
@@ -2572,13 +2575,13 @@ ApplicationWindow {
                         label: net.modelData.name
                         description: [net.modelData.name === Network.networkName ? "Connected now"
                             : (net.modelData.lastUsed > 0 ? `Last used ${new Date(net.modelData.lastUsed).toLocaleDateString(Qt.locale(), "d MMM")}` : "Never joined"),
-                            Network.isTrusted(net.modelData.name) ? "Trusted" : ""].filter(x => x.length > 0).join(" · ")
+                            Network.isTrusted(net.modelData.ssid) ? "Trusted" : ""].filter(x => x.length > 0).join(" · ")
                         // Trusted is a property of the network, not something done to it often: it
                         // shows in the line under the name and is set from the menu with Forget.
                         control: RowMenu {
                             items: [
-                                { label: "Trusted: home or work", checked: Network.isTrusted(net.modelData.name),
-                                  run: () => Network.setTrusted(net.modelData.name, !Network.isTrusted(net.modelData.name)) },
+                                { label: "Trusted: home or work", checked: Network.isTrusted(net.modelData.ssid),
+                                  run: () => Network.setTrusted(net.modelData.ssid, !Network.isTrusted(net.modelData.ssid)) },
                                 { label: "Forget this network", run: () => Network.forgetWifiNetwork(net.modelData.ssid, net.modelData.name) }
                             ]
                         }

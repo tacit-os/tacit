@@ -164,6 +164,7 @@ Singleton {
             return 4000;
         case "disk":
         case "pr":
+        case "vpn":
             return 4000;
         case "memory":
             return 6000;
@@ -610,6 +611,9 @@ Singleton {
         // an app holding the mic while it is muted hears nothing: not the live mic's glyph (nor its attention colour)
         if (root.micLive)
             return (Audio.source?.audio?.muted ?? false) ? "mic_off" : "mic";
+        // an app with the camera, by the mic's rules; a call with both keeps the mic's, which says whether it is muted
+        if (Camera.live)
+            return "videocam";
         // An agent session is waiting on you (permission or a question).
         if (AgentSessions.waiting || Claude.waiting)
             return "back_hand";
@@ -1323,6 +1327,10 @@ Singleton {
             // a VPN file nmcli refused: it stays where it is, and the notch says why
             root.request("download", { "icon": "vpn_key_off", "text": reason.length > 0 ? Translation.tr("Couldn't add the VPN · %1").arg(reason) : Translation.tr("Couldn't add the VPN") }, 55);
         }
+        // the VPN set to come on by itself is not up on a network that is not trusted: never silently
+        function onFailed(reason) {
+            root.request("vpn", { "icon": "vpn_key_off", "text": reason.length > 0 ? Translation.tr("VPN didn't connect · %1").arg(reason) : Translation.tr("VPN didn't connect"), "tone": "error" }, 70);
+        }
     }
 
     // ------------------------------------------------------------------ keyboard layout
@@ -1931,21 +1939,23 @@ Singleton {
         if (root.chargerFault && IslandController.warmedUp)
             Journal.log("fault.charger", {});
     }
-    // `qs -c tacit ipc call island open|close`: open the sheet from a keybind or a script,
-    // pinned until the pointer comes and goes (or 6s), exactly like a desktop drop.
-    signal openRequested()
+    // `qs -c tacit ipc call island open|toggle|close`: open the sheet from a keybind or a script,
+    // pinned until the pointer comes and goes (or 6s), exactly like a desktop drop. `key`: the key
+    // whose second press puts away the sheet it opened (IslandContent), "" for an open that only opens.
+    signal openRequested(string key)
     signal closeRequested()
     signal foldRequested()      // like the pointer leaving: only a sheet a hover opened closes
     // Super+M and the media corner: the sheet on the screen you are on, without the keyboard. keyboardScreen is
     // otherwise the screen of the last key, which opened the sheet on that monitor and nothing on this one. A sheet
     // holding the keyboard keeps its screen, as when a recording stops; a screen with no notch leaves it to them all.
-    function openMedia() {
+    // `toggles`: Super+M, pressed again, puts the sheet it opened away; the media corner only opens.
+    function openMedia(toggles) {
         if (!root.keyboard) {
             const name = Hyprland.focusedMonitor?.name ?? "";
             const list = Config.options.island.screenList;
             root.keyboardScreen = !list || list.length === 0 || list.includes(name) ? name : "";
         }
-        root.openRequested();
+        root.openRequested(toggles ? "media" : "");
     }
 
     // ------------------------------------------------------------------ ask (quick chat)
@@ -2417,7 +2427,16 @@ Singleton {
                 return;
             root.keyboardScreen = root.keyScreenName();
             root.keyboard = true;
-            root.openRequested();
+            root.openRequested("");
+        }
+
+        // Super+Space: open(), and pressed again it puts away the sheet it opened
+        function toggle(): void {
+            if (!root.enabled || root.suppressed)
+                return;
+            root.keyboardScreen = root.keyScreenName();
+            root.keyboard = true;
+            root.openRequested("space");
         }
 
         function close(): void {

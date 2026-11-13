@@ -25,6 +25,13 @@ Singleton {
     signal imported(string name)
     // notVpn: the file is neither WireGuard nor OpenVPN; otherwise it is one nmcli refused, for reason
     signal importFailed(string path, string reason, bool notVpn)
+    // the VPN set to come on by itself (autoVpn) did not come up, or went down with nobody asking, on a network that is
+    // not trusted: the notch says so (IslandController), as the person believes it protects them
+    signal failed(string reason)
+    property string connecting: ""   // the profile `nmcli connection up` is bringing up
+    property bool downing: false     // a down was asked for: the VPN going is not a drop
+    property real droppedAt: 0
+    property real ruleTriedAt: 0
 
     function refresh(): void {
         listProc.running = false;
@@ -33,12 +40,20 @@ Singleton {
     function connect(name: string): void {
         if (root.busy)
             return;
+        root.connecting = name;
         root.start(["nmcli", "connection", "up", name]);
     }
     function disconnect(): void {
         if (!root.active || root.busy)
             return;
+        root.downing = true;
         root.start(["nmcli", "connection", "down", root.active.name]);
+    }
+    // nmcli's refusal in its own words, without "Error: Connection activation failed: " and the journalctl hint
+    function failReason(err: string): string {
+        const lines = (err + "").trim().split("\n").filter(l => l.trim() !== "" && !/^Hint:/.test(l));
+        const said = lines.find(l => /^Error:/.test(l)) ?? lines.pop() ?? "";
+        return said.replace(/^Error: /, "").replace(/^Connection activation failed: /, "").replace(/\.$/, "").trim();
     }
     // One way into the shared Process, so busy is set and the wait is bounded wherever the
     // command comes from.
@@ -57,6 +72,9 @@ Singleton {
         onTriggered: {
             root.lastError = Translation.tr("No answer after 30 seconds. It may still come up.");
             root.busy = false;
+            if (root.connecting !== "" && root.connecting === root.autoVpn)
+                root.failed(Translation.tr("no answer after 30 seconds"));
+            root.connecting = "";   // its late exit has been spoken for
         }
     }
     property string pendingConnect: ""
@@ -137,8 +155,10 @@ Singleton {
         const trusted = wired || (wifi && Network.isTrusted(wifi.ssid));
         const online = wired || wifi !== null;
         const ours = root.active && root.active.name === root.autoVpn;
-        if (online && !trusted && !root.active)
+        if (online && !trusted && !root.active) {
+            root.ruleTriedAt = Date.now();
             root.connect(root.autoVpn);
+        }
         else if (trusted && ours)
             root.disconnect();
     }
@@ -172,8 +192,30 @@ Singleton {
                     else if (type === "vpn")
                         list.push({ name: name, kind: "openvpn", active: active === "yes" });
                 }
+                const was = root.active?.name ?? "";
                 root.connections = list;
+                // the auto VPN gone: asked for, or a drop, judged once a network change has had its rule run
+                if (was !== "" && was === root.autoVpn && !root.active) {
+                    if (root.downing) {
+                        root.downing = false;
+                    } else {
+                        root.droppedAt = Date.now();
+                        dropCheck.restart();
+                    }
+                }
             }
+        }
+    }
+    // A drop the rule is not bringing back: still on a network that is not trusted, nothing coming up, and no rule run
+    // since (leaving one Wi-Fi for another drops the tunnel, and the rule's own try then speaks for itself)
+    Timer {
+        id: dropCheck
+        interval: 4000   // past ruleLater's 2.5 s
+        onTriggered: {
+            const wifi = Network.active;
+            const trusted = Network.ethernet || (wifi && Network.isTrusted(wifi.ssid));
+            if (root.autoVpn !== "" && !root.active && !root.busy && wifi !== null && !trusted && root.ruleTriedAt < root.droppedAt)
+                root.failed(Translation.tr("it dropped"));
         }
     }
     Timer {
@@ -187,9 +229,14 @@ Singleton {
         stderr: StdioCollector {
             onStreamFinished: root.lastError = text.trim()
         }
-        onExited: {
+        onExited: (code) => {
             waitTimer.stop();
             root.busy = false;
+            if (code !== 0 && root.connecting !== "" && root.connecting === root.autoVpn)
+                root.failed(root.failReason(root.lastError));
+            if (code !== 0)
+                root.downing = false;
+            root.connecting = "";
             root.refresh();
             if (root.ruleSkipped) {   // a network change that came in while busy was skipped
                 root.ruleSkipped = false;

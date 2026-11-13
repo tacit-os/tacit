@@ -224,7 +224,7 @@ Item {
             // ask for attention. Passive ones (night light, shelf, caffeine) stay still.
             // Three breaths when such a state starts or changes, then a steady glyph: an
             // endless animation repaints the notch every frame and the screen never rests.
-            readonly property bool attention: ["fiber_manual_record", "mic", "battery_alert", "circle", "progress_activity", "back_hand", "rate_review"].includes(root.glyph)
+            readonly property bool attention: ["fiber_manual_record", "mic", "videocam", "battery_alert", "circle", "progress_activity", "back_hand", "rate_review"].includes(root.glyph)
             // a change during a breath joins it rather than restarting it (no jump)
             function breathe() {
                 if (attention && !breath.running)
@@ -1258,11 +1258,18 @@ Item {
                 anchors.right: parent.right
                 anchors.verticalCenter: parent.verticalCenter
                 spacing: 6
-                // dictation or the mic on: always here, first
+                // dictation or the mic on, and the camera: always here, first
                 MaterialSymbol {
                     anchors.verticalCenter: parent.verticalCenter
                     visible: IslandController.micLive || Dictation.active
                     text: "mic"
+                    iconSize: 16
+                    color: Appearance.colors.colPrimary
+                }
+                MaterialSymbol {
+                    anchors.verticalCenter: parent.verticalCenter
+                    visible: Camera.live
+                    text: "videocam"
                     iconSize: 16
                     color: Appearance.colors.colPrimary
                 }
@@ -1275,7 +1282,7 @@ Item {
                 }
                 StyledText {
                     anchors.verticalCenter: parent.verticalCenter
-                    width: Math.min(implicitWidth, parent.width - lockGlyph.width - 6 - (IslandController.micLive || Dictation.active ? 22 : 0))
+                    width: Math.min(implicitWidth, parent.width - lockGlyph.width - 6 - (IslandController.micLive || Dictation.active ? 22 : 0) - (Camera.live ? 22 : 0))
                     text: IslandController.signin.host ?? ""
                     elide: Text.ElideLeft
                     font.pixelSize: 15

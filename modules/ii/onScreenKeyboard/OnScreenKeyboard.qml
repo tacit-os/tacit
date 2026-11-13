@@ -55,6 +55,8 @@ Scope { // Scope
         onActiveChanged: {
             if (!oskLoader.active) {
                 Ydotool.releaseAllKeys();
+            } else {
+                Ydotool.check();
             }
         }
         
@@ -129,9 +131,9 @@ Scope { // Scope
                         height: 34
                         spacing: 6
                         MaterialSymbol {
-                            text: "keyboard"
+                            text: Ydotool.problem !== "" ? "warning" : "keyboard"
                             iconSize: 18
-                            color: Appearance.colors.colSubtext
+                            color: Ydotool.problem !== "" ? Appearance.colors.colError : Appearance.colors.colSubtext
                         }
                         StyledText {
                             text: Translation.tr("Keyboard")
@@ -141,8 +143,17 @@ Scope { // Scope
                         StyledText {
                             Layout.fillWidth: true
                             text: oskContent.heading
+                            visible: Ydotool.problem === ""
                             font.pixelSize: 14
                             color: Appearance.colors.colSubtext
+                        }
+                        // keys that light up and type nothing: said in the layout's place
+                        StyledText {
+                            Layout.fillWidth: true
+                            visible: Ydotool.problem !== ""
+                            text: Ydotool.problem
+                            font.pixelSize: 14
+                            color: Tacit.inkMain
                         }
                         OskTextAction {
                             glyph: "keep"

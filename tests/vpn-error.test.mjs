@@ -21,7 +21,8 @@ const onShown = sectionSrc.slice(shownAt + "onShownChanged:".length, matchBrace(
 
 function desktop() {
   const section = { shown: false, errorText: "" };
-  const vpn = { lastError: "", pendingConnect: "", ruleSkipped: false, connections: [{ name: "Proton", active: false }], refresh() {} };
+  const vpn = { lastError: "", pendingConnect: "", ruleSkipped: false, connections: [{ name: "Proton", active: false }], refresh() {},
+    failed() {} };
   let busy = false;
   const hear = name => handlers[name]?.();
   Object.defineProperty(vpn, "busy", { get: () => busy, set: v => { if (v === busy) return; busy = v; hear("onBusyChanged"); } });
@@ -32,12 +33,12 @@ function desktop() {
   const timer = { restart() {}, stop() {} };
   const vscope = { root: vpn, Network: { active: { ssid: "Cafe" }, ethernet: false, isTrusted: () => false }, Translation,
     waitTimer: timer, ruleLater: timer, actionProc: proc };
-  for (const name of ["applyRule", "connect", "disconnect", "start", "toggle"]) {
+  for (const name of ["applyRule", "connect", "disconnect", "start", "toggle", "failReason"]) {
     const f = untyped(qmlFunction(vpnSrc, name));
-    vpn[name] = inScope(vscope, f.params, f.body);
+    if (f) vpn[name] = inScope(vscope, f.params, f.body);
   }
   const waited = inScope(vscope, "", blockAfter(vpnSrc, "waitTimer", "onTriggered:"));
-  const exited = inScope(vscope, "", blockAfter(vpnSrc, "actionProc", "onExited:"));
+  const exited = inScope(vscope, "code", blockAfter(vpnSrc, "actionProc", "onExited:"));   // nmcli's exit code
   const stderr = inScope(vscope, "text", "root.lastError = text.trim();");
   // nmcli monitor: the list read again
   const listed = active => { const was = vpn.connected; vpn.connections = [{ name: "Proton", active }]; if (vpn.connected !== was) hear("onConnectedChanged"); };
@@ -59,7 +60,7 @@ const refused = "Error: Connection activation failed: The VPN service stopped un
   const d = desktop();
   d.vpn.applyRule();                       // a café's Wi-Fi, not trusted: the rule brings Proton up, the section folded
   d.stderr(refused + "\n");
-  d.exited();
+  d.exited(1);
   d.open();
   check("a VPN the rule could not bring up says why once the section is opened", d.section.errorText === refused,
     d.section.errorText ? `it says "${d.section.errorText}"` : "it says nothing");
@@ -73,18 +74,18 @@ const refused = "Error: Connection activation failed: The VPN service stopped un
     d.section.errorText ? `it says "${d.section.errorText}"` : "it says nothing");
   d.listed(true);                          // it came up after all
   d.stderr("");
-  d.exited();
+  d.exited(0);
   check("and the line goes once the VPN is up", d.section.errorText === "", `it still says "${d.section.errorText}"`);
 }
 {
   const d = desktop();
   d.vpn.applyRule();
   d.stderr(refused);
-  d.exited();
+  d.exited(1);
   d.vpn.applyRule();                       // the next network: this time it comes up
   d.stderr("");
   d.listed(true);
-  d.exited();
+  d.exited(0);
   d.open();
   check("a VPN that comes up on the next try shows no old error", d.section.errorText === "", `it says "${d.section.errorText}"`);
 }
