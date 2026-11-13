@@ -495,8 +495,10 @@ Singleton {
         });
     }
 
+    // A sign-in page can only stand in for a plain http page: an https one meets the portal's own certificate or a
+    // closed port instead. This is the page NetworkManager checks on Arch (networkmanager's 20-connectivity.conf).
     function openPublicWifiPortal() {
-        Quickshell.execDetached(["xdg-open", "https://nmcheck.gnome.org/"]) // From some StackExchange thread, seems to work
+        Quickshell.execDetached(["xdg-open", "http://ping.archlinux.org/nm-check.txt"]);
     }
 
     function changePassword(network: WifiAccessPoint, password: string): void {

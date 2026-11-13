@@ -22,7 +22,8 @@ Singleton {
     property string lastError: ""
     readonly property string autoVpn: Persistent.states.network.autoVpn ?? ""
     signal imported(string name)
-    signal importFailed(string path, string reason)
+    // notVpn: the file is neither WireGuard nor OpenVPN; otherwise it is one nmcli refused, for reason
+    signal importFailed(string path, string reason, bool notVpn)
 
     function refresh(): void {
         listProc.running = false;
@@ -93,8 +94,27 @@ Singleton {
             p = p.slice("file://".length);
             try { p = decodeURIComponent(p); } catch (e) {}   // a literal % is not an escape
         }
+        root.importQueue = root.importQueue.concat([p]);
+        root.importNext();
+    }
+    // Files dropped or picked together go one at a time: exec() on the running Process ends the import under way, and
+    // that run's exit then spoke for the next file, so of three files only the last was sure to be added.
+    property var importQueue: []
+    function importNext(): void {
+        if (importProc.running || root.importQueue.length === 0)
+            return;
+        const p = root.importQueue[0];
+        root.importQueue = root.importQueue.slice(1);
         importProc.path = p;
         importProc.exec(["bash", "-c", 'f="$1"; if grep -qi "^\\[Interface\\]" "$f"; then t=wireguard; elif [[ "$f" == *.ovpn ]] || grep -qiE "^(client|remote) " "$f"; then t=openvpn; else echo "not a VPN file" >&2; exit 2; fi; out=$(nmcli connection import type "$t" file "$f" 2>&1) || { echo "$out" >&2; exit 1; }; n=$(echo "$out" | sed -nE "s/.*Connection .([^\']+). .*/\\1/p"); [ -n "$n" ] && nmcli connection modify "$n" connection.autoconnect no >/dev/null 2>&1; echo "$n"', "_", p]);
+    }
+    // nmcli's refusal without its "Error: failed to import '<path>': ", and the usual one in plain words: WireGuard
+    // names the profile after the file, and that name must be one a network interface can take
+    function importReason(err: string): string {
+        const said = (err + "").trim().split("\n").pop().replace(/^Error: (failed to import '.*': )?/, "").replace(/\.$/, "");
+        if (/valid interface name/.test(said))
+            return Translation.tr("the file's name must be 15 characters or fewer, with no spaces");
+        return said;
     }
     function isVpnFile(path: string): bool {
         return /\.(conf|ovpn)$/i.test(path + "");
@@ -195,8 +215,9 @@ Singleton {
                 root.refresh();
                 root.imported(importProc.out);
             } else {
-                root.importFailed(importProc.path, root.lastError);
+                root.importFailed(importProc.path, root.importReason(root.lastError), code === 2);
             }
+            root.importNext();
         }
     }
 }

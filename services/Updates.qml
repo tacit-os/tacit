@@ -168,6 +168,23 @@ Singleton {
         running: Config.ready
         onTriggered: root.refresh()
     }
+    // and after anything else installs: Apps' "update everything" or pacman in a terminal put the waiting updates in
+    // while this still said they were ready (Restart then ran an empty install and a second restart). Every pacman
+    // transaction writes its log, so the list is read again once the log has been quiet a moment. The log is only
+    // watched, never read in (preload off); the reads here run as the person, and those write nothing to it.
+    FileView {
+        path: "/var/log/pacman.log"
+        preload: false
+        watchChanges: true
+        printErrors: false
+        onFileChanged: pacmanQuiet.restart()
+    }
+    Timer {
+        id: pacmanQuiet
+        interval: 5000
+        // a read under way may have begun mid-transaction: this one comes after it
+        onTriggered: waitingProc.running || fetchProc.running ? pacmanQuiet.restart() : root.refresh()
+    }
 
     Process {
         id: waitingProc

@@ -59,10 +59,23 @@ Singleton {
     // are: fd would not find Hangul or か + dakuten left as separate letters
     function fold(s) { return String(s).normalize("NFD").replace(/[̀-ͯ]/g, "").normalize("NFC").toLowerCase(); }
     readonly property var words: root.fold(root.query).split(/\s+/).filter(w => w.length > 0)
+    // Each letter's accented forms, by the letter they fold to ("č", "ş" and "ế" under c, s and e; "й" under "и"): read
+    // once from Unicode's Latin, Greek and Cyrillic letters, since a short Western list left the word typed exactly
+    // ("česky", "tiếng") matching nothing. æ, ø and ß have no accent to lose: they are kin by hand.
+    readonly property var kin: {
+        const k = { a: "æ", o: "ø", s: "ß" };
+        for (const [from, to] of [[0xC0, 0x52F], [0x1E00, 0x1FFF]]) {
+            for (let c = from; c <= to; c++) {
+                const ch = String.fromCodePoint(c).toLowerCase(), base = root.fold(ch);
+                if (ch.length === 1 && base.length === 1 && base !== ch && !(k[base] ?? "").includes(ch))
+                    k[base] = (k[base] ?? "") + ch;
+            }
+        }
+        return k;
+    }
     // fd's pattern for one word: each letter that has accented forms matches them too
     function patternFor(word) {
-        const kin = { a: "aàáâãäåæ", e: "eèéêë", i: "iìíîï", o: "oòóôõöø", u: "uùúûü", c: "cç", n: "nñ", y: "yýÿ", s: "sß" };
-        return word.split("").map(ch => kin[ch] ? `[${kin[ch]}]` : ch.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")).join("");
+        return word.split("").map(ch => root.kin[ch] ? `[${ch}${root.kin[ch]}]` : ch.replace(/[.*+?^${}()|[\]\\\/]/g, "\\$&")).join("");
     }
 
     function setQuery(search) {

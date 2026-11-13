@@ -1,5 +1,6 @@
 // The updater's reading of pacman (services/Updates.qml): the list read's own handler run under node on pacman's
-// output, and the download watch's own command run by bash with a pretend pacman and systemctl first on PATH.
+// output, and the download watch's own command run by bash with a pretend pacman and systemctl first on PATH. And an
+// install made elsewhere (Apps, a terminal): pacman's log changing brings the list read again.
 import { execFileSync } from "child_process";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -108,6 +109,27 @@ esac
   const scope = { root: u.root, stateFile: { setText(t) { written = JSON.parse(t); } }, nextNotesProc: {}, waitingProc: { running: false } };
   inScope(scope, "text", handler("waitingProc"))("---\n---\n1762950000\n---\ninactive\n");   // nothing waits any more
   check("and it rewrites updates.json: nothing ready", written?.ready === false && written?.count === 0, JSON.stringify(written));
+}
+
+// Apps' "update everything" or pacman in a terminal: what is waiting is installed with nothing telling the shell, and
+// pacman's log is the one thing every transaction writes
+{
+  const m = /FileView\s*\{[^{}]*path:\s*"\/var\/log\/pacman\.log"/.exec(src);
+  const open = m ? src.indexOf("{", m.index) : -1, body = m ? src.slice(open + 1, matchBrace(src, open)) : "";
+  const prop = (text, k) => (text.match(new RegExp(`\\b${k}:\\s*([^\\n]+)`)) ?? [])[1]?.trim();
+  check("pacman's log is watched, and only watched (not read in)", prop(body, "watchChanges") === "true" && prop(body, "preload") === "false",
+    m ? body.trim() : "nothing watches /var/log/pacman.log");
+  // the log changing restarts a timer; the timer reads the list again, or waits behind a read already under way
+  const timer = /(\w+)\.restart\(\)/.exec(prop(body, "onFileChanged") ?? "")?.[1];
+  const at = timer ? src.indexOf(`id: ${timer}`) : -1;
+  const fired = at < 0 ? "" : readExpression(src, src.indexOf("onTriggered:", at) + "onTriggered:".length).expr;
+  let refreshed = 0, waited = 0;
+  const fire = reading => fired && inScope({ root: { refresh() { refreshed++; } }, waitingProc: { running: reading }, fetchProc: { running: false },
+    [timer]: { restart() { waited++; } } }, "", `${fired};`)();
+  fire(false);
+  fire(true);
+  check("once the log has been quiet, the list is read again, after any read under way", refreshed === 1 && waited === 1,
+    `read ${refreshed} times, waited ${waited} times`);
 }
 
 done();

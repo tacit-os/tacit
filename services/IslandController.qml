@@ -132,6 +132,7 @@ Singleton {
             return hold.power;
         case "volume":
         case "brightness":
+        case "mic":
             return hold.meter;
         case "notification":
             return hold.notification;
@@ -597,8 +598,9 @@ Singleton {
         // (see memory book4-charging). Red, and first - it costs a battery.
         if (root.chargerFault)
             return "battery_alert";
+        // an app holding the mic while it is muted hears nothing: not the live mic's glyph (nor its attention colour)
         if (root.micLive)
-            return "mic";
+            return (Audio.source?.audio?.muted ?? false) ? "mic_off" : "mic";
         // An agent session is waiting on you (permission or a question).
         if (AgentSessions.waiting || Claude.waiting)
             return "back_hand";
@@ -979,6 +981,27 @@ Singleton {
         }, 76);
     }
 
+    // The mic's mute key (keybinds.lua toggles the default source) answers here as the volume keys do: nothing else
+    // on screen said it, and a keyboard often has no light for it.
+    Connections {
+        target: Audio.source?.audio ?? null
+        enabled: root.enabled && Config.options.island.states.volume
+
+        function onMutedChanged() {
+            root.requestMic();
+        }
+    }
+
+    function requestMic() {
+        if (!(Audio.source?.ready ?? false))
+            return;
+        const muted = Audio.source.audio?.muted ?? false;
+        root.request("mic", {
+            "icon": muted ? "mic_off" : "mic",
+            "text": muted ? "Mic · muted" : "Mic · on"
+        }, 76);
+    }
+
     Connections {
         target: Brightness
         enabled: root.enabled && Config.options.island.states.brightness
@@ -1076,13 +1099,16 @@ Singleton {
             line = Network.active?.ssid || Network.networkName;
             if (!line || line.length === 0)
                 return;
+        } else if (Network.wifiStatus === "limited") {
+            // still joined, but NetworkManager's check reaches nothing (blocked, or a VPN or DNS hiccup): not a drop
+            line = `${Network.active?.ssid || "Wi-Fi"} · no internet`;
         } else if (root.lastWifiConnected) {
             line = "Wi-Fi dropped.";
         } else {
             root.lastWifiConnected = connected;
             return;
         }
-        root.lastWifiConnected = connected;
+        root.lastWifiConnected = connected || Network.wifiStatus === "limited";
         root.request("network", {
             "icon": icon,
             "text": line
@@ -1244,10 +1270,15 @@ Singleton {
         function onImported(name) {
             root.request("download", { "icon": "vpn_key", "text": Translation.tr("Added VPN %1").arg(name) }, 55);
         }
-        function onImportFailed(path, reason) {
+        function onImportFailed(path, reason, notVpn) {
             // not a VPN after all: it is a file, and files dropped here park on the shelf
-            DropShelf.addItems(["file://" + encodeURI(path)]);
-            root.request("download", { "icon": "vpn_key_off", "text": Translation.tr("Not a VPN file · parked") }, 55);
+            if (notVpn) {
+                DropShelf.addItems(["file://" + encodeURI(path)]);
+                root.request("download", { "icon": "vpn_key_off", "text": Translation.tr("Not a VPN file · parked") }, 55);
+                return;
+            }
+            // a VPN file nmcli refused: it stays where it is, and the notch says why
+            root.request("download", { "icon": "vpn_key_off", "text": reason.length > 0 ? Translation.tr("Couldn't add the VPN · %1").arg(reason) : Translation.tr("Couldn't add the VPN") }, 55);
         }
     }
 

@@ -171,6 +171,13 @@ Singleton {
     // A message carries the desktop context after the question; what you see is the question.
     function strip(text) { return (text ?? "").replace(/\s*<desktop-context>[\s\S]*<\/desktop-context>\s*$/, ""); }
     function committedTexts(list) { return list.filter(i => i.role === "assistant" && i.kind === "text").length; }
+    // what you just sent is in list. A slash command echoes as {kind:"command", text:"compact"} while the question
+    // keeps its slash: matched on text alone it never clears, and the turn is on screen twice
+    function echoed(list) {
+        const asked = root.pendingQ.replace(/^\//, "");
+        return root.pendingQ.length > 0 && list.some(i => i.role === "user"
+            && (i.kind === "text" ? root.strip(i.text) === root.pendingQ : i.kind === "command" && i.text === asked));
+    }
     function clearLive() { root.liveText = ""; root.liveDone = false; root.shown = 0; root.budget = 0; }
 
     onSidChanged: root.attach()
@@ -186,6 +193,7 @@ Singleton {
         root.error = "";
         root.loadingId = "";   // a load cut off by the reconnect must not block this one
         root.loadGen++;        // and its reply, if it still comes, is not for this conversation
+        root.followUntil = 0;
         if (root.sid.length && host.connected) root.load();
     }
     // The host only holds what the running process said, which is nothing once it has idled
@@ -213,6 +221,7 @@ Singleton {
                     const since = s && s.alive ? (s.started ?? 0) : Infinity;
                     root.earlier = (m.items ?? []).filter(i => Number(i.ts ?? 0) < since);
                     root.loaded();
+                    if (!(s && s.alive)) root.followTranscript();
                 } else if (!s) {
                     // neither running nor on disk: say so, and the next question is a new chat
                     root.continuing = false;
@@ -222,6 +231,38 @@ Singleton {
                 if (s && s.alive) root.watch();
             });
         });
+    }
+
+    // After agent-host restarts mid-turn the new host holds none of the old one's sessions, while the old Claude Code
+    // goes on writing the answer into the transcript, which load() reads once: the question stayed on screen with no
+    // answer. A conversation no process of this host runs, whose turn is still open (its last item is not an answer),
+    // is read again every 3 s while anything comes in and for a minute after; opening the sheet gives it another minute.
+    property real followUntil: 0
+    function turnOpen() {
+        const last = root.earlier[root.earlier.length - 1];
+        return (root.pendingQ.length > 0 && !root.echoed(root.earlier)) || (last !== undefined && !(last.role === "assistant" && last.kind === "text"));
+    }
+    function followTranscript() {
+        if (root.echoed(root.earlier)) root.pendingQ = "";   // drawn from the transcript now, as onItems does
+        root.followUntil = root.turnOpen() ? Date.now() + 60000 : 0;
+    }
+    function reread() {
+        const id = root.sid, gen = root.loadGen;
+        if (!id.length || Date.now() > root.followUntil) { root.followUntil = 0; return; }
+        host.request({ op: "transcript", id: id, limit: 40 }, m => {
+            if (gen !== root.loadGen || id !== root.sid || root.session !== null || !root.followUntil || m.ev !== "transcript") return;
+            const list = m.items ?? [];
+            if (JSON.stringify(list) === JSON.stringify(root.earlier)) return;
+            root.earlier = list;
+            root.loaded();
+            root.followTranscript();
+        });
+    }
+    Timer {
+        interval: 3000
+        repeat: true
+        running: root.followUntil > 0 && root.session === null && host.connected
+        onTriggered: root.reread()
     }
 
     // A host that is still starting can drop the request; no reply in 3 s, ask again once.
@@ -308,11 +349,7 @@ Singleton {
         function onItems(id, list) {
             if (id !== root.sid) return;
             root.items = list;
-            // a slash command echoes as {kind:"command", text:"compact"} while the question keeps its
-            // slash: matched on text alone it never clears, and the turn is on screen twice
-            const asked = root.pendingQ.replace(/^\//, "");
-            if (root.pendingQ.length && list.some(i => i.role === "user"
-                    && (i.kind === "text" ? root.strip(i.text) === root.pendingQ : i.kind === "command" && i.text === asked)))
+            if (root.echoed(list))
                 root.pendingQ = "";
             // the live answer is committed: reveal the rest from the finished text
             if (root.liveText.length && !root.liveDone && root.committedTexts(root.earlier.concat(list)) > root.liveBase) {
@@ -433,6 +470,11 @@ Singleton {
         else root.decide();
         // continuing, but nothing on screen (a load lost to a host restart): build it now
         if (root.sid.length && !root.earlier.length && !root.items.length && !root.loadingId.length && host.connected) root.load();
+        // or one the previous host's process may have gone on writing since (followUntil): read it again now
+        else if (root.sid.length && root.session === null && !root.loadingId.length && host.connected && root.turnOpen()) {
+            root.followUntil = Date.now() + 60000;
+            root.reread();
+        }
         if (root.pendingText.length) {
             const t = root.pendingText;
             root.pendingText = "";
@@ -496,6 +538,7 @@ Singleton {
         root.error = "";
         root.note = "";
         root.pendingQ = q.question;
+        root.followUntil = 0;   // the new process carries the conversation from here
         root.clearLive();
         if (!root.sid.length) {
             const cwd = root.cwd || root.home;

@@ -144,7 +144,9 @@ Singleton {
 
     // An online picture (OnlineWallpapers.results item): downloaded to Pictures/Wallpapers, then
     // applied. The url and id come out of a provider's JSON: https only, the id reduced to
-    // file-name characters, curl given argv (OnlineWallpaperGrid.qml did the same).
+    // file-name characters, curl given argv (OnlineWallpaperGrid.qml did the same). A stalled transfer gives up (under
+    // 1 KB/s for 30 s), or it held downloadProc and every later pick returned at the guard; and it is written beside the
+    // picture's name until it is whole, so one cut off leaves no broken picture in the folder.
     function downloadAndApply(item, darkMode = Appearance.m3colors.darkmode) {
         const url = String(item?.full ?? "");
         if (downloadProc.running)
@@ -158,7 +160,7 @@ Singleton {
         downloadProc.target = target;
         downloadProc.darkMode = darkMode;
         downloadProc.command = ["bash", "-c",
-            'mkdir -p "$(dirname -- "$1")" || exit 1; exec curl -L --silent --fail -o "$1" -- "$2"',
+            'mkdir -p "$(dirname -- "$1")" || exit 1; curl -L --silent --fail --connect-timeout 10 --speed-limit 1024 --speed-time 30 -o "$1.part" -- "$2" && mv -f -- "$1.part" "$1" && exit 0; rm -f -- "$1.part"; exit 1',
             "wallpaper-download", target, url];
         downloadProc.running = true;
     }
