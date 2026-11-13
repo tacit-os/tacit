@@ -18,14 +18,15 @@
 #
 # Report: $XDG_STATE_HOME/quickshell/user/files/jobs/<id>.json
 #   { id, op, dest, state: running|done|failed|cancelled, total, done, bytes, bytesDone, pid,
-#     current, error, started, ended, results: [...], undo: {...} }
+#     current, error, said, started, ended, results: [...], undo: {...} }
+#   said: a done job's own sentence, when the usual one would leave something out; else empty
 # Cancel: touch <id>.cancel next to the report.
 set -u
 id=$1; op=$2; shift 2
 dir="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/files/jobs"
 mkdir -p "$dir"
 report="$dir/$id.json"; cancel="$dir/$id.cancel"
-state=running; total=0; done_=0; bytes=0; bytesDone=0; current=""; error=""; dest=""
+state=running; total=0; done_=0; bytes=0; bytesDone=0; current=""; error=""; said=""; dest=""
 started=$(date +%s%3N); ended=null
 results=(); undo='null'
 
@@ -54,16 +55,23 @@ restore_from_trash() {
     return 1
 }
 
-# Put back by the name a file has in the home trash (Files' Trash lists Trash/files): its record says where it came
-# from. gio trash --restore does this only where GVfs runs, and a fresh install said "Operation not supported", so Put
-# back left everything in the trash (Discord 2026-10-29); gio stays for trash on other disks.
+# Put back by the name a file has in the home trash (Files' Trash lists Trash/files), or in the trash $2 that gio made on
+# another drive (<top>/.Trash-UID, listed under the drive's name), whose Paths start at the drive's top: its record says
+# where it came from. gio trash --restore does this only where GVfs runs, and a fresh install said "Operation not
+# supported", so Put back left everything in the trash (Discord 2026-10-29); gio stays for a name not found here.
 restore_by_name() {
-    local name=$1 tdir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash" info path
+    local name=$1 tdir=${2:-${XDG_DATA_HOME:-$HOME/.local/share}/Trash} info path top
     info="$tdir/info/$name.trashinfo"
     [ -e "$info" ] && [ -e "$tdir/files/$name" ] || return 2
     path=$(sed -n 's/^Path=//p' "$info" | head -1 | python3 -c 'import sys,urllib.parse; print(urllib.parse.unquote(sys.stdin.read().rstrip("\n")))')
-    case $path in /*) ;; *) return 1 ;; esac
-    [ -e "$path" ] && { taken=$path; return 3; }   # another one of that name is there now
+    case $path in
+    /*) ;;
+    ?*) [ -n "${2:-}" ] && top=$(stat -c %m -- "$tdir" 2>/dev/null) || return 1; path=${top%/}/$path ;;
+    *) return 1 ;;
+    esac
+    # another one of that name is there now: this one comes back beside it, as "notes 2.txt" (taken, restored)
+    [ -e "$path" ] && { taken=$path; path=$(keep_name "$(dirname -- "$path")" "$(basename -- "$path")"); }
+    restored=$path
     mkdir -p "$(dirname -- "$path")" && mv -- "$tdir/files/$name" "$path" && rm -f -- "$info" && return 0
     return 1
 }
@@ -74,8 +82,8 @@ write() {
     local ended_json=$ended
     jq -nc --rawfile results <(printf '%s\n' "${results[@]:-}") --rawfile undo <(printf '%s' "$undo") --arg id "$id" --arg op "$op" --arg dest "$dest" --arg state "$state" \
         --argjson total "$total" --argjson done "$done_" --argjson bytes "$bytes" --argjson bytesDone "$bytesDone" \
-        --arg current "$current" --arg error "$error" --argjson started "$started" --argjson ended "$ended_json" --argjson pid $$ \
-        '{id:$id, op:$op, dest:$dest, state:$state, total:$total, done:$done, bytes:$bytes, bytesDone:$bytesDone, pid:$pid, current:$current, error:$error, started:$started, ended:$ended, results:($results | split("\n") | map(select(length > 0))), undo:($undo | fromjson)}' \
+        --arg current "$current" --arg error "$error" --arg said "$said" --argjson started "$started" --argjson ended "$ended_json" --argjson pid $$ \
+        '{id:$id, op:$op, dest:$dest, state:$state, total:$total, done:$done, bytes:$bytes, bytesDone:$bytesDone, pid:$pid, current:$current, error:$error, said:$said, started:$started, ended:$ended, results:($results | split("\n") | map(select(length > 0))), undo:($undo | fromjson)}' \
         > "$report.tmp" && mv -f "$report.tmp" "$report"
 }
 finish() { state=$1; ended=$(date +%s%3N); current=""; write; rm -f "$cancel"; exit 0; }
@@ -254,16 +262,25 @@ restore-paths)
         done_=$((done_+1)); write
     done
     finish done ;;
-restore)
-    total=$#; write
+restore)   # names in the home trash, or paths in a drive's (<top>/.Trash-UID/files/<name>)
+    total=$#; renamed=(); write
     for item in "$@"; do
-        current=$item; write
-        restore_by_name "$item"; r=$?
-        if [ $r = 2 ]; then gio trash --restore "trash:///$item" 2>/dev/null && r=0 || r=1; fi
-        if [ $r = 3 ]; then error="Another $(basename -- "$taken") is already where this one came from"; finish failed; fi
-        if [ $r != 0 ]; then error="Could not put $item back"; finish failed; fi
+        current=${item##*/}; taken=""; write
+        case $item in
+        /*) restore_by_name "$current" "${item%/files/*}"; r=$? ;;
+        *) restore_by_name "$item"; r=$?
+           if [ $r = 2 ]; then gio trash --restore "trash:///$item" 2>/dev/null && r=0 || r=1; fi ;;
+        esac
+        if [ $r != 0 ]; then error="Could not put $current back"; finish failed; fi
+        [ -n "$taken" ] && renamed+=("$(basename -- "$taken") as $(basename -- "$restored")")
         done_=$((done_+1)); write
     done
+    # said: one that came back under a new name, because another of its name is there now
+    case ${#renamed[@]} in
+    0) ;;
+    1) [ "$total" = 1 ] && said="Put back ${renamed[0]}" || said="Put $total items back · ${renamed[0]}" ;;
+    *) said="Put $total items back · ${#renamed[@]} under new names" ;;
+    esac
     finish done ;;
 rename)
     src=$1; new=$2; total=1; dir_=$(dirname -- "$src"); target="$dir_/$new"; current=$new; write

@@ -218,6 +218,11 @@ FloatingWindow {
             if (win.forPick && Files.picking === null && win.visible)
                 win.visible = false;
         }
+        // the trash's root lists the other drives' trashes
+        function onDriveTrashesChanged() {
+            if (win.folder === win.trashDir)
+                win.relist();
+        }
     }
     Timer { id: dropTimer; interval: 60; onTriggered: { dropProbe.judge = true; dropProbe.running = true; } }
     Timer { id: lateDropTimer; interval: 800; onTriggered: { dropProbe.judge = true; dropProbe.running = true; } }
@@ -560,6 +565,9 @@ FloatingWindow {
         if (p.length === 0)
             return [];
         const isDir = folderModel.get(i, "fileIsDir");
+        // a drive's trash, listed at the trash's root: only opened (it is the drive's, named after it)
+        if (win.isDriveTrash(p))
+            return [{ "id": "open", "label": "Open", "glyph": "folder_open", "run": () => win.go(p) }];
         if (win.inTrash)
             return (win.atTrashRoot
                 ? [{ "id": "restore", "label": "Put back", "glyph": "restore_from_trash", "run": () => { if (!win.selectedMap[p]) win.selectOnly(i); win.restoreSelection(); } }]
@@ -690,6 +698,15 @@ FloatingWindow {
                 row.mtime = row.fileModified.getTime();
                 total++;
                 kinds[row.kind] = (kinds[row.kind] ?? 0) + 1;
+                if (win.passesFilter(row))
+                    all.push(row);
+            }
+            // at the trash's root, each other drive's trash, as a folder under the drive's name
+            for (const t of win.folder === win.trashDir ? Files.driveTrashes : []) {
+                const row = { "fileName": t.name, "filePath": t.path, "fileIsDir": true, "fileSize": 0, "fileModified": new Date(),
+                              "mtime": Date.now(), "kind": "Folders" };
+                total++;
+                kinds.Folders = (kinds.Folders ?? 0) + 1;
                 if (win.passesFilter(row))
                     all.push(row);
             }
@@ -1192,7 +1209,10 @@ FloatingWindow {
         win.go(win.history[win.historyIndex], false);
     }
     function up() {
-        if (win.folder !== "/")
+        // a drive's trash is under Trash, as its crumbs read
+        if (win.atTrashRoot && win.folder !== win.trashDir)
+            win.go(win.trashDir);
+        else if (win.folder !== "/")
             win.go(Files.parent(win.folder));
     }
     readonly property var crumbs: {
@@ -1200,13 +1220,18 @@ FloatingWindow {
         let base = "/";
         let parts = p.split("/").filter(s => s.length > 0);
         if (win.inTrash) {   // the trash's folder is called files on disk: it reads "Trash", nothing above it
-            base = win.trashDir;
-            parts = p.substring(win.trashDir.length).split("/").filter(s => s.length > 0);
+            base = win.trashRoot;
+            parts = p.substring(base.length).split("/").filter(s => s.length > 0);
         } else if (p === win.home || p.startsWith(win.home + "/")) {
             base = win.home;
             parts = p.substring(win.home.length).split("/").filter(s => s.length > 0);
         }
-        let list = [{ "name": base === "/" ? "/" : win.inTrash ? "Trash" : "Home", "path": base }];
+        let list = [{ "name": base === "/" ? "/" : win.inTrash ? "Trash" : "Home", "path": win.inTrash ? win.trashDir : base }];
+        // a drive's trash: Trash, then the drive's name
+        if (win.inTrash && base !== win.trashDir) {
+            const dev = Files.driveOf(base);
+            list.push({ "name": dev ? Devices.nameFor(dev) : Files.placeName(base.replace(/\/\.Trash.*$/, "")), "path": base });
+        }
         let acc = base === "/" ? "" : base;
         for (const part of parts) {
             acc += "/" + part;
@@ -1600,7 +1625,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         return base;
     }
     function renameAt(i) {
-        if (i < 0 || i >= folderModel.count || !win.rowShown(i))
+        if (i < 0 || i >= folderModel.count || !win.rowShown(i) || win.isDriveTrash(win.pathAt(i)))
             return;
         if (win.searching)
             win.endSearch();
@@ -1839,10 +1864,21 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         win.openActionsAt(p.x, p.y);
     }
     readonly property string trashDir: Files.trashDir
+    // The trash a path is in: the home one, or one gio made on another drive (<top>/.Trash-UID/files or
+    // <top>/.Trash/UID/files), which the home one's root lists under the drive's name; "" for none.
+    function trashOf(p) {
+        if (p === win.trashDir || p.startsWith(win.trashDir + "/"))
+            return win.trashDir;
+        return /^(.*\/\.Trash(?:-\d+|\/\d+)\/files)(\/|$)/.exec(p)?.[1] ?? "";
+    }
+    readonly property string trashRoot: win.trashOf(win.folder)
+    function isDriveTrash(p) {
+        return win.folder === win.trashDir && Files.driveTrashes.some(t => t.path === p);
+    }
     // Every folder inside the trash is in the trash: an exact match on the root offered
     // "Move to the trash" for items already there, which nested them instead of restoring.
-    readonly property bool inTrash: win.folder === win.trashDir || win.folder.startsWith(win.trashDir + "/")
-    readonly property bool atTrashRoot: win.folder === win.trashDir
+    readonly property bool inTrash: win.trashRoot.length > 0
+    readonly property bool atTrashRoot: win.inTrash && win.folder === win.trashRoot
     function trashSelection() {
         if (win.selectedPaths.length === 0)
             return;
@@ -1856,11 +1892,13 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         win.cursorPath = "";
     }
     // In the Trash: put the selection back where it came from. Only at its root - the record
-    // to restore is named after a direct child of Trash/files.
+    // to restore is named after a direct child of Trash/files. The home trash's by name, a drive's by its path there;
+    // a drive's own trash, listed at the home one's root, is not a thing to put back.
     function restoreSelection() {
-        if (win.selectedPaths.length === 0 || !win.atTrashRoot)
+        const items = win.selectedPaths.filter(q => Files.parent(q) === win.folder);
+        if (items.length === 0 || !win.atTrashRoot)
             return;
-        win.run("restore", win.selectedPaths.map(q => q.split("/").pop()));
+        win.run("restore", win.folder === win.trashDir ? items.map(q => q.split("/").pop()) : items);
         win.clearSelection();
         win.cursorPath = "";
     }
@@ -1874,8 +1912,9 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         sheet.open();
     }
     function deleteSelection() {
-        if (win.selectedPaths.length > 0)
-            win.askDelete(win.selectedPaths.slice(), "");
+        const paths = win.selectedPaths.filter(q => !win.isDriveTrash(q));
+        if (paths.length > 0)
+            win.askDelete(paths, "");
     }
     // A file:// URL another application can read back: percent-encoded segment by segment,
     // because a name may hold a space or a '%'.

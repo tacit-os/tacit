@@ -129,7 +129,43 @@ def progress():
     return said
 
 
-CASES = {"yours": yours, "remove-open": remove_open, "fake-install": fake_install, "progress": progress,
+def can():
+    """what an app's page is told it can use (stored.py info's "can"), for apps offered for calls and one with none"""
+    s = load("stored")
+    ed = {"apps": {}}
+    return {p: s.info(p, {}, ed, {p}, set(), set()).get("can") for p in ("signal-desktop", "telegram-desktop", "discord", "element-desktop", "obs-studio", "gimp")}
+
+
+def restart_mark():
+    """Get X and the updates (stored.py install_ with everything) and a plain Get through pacman, with pacman's run
+    replaced by one that succeeds: whether each left the restart mark, and what the backend says of it before and after the
+    computer restarts (another boot id)"""
+    s = load("stored")
+    boot = os.path.join(home, "boot_id"); open(boot, "w").write("aaaa\n")
+    s.BOOT_ID = boot
+    s.out = lambda obj: None
+    s.installed = lambda: set()
+    s.bundle_install = lambda pkg: "system"
+    s.system_plan = lambda pkg, inst: {"can": True, "count": 1}
+
+    class Pacman:
+        def __init__(self, *a, **k):
+            self.stdout = iter(["Packages (1) krita-5.2", "(1/1) installing krita"])
+        def wait(self):
+            return 0
+    s.subprocess.Popen = Pacman
+    seen = {}
+    s.install_("krita", everything=False)
+    seen["plain"] = s.restart_needed() if hasattr(s, "restart_needed") else None
+    s.install_("krita", everything=True)
+    seen["everything"] = s.restart_needed() if hasattr(s, "restart_needed") else None
+    seen["mark"] = os.path.exists(os.path.join(home, ".local/state/tacit/restart-needed"))
+    open(boot, "w").write("bbbb\n")
+    seen["after restart"] = s.restart_needed() if hasattr(s, "restart_needed") else None
+    return seen
+
+
+CASES = {"yours": yours, "can": can, "restart-mark": restart_mark, "remove-open": remove_open, "fake-install": fake_install, "progress": progress,
          "start-newer": lambda: start_after_update("1:0.0.112-1"), "start-same": lambda: start_after_update("1:0.0.111-1"),
          "start-newer-offline": lambda: start_after_update("1:0.0.112-1", offline=True)}
 try:

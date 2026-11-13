@@ -23,6 +23,23 @@ import qs.modules.common.functions
 Singleton {
     id: root
 
+    // The folders the Files windows show (FilesPanel keeps them here), carried over a reload of the shell: an update
+    // reloads it, and the windows, which are the shell's own, closed with it and never came back. FilesPanel opens them
+    // again once it is built; a shell that starts rather than reloads has none. The first child on purpose: a reload
+    // pairs a singleton's old children with its new ones by place. shell.qml loads this singleton while the reload can
+    // still hand it the old one.
+    PersistentProperties {
+        id: kept
+        property var folders: []
+    }
+    function keepFolders(folders) {
+        kept.folders = folders;
+    }
+    function keptFolders() {
+        return kept.folders;
+    }
+    function load() {}
+
     // openRequested: a window shows this (the newest one if any, else a new one).
     // newRequested: always another window. focusRequested: bring the newest forward.
     signal openRequested(string folder, string select, string reason)
@@ -143,17 +160,43 @@ Singleton {
         const x = Quickshell.env("XDG_DATA_HOME") ?? "";
         return (x.length > 0 ? x : root.home + "/.local/share") + "/Trash/files";
     }
-    // The trash's count, for the rail; refreshed at start and after every job.
+    // The trash's count, for the rail, with what is in the trashes gio makes on other drives (a stick's .Trash-UID,
+    // the shared .Trash/UID): the Trash view lists each as a folder under the drive's name (driveTrashes: [{ name,
+    // path, count }], path its files folder). Only the home trash was listed, so a file deleted on a stick was nowhere
+    // to be seen. Refreshed at start, after every job and when a drive comes or goes.
     property int trashCount: 0
+    property var driveTrashes: []
+    function driveOf(path) {
+        return Devices.list.find(d => d.mountpoint.length > 0 && (path === d.mountpoint || path.startsWith(d.mountpoint + "/"))) ?? null;
+    }
     Process {
         id: trashCounter
-        command: ["bash", "-c", `ls -1A '${StringUtils.shellSingleQuoteEscape(root.trashDir)}' 2>/dev/null | wc -l`]
-        stdout: StdioCollector { onStreamFinished: root.trashCount = parseInt(text.trim()) || 0 }
+        command: ["bash", "-c", 'ls -1A "$1" 2>/dev/null | wc -l; shift; for m in "$@"; do for t in "$m/.Trash-$UID/files" "$m/.Trash/$UID/files"; do '
+            + 'n=$(ls -1A "$t" 2>/dev/null | wc -l); if [ "$n" -gt 0 ]; then printf "%s\\t%s\\n" "$n" "$t"; fi; done; done', "_", root.trashDir]
+            .concat(Devices.list.filter(d => d.mountpoint.length > 0).map(d => d.mountpoint))
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const lines = text.trim().split("\n");
+                const drives = [];
+                for (const l of lines.slice(1)) {
+                    const [n, path] = l.split("\t");
+                    const dev = root.driveOf(path ?? "");
+                    if (dev)
+                        drives.push({ "name": Devices.nameFor(dev), "path": path, "count": parseInt(n) || 0 });
+                }
+                root.driveTrashes = drives;
+                root.trashCount = (parseInt(lines[0]) || 0) + drives.reduce((a, t) => a + t.count, 0);
+            }
+        }
     }
     Timer { id: trashLater; interval: 600; onTriggered: trashCounter.running = true }
     Connections {
         target: Jobs
         function onJobFinished(job) { trashLater.restart(); }
+    }
+    Connections {
+        target: Devices
+        function onListChanged() { trashLater.restart(); }
     }
     // When each place was last looked at: a place with arrivals since then shows a dot.
     property var lastLooked: ({})

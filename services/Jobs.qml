@@ -287,6 +287,9 @@ Singleton {
             return Voice.cant(job.error || `${root.verb(job.op).toLowerCase()} ${what}`);
         if (job.state === "cancelled")
             return `Stopped · ${job.done} of ${job.total} done`;
+        // job.sh's own sentence for what it did, when the usual one would leave something out (a Put back under a new name)
+        if (job.said)
+            return job.said;
         return root.past(job.op, what, to);
     }
 

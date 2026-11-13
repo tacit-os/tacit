@@ -3,6 +3,7 @@
 
   default_apps.py list              JSON: {role: {"current": id, "options": [{"id", "name", "exec"}]}}
   default_apps.py set ROLE ID       make ID (a .desktop id) the default for ROLE
+  default_apps.py migrate           once (Config.qml, settings version 6): a role chosen before 1.2.15 covers all its types
 
 A role is a set of MIME types, written with `xdg-mime default`. The browser, the file manager and
 the terminal are also what Super+W, Super+E and Super+Return open, and those keys read Lua variables
@@ -37,6 +38,8 @@ ROLES = {
 }
 
 HOME = os.path.expanduser("~")
+# the person's own choices: xdg-mime default writes them here, and they win over Tacit's (session/xdg/mimeapps.list)
+MIMEAPPS = os.path.join(os.environ.get("XDG_CONFIG_HOME") or os.path.join(HOME, ".config"), "mimeapps.list")
 VARIABLES = os.path.join(HOME, ".config/hypr/custom/variables.lua")
 BEGIN = "-- >>> Tacit Settings: default apps (written by Settings)"
 END = "-- <<< Tacit Settings: default apps"
@@ -123,6 +126,39 @@ def options_for(role, entries, current=""):
     return sorted((o for _, o in best.values()), key=lambda o: o["name"].lower())
 
 
+def own_defaults():
+    """The person's own [Default Applications], type -> the first app named."""
+    out, section = {}, None
+    try:
+        with open(MIMEAPPS, encoding="utf-8", errors="replace") as fh:
+            for line in fh:
+                line = line.strip()
+                if line.startswith("["):
+                    section = line
+                elif section == "[Default Applications]" and "=" in line:
+                    k, v = line.split("=", 1)
+                    first = next((a.strip() for a in v.split(";") if a.strip()), "")
+                    if first:
+                        out.setdefault(k.strip(), first)
+    except OSError:
+        pass
+    return out
+
+
+def migrate():
+    """set wrote a role's first few types only before 1.2.15, so a .mov, .svg or .md kept opening in Viewer or Graphis
+    while Settings named the app chosen. Each role the person chose an app for gets it for the role's other types, those
+    they never set themselves; a type they set keeps theirs, and an app no longer installed is not spread."""
+    own, entries = own_defaults(), read_entries()
+    for spec in ROLES.values():
+        if "mimes" not in spec:
+            continue
+        chosen = own.get(spec["mimes"][0], "")
+        missing = [m for m in spec["mimes"] + spec.get("also", []) if m not in own]
+        if chosen in entries and missing:
+            subprocess.run(["xdg-mime", "default", chosen, *missing], check=False)
+
+
 def launcher(did, e):
     if did in OWN_FILES:
         return OWN_FILES[did]
@@ -168,6 +204,9 @@ def main():
             current = current_default(spec["mimes"][0]) if "mimes" in spec else ""
             out[role] = {"current": current, "options": options_for(role, entries, current)}
         print(json.dumps(out))
+        return 0
+    if len(sys.argv) == 2 and sys.argv[1] == "migrate":
+        migrate()
         return 0
     if len(sys.argv) == 4 and sys.argv[1] == "set" and sys.argv[2] in ROLES:
         role, did = sys.argv[2], sys.argv[3]

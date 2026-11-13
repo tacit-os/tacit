@@ -63,6 +63,7 @@ ShellRoot {
         Cliphist.refresh()
         Wallpapers.load()
         Updates.load()
+        Files.load() // built now, so a reload hands it the Files windows' folders it kept
         AppScope.load()
     }
     

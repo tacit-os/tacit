@@ -651,6 +651,9 @@ Singleton {
             return "stacks";
         if (Notifications.unread > 0)
             return "circle";
+        // Apps updated the whole system under the running desktop: a restart finishes it (Updates.restartDue)
+        if (Updates.restartDue)
+            return "restart_alt";
         // Uncommitted work sitting for over an hour: a reminder, so it ranks with night light.
         if (root.workUnsaved)
             return "commit";
@@ -1840,6 +1843,12 @@ Singleton {
         function onRemoved(dev) {
             if (root.warmedUp && (dev.mountpoint ?? "").length > 0 && !dev.loop && !Devices.leaving[dev.path])
                 root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} pulled out · without Eject` }, 70);
+        }
+        // Eject done: a USB drive is unmounted and powered off. Only the window's foot line said so, and only in the
+        // window that was clicked, while a stick writes out what it holds for up to a minute after a big copy.
+        function onUnmounted(dev) {
+            if (root.warmedUp && dev.usb)
+                root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} is safe to pull out` }, 70);
         }
         function onFailed(what) {
             root.request("copied", { "icon": "error", "text": Voice.cant(what) }, 70);

@@ -106,7 +106,7 @@ for (const [what, undo] of [["Esc", a => a.esc()], ["the pointer leaving", a => 
   const buttons = [...row.matchAll(/\bTextButton\s*\{/g)].map(m => row.slice(m.index, matchBrace(row, m.index + m[0].length - 1) + 1))
     .filter(b => shown(expr(b, "visible"))).map(b => inScope(scope, "", `return (${expr(b, "label")});`)());
   const offered = shown(expr(row, "visible")) ? buttons : [];
-  check("with Tonight chosen, the row still offers Restart, and not Tonight again", offered.join() === "Restart",
+  check("with Tonight chosen, the row still offers Restart, and not Tonight again", offered.includes("Restart") && !offered.includes("Tonight"),
     offered.length ? `it offers ${offered.join(", ")}` : "it offers nothing");
 
   // what that Restart starts (tacit-update@now), run by bash with its system paths in a folder of its own

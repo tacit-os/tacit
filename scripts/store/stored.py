@@ -23,6 +23,7 @@ from concurrent.futures import ThreadPoolExecutor
 
 SHELL = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 EDITORIAL = os.path.join(SHELL, "assets", "store", "editorial.json")
+PERMISSIONS = os.path.join(SHELL, "assets", "store", "permissions.json")   # what each bundle may reach (bundle.py's PERMS)
 CATALOGUE = "/usr/share/swcatalog"
 CACHE = os.path.join(os.environ.get("XDG_CACHE_HOME") or os.path.expanduser("~/.cache"), "tacit-store")
 LANG = "{http://www.w3.org/XML/1998/namespace}lang"
@@ -169,6 +170,34 @@ def got():
         return set(open(GOT).read().split())
     except OSError:
         return set()
+
+
+# Apps brought the whole system up to date under the running desktop (Get X and the updates): a restart finishes it.
+# Marked with this start's boot id, so it holds until the computer restarts, closed Apps or not: Your apps and the app's
+# page say it, and the notch keeps a quiet mark for it (the shell's Updates.restartDue).
+RESTART = os.path.join(os.path.expanduser("~"), ".local/state/tacit/restart-needed")
+BOOT_ID = "/proc/sys/kernel/random/boot_id"
+
+
+def boot_id():
+    try:
+        return open(BOOT_ID).read().strip()
+    except OSError:
+        return ""
+
+
+def restart_needed():
+    try:
+        return open(RESTART).read().strip() == boot_id() != ""
+    except OSError:
+        return False
+
+
+def mark_restart():
+    os.makedirs(os.path.dirname(RESTART), exist_ok=True)
+    tmp = RESTART + ".tmp"
+    open(tmp, "w").write(boot_id() + "\n")
+    os.replace(tmp, RESTART)
 
 
 def remember(pkg, keep):
@@ -483,6 +512,20 @@ def editorial():
     return json.load(open(EDITORIAL))
 
 
+PERMS = {}
+
+
+def can_use(pkg):
+    """what of the camera and the microphone the app's sandbox reaches, for its page to say ("Can use: camera, microphone")"""
+    if not PERMS:
+        try:
+            PERMS.update(json.load(open(PERMISSIONS)))
+        except (OSError, ValueError):
+            pass
+    devices = PERMS.get("apps", {}).get(pkg, {}).get("devices", PERMS.get("default", {}).get("devices", []))
+    return [d for d in ("camera", "microphone") if d in devices]
+
+
 def icon_ready(src):
     """the converted icon if it is already there; never converts"""
     if not src:
@@ -504,6 +547,7 @@ def info(pkg, cat, ed, avail, inst, owned, f=None, icon=True):
         "version": f.get("version", ""), "download": f.get("download", 0), "size": f.get("size", 0),
         "free": free_license(c.get("license") or f.get("licenses", "")),
         "removable": bool(have) and pkg in owned,
+        "can": can_use(pkg),
     }
 
 
@@ -537,7 +581,7 @@ def home():
                 continue
             break
     page = {"arch": os.uname().machine, "feature": feature, "picks": picks, "issue": issue(ed, cat), "jobs": ed["jobs"], "apps": apps, "windows": windows,
-         "installed": sorted(p for p in apps if apps[p]["installed"])}
+         "installed": sorted(p for p in apps if apps[p]["installed"]), "restartNeeded": restart_needed()}
     # kept, so the window can draw the front page the moment it opens and refresh it from this a moment later
     try:
         os.makedirs(CACHE, exist_ok=True)
@@ -845,6 +889,8 @@ def install_(pkg, everything=False):
     STOP["firm"] = True
     if code == 0:
         remember(pkg, True)
+        if everything:
+            mark_restart()
         return out({"result": "ok", "restart": True} if everything else {"result": "ok"})     # the system was upgraded under the session
     if STOP["asked"] and not begun:
         return out({"result": "stopped"})       # the password prompt was stopped

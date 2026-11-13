@@ -30,7 +30,7 @@ Singleton {
     // declares, so without a stamp on the file there is no way to tell a value that was never
     // set from one this build no longer knows the name of - and the next settings change writes
     // the loss to disk. migrate() carries a file with a lower stamp forward.
-    readonly property int currentConfigVersion: 5
+    readonly property int currentConfigVersion: 6
 
     function setNestedValue(nestedKey, value) {
         let keys = nestedKey.split(".");
@@ -152,6 +152,11 @@ Singleton {
         if (from < 5 && JSON.stringify(Array.from(files.excludeDirs ?? [])) === '[".git","node_modules",".cache"]')
             files.excludeDirs = [".git", "node_modules", ".cache", "build", "dist", "target", ".gradle", "__pycache__", ".venv", "venv",
                 ".npm", ".cargo", ".rustup", ".m2", ".android", ".kotlin", ".pub-cache", "Trash", ".var", ".mozilla"];
+        // v6, the default apps' types: an app chosen in Settings > Default apps before 1.2.15 was written for its role's
+        // first few types only, so a .mov, .svg or .md kept opening in Viewer or Graphis while Settings named the other
+        // app. Once, each role chosen gets the rest of its types, those never set one by one (default_apps.py migrate).
+        if (from < 6)
+            Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/settings/default_apps.py"), "migrate"]);
         if (from === root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();

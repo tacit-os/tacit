@@ -5499,6 +5499,7 @@ ApplicationWindow {
                         : Updates.lastCheckFailed ? updatesGroup.causeLine(Updates.checkCause)
                         : updatesGroup.restarting ? "Getting ready to restart"
                         : Updates.restartWarning.length > 0 ? `${Updates.restartWarning} · restart anyway, or wait`
+                        : updatesGroup.restartFailed === "battery" ? `Plug in to restart: the battery is at ${Updates.restartBattery}%`
                         : updatesGroup.restartFailed === "prepare" ? `Couldn't finish the download · ${updatesGroup.causeLine(Updates.restartCause).replace(/^./, c => c.toLowerCase())}`
                         : updatesGroup.restartFailed === "reboot" ? "Couldn't restart · someone else may be signed in on this computer"
                         : updatesGroup.tonight ? (Updates.nightSkipped.length > 0 ? `Didn't install last night: ${Updates.nightSkipped}`
@@ -5507,18 +5508,24 @@ ApplicationWindow {
                         : updatesGroup.waiting > 0 ? "Check for updates gets them now"
                         : updatesGroup.checkedText
                     control: Row {
-                        visible: updatesGroup.ready && !Updates.restarting
+                        visible: (updatesGroup.ready || updatesGroup.tonight) && !Updates.restarting
                         spacing: 4
                         // with Tonight chosen, Restart still installs them now instead (tacit-update now takes
-                        // Tonight away)
+                        // Tonight away), and Cancel takes it back
                         TextButton {
                             visible: !updatesGroup.tonight
                             label: "Tonight"
                             onPressed: Updates.tonight()
                         }
+                        TextButton {
+                            visible: updatesGroup.tonight
+                            label: "Cancel tonight"
+                            onPressed: Updates.cancelTonight()
+                        }
                         // it closes every app: asked once in place, as the session screen and Apps do; after a
                         // warning, Restart anyway is already the second press
                         TextButton {
+                            visible: updatesGroup.ready
                             label: Updates.restartWarning.length > 0 ? "Restart anyway" : "Restart"
                             confirm: Updates.restartWarning.length > 0 ? "" : "Press again to restart"
                             onPressed: Updates.restartNow()

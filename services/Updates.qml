@@ -32,6 +32,7 @@ Singleton {
     function failureCause(log: string): string {
         const t = log + "";
         if (/^tacit: live USB/m.test(t)) return "live";
+        if (/^tacit: battery/m.test(t)) return "battery";
         if (/^tacit: busy|unable to lock database|could not lock database/m.test(t)) return "busy";
         if (/conflict|could not satisfy dependencies|breaks dependency|unable to satisfy dependency/i.test(t)) return "conflict";
         if (/failed retrieving file|failed to synchronize|could not resolve|download library error|timed out|couldn't connect|network is unreachable/i.test(t))
@@ -64,6 +65,17 @@ Singleton {
     function refresh() {
         if (!waitingProc.running && !fetchProc.running)
             waitingProc.running = true;
+        restartDueProc.running = true;
+    }
+    // Apps brought the whole system up to date under the running desktop (Get X and the updates): a restart finishes it.
+    // Its backend marks that with this start's boot id (stored.py's restart-needed), so it holds until the computer
+    // restarts; the notch keeps a quiet mark at rest for it. Read with every look, and so after every pacman transaction.
+    property bool restartDue: false
+    Process {
+        id: restartDueProc
+        command: ["bash", "-c", '[ "$(cat "$1" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id)" ]', "_",
+            `${Directories.home}/.local/state/tacit/restart-needed`]
+        onExited: (code, status) => root.restartDue = code === 0
     }
     // Check now is the download too: the package list is otherwise only as fresh as the last timer run, so a check
     // could not find a release published an hour ago.
@@ -79,8 +91,10 @@ Singleton {
         fetchProc.running = true;
     }
     // Restart: the download for the install is made first, then the computer restarts; when a step fails nothing
-    // restarts, and the notch and Settings' row say so. "" for neither, "prepare" or "reboot".
+    // restarts, and the notch and Settings' row say so. "" for neither, "prepare", "reboot", or "battery": tacit-update
+    // refuses on a battery under 20 % that is not charging, and restartBattery is what it read.
     property string restartFailed: ""
+    property int restartBattery: 0
     readonly property bool restarting: restartProc.running
     // What a restart would cut off (the session screen's warnings): said once, and the next Restart goes through, as
     // the session screen's "press again" does. It goes back to asking after ten seconds.
@@ -145,6 +159,14 @@ Singleton {
             IslandController.request("update", { "icon": "warning", "text": warning, "warning": true }, 60);
         }
     }
+    // plugged in, the refusal no longer holds: the row goes back to offering Restart
+    Connections {
+        target: Battery
+        function onIsPluggedInChanged() {
+            if (Battery.isPluggedIn && root.restartFailed === "battery")
+                root.restartFailed = "";
+        }
+    }
     Timer {
         id: disarmTimer
         interval: 10000
@@ -157,8 +179,14 @@ Singleton {
         stdout: StdioCollector { id: restartOut }
         onExited: (code, status) => {
             if (code !== 0) {
-                root.restartFailed = code === 3 ? "reboot" : "prepare";
                 root.restartCause = code === 3 ? "" : root.failureCause(restartOut.text);
+                if (root.restartCause === "battery") {
+                    root.restartBattery = parseInt(restartOut.text.match(/^tacit: battery (\d+)/m)?.[1]) || 0;
+                    root.restartFailed = "battery";
+                    IslandController.request("note", { "icon": "battery_alert", "text": `Plug in to restart: the battery is at ${root.restartBattery}%` }, 65);
+                    return;
+                }
+                root.restartFailed = code === 3 ? "reboot" : "prepare";
                 const why = ({ "busy": "the package manager is busy", "conflict": "a conflicting update", "live": "on the live USB",
                                "offline": "check the connection" })[root.restartCause];
                 IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update" }, 65);
@@ -185,6 +213,22 @@ Singleton {
                 IslandController.request("updated", { "icon": "schedule", "text": "Tonight at 03:00 if left on · plugged in, locked, Caffeine off", "wide": true }, 65);
             else
                 IslandController.request("copied", { "icon": "error", "text": "Couldn't set the update for tonight" }, 65);
+        }
+    }
+    // Settings' Cancel beside Tonight: the timer off again (tacit-update cancel-tonight). There was no way back but
+    // Restart, or a screen left unlocked at three.
+    function cancelTonight() {
+        if (!cancelTonightProc.running)
+            cancelTonightProc.running = true;
+    }
+    Process {
+        id: cancelTonightProc
+        command: ["systemctl", "start", "tacit-update@cancel-tonight.service"]
+        onExited: (code, status) => {
+            if (code === 0)
+                root.tonightSet = false;
+            else
+                IslandController.request("copied", { "icon": "error", "text": "Couldn't cancel tonight's update" }, 65);
         }
     }
 

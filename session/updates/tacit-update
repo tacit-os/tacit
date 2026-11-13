@@ -1,10 +1,12 @@
 #!/bin/bash
-# tacit-update now|cancel|tonight|night|install|pre|post: Tacit's updates, installed while the computer restarts (systemd's
+# tacit-update now|cancel|tonight|cancel-tonight|night|install|pre|post: Tacit's updates, installed while the computer restarts (systemd's
 # offline updates, systemd.offline-updates(7)). tacit-fetch-updates has already downloaded them.
-#   now      the next start installs them (the notch's or Settings' Restart, through tacit-update@now.service)
+#   now      the next start installs them (the notch's or Settings' Restart, through tacit-update@now.service); not on
+#            a battery under 20 % that is not charging
 #   cancel   takes the link of now away again when the restart was refused (the shell runs as the user, / is root's)
 #   tonight  at 03:00, left on, on the charger, with the screen locked, Caffeine off and no agent mid-turn
 #            (tacit-update-night.timer wakes the computer for it, never on battery)
+#   cancel-tonight  Settings' Cancel beside it: the timer off, and nothing left of the choice
 #   night    what that timer runs; any of those not so: the next night, and /var/lib/tacit/night says why. Nothing
 #            waiting any more ends Tonight.
 #   install  what the start runs before anything else (tacit-system-update.service); then it restarts
@@ -26,6 +28,18 @@ charger() {
 		esac
 	done
 	[ "$mains" = 1 ] || [ "$battery" = 0 ]
+}
+
+# the computer's battery in %, its lowest one as tacit-fetch-updates reads it; nothing without one
+level() {
+	local d c low=""
+	for d in /sys/class/power_supply/*; do
+		[ "$(cat "$d/scope" 2>/dev/null)" = Device ] && continue
+		[ "$(cat "$d/type" 2>/dev/null)" = Battery ] || continue
+		c=$(cat "$d/capacity" 2>/dev/null)
+		[[ $c =~ ^[0-9]+$ ]] && { [ -z "$low" ] || [ "$c" -lt "$low" ]; } && low=$c
+	done
+	echo "$low"
 }
 
 # an agent-host session mid-turn (working, or waiting on a permission), from the hello the host sends every client on
@@ -67,6 +81,13 @@ ready() {
 
 case "${1:-}" in
 now)
+	# under 20 % and not plugged in the install at the start could outlast the battery and stop half done: refused, with
+	# the level for the shell to say (Updates.qml). The session screen's Restart then restarts without installing.
+	b=$(level)
+	if ! charger && [ -n "$b" ] && [ "$b" -lt 20 ]; then
+		echo "tacit: battery $b" > "$state/download.log"
+		exit 1
+	fi
 	# a download that failed restarts nothing: the install at the start has no network and would fail
 	ready || exit 1
 	# Restart now replaces Tonight: the enabled timer would fire again at the next 03:00
@@ -81,6 +102,11 @@ tonight)
 	systemctl enable --now tacit-update-night.timer || exit 1
 	# when it was chosen: a night that came after with no word from it was a night the computer was off
 	touch "$state/tonight"
+	;;
+cancel-tonight)
+	systemctl disable --now tacit-update-night.timer || exit 1
+	# and a sleep on battery under way does not start it again on waking (post)
+	rm -f "$state/tonight" /run/tacit-update-held
 	;;
 night)
 	# nothing waiting any more (put in meanwhile by Apps' "Update everything" or pacman in a terminal), counted as the
@@ -167,7 +193,7 @@ post)
 	[ "$(date +%s)" -lt "$three" ] || said battery
 	;;
 *)
-	echo "usage: tacit-update now|cancel|tonight|night|install|pre|post" >&2
+	echo "usage: tacit-update now|cancel|tonight|cancel-tonight|night|install|pre|post" >&2
 	exit 2
 	;;
 esac

@@ -80,7 +80,9 @@ ApplicationWindow {
     property var outcome: ({})
     property string justGot: ""
     property string opening: ""      // an app asked to start and not shown yet: its button says so (some take 10 s)
-    property bool restartNeeded: false      // the system was brought up to date while it ran: a restart finishes it
+    // the system was brought up to date here (Get X and the updates): a restart finishes it. Until the computer restarts,
+    // the backend's word for it too (stored.py's restart mark), so it is still said after Apps was closed
+    property bool restartNeeded: root.home?.restartNeeded === true
     property bool restartArmed: false       // asked once, "Press again" as on the session screen
     property string notOpened: ""
     property var askUpdate: null          // { pkg, name, updates, updatesMB, appMB }: an app that needs the waiting updates with it
@@ -172,7 +174,7 @@ ApplicationWindow {
         Qt.quit();
     }
     // the system was brought up to date with an app while the window was open (Get X and the updates): said in a notification
-    // too, which stays in the list once Apps is closed, as the page's Restart is shown only on an app's page
+    // too, which stays in the list once Apps is closed, as Apps' own Restart is shown only in Apps
     function sayRestart(pkg) {
         Quickshell.execDetached(["notify-send", "-a", "Apps", `${appOf(pkg)?.name ?? pkg} is in your apps now`, "Restart to finish the updates."]);
     }
@@ -1357,6 +1359,9 @@ ApplicationWindow {
                                   : appPage.st === "get" && root.work ? `After ${root.appOf(root.work.pkg)?.name ?? root.work.pkg}`
                                   : [appPage.a?.plan?.download ? `${appPage.a.plan.download} MB` : appPage.a?.plan?.appMB ? `${appPage.a.plan.appMB} MB` : "",
                                      appPage.a?.free === false ? "Free to use" : "Free"].filter(x => x).join(" · ") }
+                        // the camera and the microphone, which its sandbox reaches (assets/store/permissions.json)
+                        Small { visible: (appPage.a?.can?.length ?? 0) > 0; anchors.right: parent.right
+                            text: `Can use: ${(appPage.a?.can ?? []).join(", ")}` }
                         Word { visible: root.restartNeeded && !["getting", "removing"].includes(appPage.st); anchors.right: parent.right
                             text: root.restartArmed ? "Press again" : "Restart to finish the updates"; glyph: "restart_alt"; ink: root.restartArmed ? Tacit.risk : root.inkMain
                             onPicked: root.restart() }
@@ -1417,15 +1422,18 @@ ApplicationWindow {
                 Word { visible: !!appPage.a?.homepage; text: "Its website"; glyph: "open_in_new"; onPicked: Qt.openUrlExternally(appPage.a.homepage) }
             }
 
-            // ---- Your apps: every app from here on this computer, as a list, with Remove beside each Apps got itself (the
-            // backend's "removable"); one got elsewhere says On this computer instead
+            // ---- Your apps: the apps Apps got itself that are on this computer (the backend's "removable"), each with
+            // Remove. An app got elsewhere (pacman, Setup) is not one of them: the page said it came from here
             Column {
                 id: yoursPage
                 visible: root.page === "yours"
                 x: root.m; width: root.cw
-                readonly property var list: (root.home?.installed ?? []).map(p => root.appOf(p)).filter(x => x)
+                readonly property var list: (root.home?.installed ?? []).map(p => root.appOf(p)).filter(x => x?.removable)
                 PageHead { kicker: "On this computer"; title: "Your apps"
                     line: !root.home ? "" : yoursPage.list.length ? "Apps from here that are on this computer. They update with Tacit's system updates." : "None yet. Apps you get here are listed here." }
+                Item { width: 1; height: 16; visible: root.restartNeeded }
+                Word { visible: root.restartNeeded; text: root.restartArmed ? "Press again" : "Restart to finish the updates"; glyph: "restart_alt"
+                    ink: root.restartArmed ? Tacit.risk : root.inkSec; onPicked: root.restart() }
                 Item { width: 1; height: 56 }
                 Repeater {
                     model: yoursPage.list

@@ -34,7 +34,18 @@ Scope {
     function create(folder, select, reason) {
         const w = windowComp.createObject(root, { "folder": folder, "selectPath": select, "reason": reason });
         w.closing.connect(() => root.forget(w));   // never hold a destroyed window
+        w.folderChanged.connect(() => root.keep());
         root.windows = root.windows.concat([w]);
+        root.keep();
+    }
+    // the folders a reload of the shell opens again (Files.keepFolders); a file chooser's window is its asker's
+    function keep() {
+        Files.keepFolders(root.windows.filter(w => !w.forPick).map(w => w.folder));
+    }
+    // the windows that were open when the shell reloaded, at their folders
+    Component.onCompleted: {
+        for (const f of Files.keptFolders())
+            root.create(f, "", "");
     }
     function focus(target) {
         const w = target ?? root.newest();
@@ -105,5 +116,6 @@ Scope {
 
     function forget(w) {
         root.windows = root.windows.filter(x => x !== w);
+        root.keep();
     }
 }
