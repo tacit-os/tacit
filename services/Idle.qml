@@ -20,6 +20,9 @@ Singleton {
 
     // The manual toggle, until it is turned off.
     property bool inhibit: false
+    // and as the night's update sees it (tacit-update night, as root): Caffeine on is someone at the computer, so no
+    // restart; it could not see the shell's Wayland inhibitor
+    onInhibitChanged: Quickshell.execDetached(["bash", "-c", root.inhibit ? ': > "$XDG_RUNTIME_DIR/tacit-caffeine"' : 'rm -f "$XDG_RUNTIME_DIR/tacit-caffeine"'])
 
     // The window holding the keyboard, as the compositor's window list knows it.
     readonly property var focusedWindow: {

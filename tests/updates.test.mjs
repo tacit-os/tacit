@@ -2,10 +2,10 @@
 // output, and the download watch's own command run by bash with a pretend pacman and systemctl first on PATH. And an
 // install made elsewhere (Apps, a terminal): pacman's log changing brings the list read again.
 import { execFileSync } from "child_process";
-import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
+import { chmodSync, existsSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { inScope, matchBrace, qmlProperty, readExpression } from "./lib/qml.mjs";
+import { inScope, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const src = read("services/Updates.qml");
@@ -24,10 +24,16 @@ function handler(id) {
 function updates() {
   const root = { available: true, count: 0, downloaded: false, tacitVersion: "", lastCheckFailed: false, fetchFailed: false,
     lastChecked: 0, tonightSet: false, nextNotes: [], phase: "", totalMB: 0, doneMB: 0, progress: 0, quietTicks: 0, asked: false,
-    ending: false, announced: [], announce(k) { this.announced.push(k); }, refresh() {} };
+    ending: false, announced: [], announce(k) { this.announced.push(k); }, refresh() {}, nightSkipped: "", said: [],
+    say(name, data, mark) { this.said.push({ name, data }); mark(); } };
   const ready = qmlProperty(src, "ready");
   Object.defineProperty(root, "ready", { get: () => inScope({ root }, "", `return (${ready});`)() });
-  const scope = { root, stateFile: { setText() {} }, nextNotesProc: {}, waitingProc: { running: false } };
+  const words = qmlProperty(src, "nightWords"), last = qmlFunction(src, "lastNight");
+  if (words) root.nightWords = inScope({}, "", `return (${words});`)();
+  if (last) root.lastNight = inScope({ root }, last.params, last.body);
+  let seen = "";
+  const scope = { root, stateFile: { setText() {} }, nextNotesProc: {}, waitingProc: { running: false },
+    nightSeenFile: { text: () => seen, setText: t => { seen = t; } } };
   const read = inScope(scope, "text", handler("waitingProc"));
   const watch = inScope(scope, "text", handler("watchProc"));
   return { root, read, watch };
@@ -130,6 +136,91 @@ esac
   fire(true);
   check("once the log has been quiet, the list is read again, after any read under way", refreshed === 1 && waited === 1,
     `read ${refreshed} times, waited ${waited} times`);
+}
+
+// Restart for an update: the notch said "Getting ready to restart" and nothing of the minutes the install takes at the start
+{
+  let said = null;
+  const f = src.match(/\n    function go\(\) \{/);
+  const at = f ? f.index + f[0].length - 1 : -1;
+  const scope = { root: { restartWarning: "x" }, disarmTimer: { stop() {} }, restartProc: { running: false },
+    IslandController: { request: (name, p) => { said = p; } } };
+  if (at >= 0) inScope(scope, "", src.slice(at + 1, matchBrace(src, at)))();
+  check("the notch says from the press that the restart takes a few minutes, while it gets ready",
+    said?.restarting === true && /^Getting ready to restart · [^·]*a few minutes$/.test(said?.text ?? "") && scope.restartProc.running === true,
+    JSON.stringify(said));
+}
+
+// Tonight: a night that skipped (on battery, the screen not locked, Caffeine on, switched off) said nothing, and Settings
+// went on saying "Tonight, on the charger". The list read gets the night's word, when Tonight was chosen and when this
+// start began, after the timer's state.
+{
+  const now = Date.now(), three = new Date(now);
+  three.setHours(3, 0, 0, 0);
+  if (three.getTime() > now) three.setDate(three.getDate() - 1);
+  const s = t => Math.floor(t / 1000), at = three.getTime(), hour = 3600 * 1000;
+  const read = (timer, night, chosen, booted) => {
+    const u = updates();
+    const tail = `---\n${timer}\n---\n${night ? JSON.stringify(night) + "\n" : ""}---\n${chosen ? s(chosen) : ""}\n---\n${s(booted)}\n`;
+    const text = listed.replace(/---\ninactive\n$/, tail);
+    u.read(text);
+    u.read(text);   // the next half-hourly read
+    return u.root;
+  };
+  const shown = r => `nightSkipped ${JSON.stringify(r.nightSkipped)}, said ${JSON.stringify(r.said.map(x => x.data.text))}`;
+  const battery = read("active", { at: s(at) + 20, skipped: "battery" }, at - 5 * hour, at - 30 * hour);
+  check("a night on battery is said once, as why it didn't install, and Settings keeps it",
+    battery.nightSkipped === "it wasn't plugged in" && battery.said.length === 1 && battery.said[0].name === "updated"
+      && battery.said[0].data.text === "Didn't install last night · it wasn't plugged in" && battery.said[0].data.wide === true, shown(battery));
+  const off = read("active", null, at - 5 * hour, at + 4 * hour);
+  check("a computer started after three o'clock with nothing from the night was switched off", off.nightSkipped === "it was switched off" && off.said.length === 1, shown(off));
+  for (const [name, timer, night, chosen, booted] of [
+    ["the night went ahead", "active", { at: s(at) + 20, skipped: "" }, at - 5 * hour, at - 30 * hour],
+    ["Tonight chosen after the last three o'clock", "active", null, at + hour, at + 4 * hour],
+    ["on through the night, nothing written yet", "active", null, at - 5 * hour, at - 30 * hour],
+    ["Tonight no longer set", "inactive", { at: s(at) + 20, skipped: "battery" }, at - 5 * hour, at - 30 * hour],
+    ["a night before the last one", "active", { at: s(at) - 86400, skipped: "caffeine" }, at - 30 * hour, at - 30 * hour],
+  ]) {
+    const r = read(timer, night, chosen, booted);
+    check(`${name}: nothing said`, r.nightSkipped === "" && r.said.length === 0, shown(r));
+  }
+}
+
+// Tonight's confirmation names the time and what it needs, read rather than flashed: "Tonight, on the charger" for 1.2 s
+{
+  let said = null;
+  const e = readExpression(src, after("tonightProc", "onExited").at).expr;
+  const scope = { root: {}, IslandController: { request: (name, p) => { said = { name, ...p }; } } };
+  inScope(scope, "", `return (${e});`)()(0, 0);
+  const settings = read("tacit-settings.qml");
+  const wing = qmlFunction(read("services/IslandController.qml"), "wingFor");
+  const width = p => inScope({ root: { payload: p, focusRunning: false } }, wing.params, wing.body)("updated");
+  check("Tonight's notch line names 03:00, left on, plugged in, locked and Caffeine off, in a line as wide as the update's warning",
+    said?.name === "updated" && /03:00/.test(said.text) && /left on/.test(said.text) && /plugged in/.test(said.text) && /locked/.test(said.text)
+      && /Caffeine off/.test(said.text) && said.wide === true && width({ wide: true }) === 260 && width({}) === 204, `${JSON.stringify(said)}, ${width({ wide: true })} px`);
+  check("Settings says why the last night didn't install, else the same conditions",
+    settings.includes("`Didn't install last night: ${Updates.nightSkipped}`") && /"Tonight at 03:00 if it's left on, plugged in and locked, with Caffeine off"/.test(settings)
+      && !settings.includes('"Tonight, on the charger"'), "the Updates row's description");
+}
+
+// Caffeine as root's night sees it: a mark in the person's runtime folder, there while it is on
+{
+  const idle = read("services/Idle.qml");
+  const at = idle.indexOf("onInhibitChanged:");
+  const e = at < 0 ? "" : readExpression(idle, at + "onInhibitChanged:".length).expr;
+  const dir = mkdtempSync(join(tmpdir(), "tacit-caffeine-"));
+  const run = on => {
+    let cmd = null;
+    inScope({ root: { inhibit: on }, Quickshell: { execDetached: c => { cmd = c; } } }, "", `${e};`)();
+    if (cmd) execFileSync(cmd[0], cmd.slice(1), { env: { ...process.env, XDG_RUNTIME_DIR: dir } });
+    return existsSync(join(dir, "tacit-caffeine"));
+  };
+  try {
+    const on = at >= 0 && run(true), off = at >= 0 ? run(false) : true;
+    check("Caffeine on leaves tacit-caffeine in the runtime folder, off takes it away", on === true && off === false, `on: ${on}, off: ${off}`);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 }
 
 done();

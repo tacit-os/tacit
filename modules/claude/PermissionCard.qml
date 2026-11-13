@@ -17,7 +17,9 @@ import qs.modules.tacit
 Rectangle {
     id: card
     property var pending: ({})    // { request, tool, input, suggestions }
-    signal answered(bool allow, var permissions, var input)
+    // the room the conversation leaves the card: a plan grows into it, past the 220 px a command gets
+    property real maxHeight: 0
+    signal answered(bool allow, var permissions, var input, string message)
 
     readonly property string label: {
         switch (card.pending.tool) {
@@ -50,6 +52,11 @@ Rectangle {
         case "Wall": return [
             { label: "Open the folder", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
             { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }];
+        // Claude Code's own two answers to a plan: Always allow had nothing to remember, and Deny read as a refusal
+        case "ExitPlanMode": return [
+            { label: "Start on this plan", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
+            { label: "Keep planning", accent: false, allow: false, keys: ["Alt+N"],
+              message: "The user wants to keep planning. Stay in plan mode and wait for them to say what to change." }];
         }
         return [
             { label: "Allow once", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
@@ -85,7 +92,7 @@ Rectangle {
     function pick(b) {
         if (card.sent) return;
         card.sent = true;
-        card.answered(b.allow, b.always ? card.pending.suggestions : null, b.input ?? null);
+        card.answered(b.allow, b.always ? card.pending.suggestions : null, b.input ?? null, b.message ?? "");
     }
 
     implicitHeight: column.implicitHeight + 28
@@ -116,7 +123,8 @@ Rectangle {
             id: detailFlick
             Layout.fillWidth: true
             readonly property Item shown: card.plan.length ? planText : detailText
-            Layout.preferredHeight: Math.min(detailFlick.shown.implicitHeight, 220)
+            // the card's title row, buttons and margins take about 110 of the room
+            Layout.preferredHeight: Math.min(detailFlick.shown.implicitHeight, card.plan.length ? Math.max(220, card.maxHeight - 110) : 220)
             contentHeight: detailFlick.shown.implicitHeight
             clip: true
             boundsBehavior: Flickable.StopAtBounds

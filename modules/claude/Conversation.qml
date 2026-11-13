@@ -2584,10 +2584,12 @@ Item {
                     PermissionCard {
                         pending: ask.modelData
                         keys: ask.keys
-                        onAnswered: (allow, permissions, input) => {
+                        maxHeight: (conv.height - header.height) * 0.6
+                        onAnswered: (allow, permissions, input, message) => {
                             const req = { op: "answer", id: conv.session.id, request: ask.modelData.request, allow: allow };
                             if (permissions) req.permissions = permissions;
                             if (input) req.input = input;
+                            if (message) req.message = message;
                             conv.answer(req);
                         }
                     }

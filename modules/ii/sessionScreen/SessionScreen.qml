@@ -302,7 +302,8 @@ Scope {
                         }
                         Warning {
                             visible: SessionWarnings.agentWorking
-                            text: Translation.tr("An agent is still working")
+                            text: (SessionWarnings.agentTitles.length > 1 ? Translation.tr("Agents are still working: %1") : Translation.tr("An agent is still working: %1"))
+                                .arg(SessionWarnings.agentTitles.join(", "))
                         }
                         Warning {
                             visible: SessionWarnings.downloadRunning

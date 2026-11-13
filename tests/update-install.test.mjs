@@ -41,6 +41,7 @@ esac
   const su = calls.find(l => l.startsWith("pacman -Su")) ?? "";
   check("the screen says updates are being installed before pacman starts on them",
     /Installing updates/.test(su), su ? `when pacman -Su ran the console said: "${su.replace(/^.*saying: /, "").trim()}"` : "pacman -Su never ran");
+  check("and that the computer must stay on, on the same line", /Installing updates[^\n]*Don't switch off/.test(su), su.replace(/^.*saying: /, "").trim());
   check("in plain ASCII, which the console's own font draws", /^[\x00-\x7f]*$/.test(readFileSync(at.console, "utf8")),
     JSON.stringify(readFileSync(at.console, "utf8")));
   const result = existsSync(join(state, "update-result")) ? JSON.parse(readFileSync(join(state, "update-result"), "utf8")) : {};

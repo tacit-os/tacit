@@ -1,15 +1,43 @@
 #!/bin/bash
-# tacit-update now|cancel|tonight|night|install: Tacit's updates, installed while the computer restarts (systemd's offline
-# updates, systemd.offline-updates(7)). tacit-fetch-updates has already downloaded them.
+# tacit-update now|cancel|tonight|night|install|pre|post: Tacit's updates, installed while the computer restarts (systemd's
+# offline updates, systemd.offline-updates(7)). tacit-fetch-updates has already downloaded them.
 #   now      the next start installs them (the notch's or Settings' Restart, through tacit-update@now.service)
 #   cancel   takes the link of now away again when the restart was refused (the shell runs as the user, / is root's)
-#   tonight  at 03:00, on the charger, with the screen locked (tacit-update-night.timer wakes the computer for it)
-#   night    what that timer runs; not on the charger, or someone at the computer: the next night
+#   tonight  at 03:00, left on, on the charger, with the screen locked and Caffeine off (tacit-update-night.timer wakes
+#            the computer for it, never on battery)
+#   night    what that timer runs; any of those not so: the next night, and /var/lib/tacit/night says why
 #   install  what the start runs before anything else (tacit-system-update.service); then it restarts
+#   pre/post the sleep hook (/usr/lib/systemd/system-sleep/tacit-update links here): asleep on battery, the timer waits
 # How it went is /var/lib/tacit/update-result, which the shell says once in the notch.
 set -u
 state=/var/lib/tacit
 mkdir -p "$state"
+
+# on the charger, or a computer without a battery (always is)
+charger() {
+	local d mains=0 battery=0
+	for d in /sys/class/power_supply/*; do
+		# a wireless mouse's battery is not the computer's
+		[ "$(cat "$d/scope" 2>/dev/null)" = Device ] && continue
+		case "$(cat "$d/type" 2>/dev/null)" in
+			Mains|USB|USB_C|USB_PD*) [ "$(cat "$d/online" 2>/dev/null)" = 1 ] && mains=1 ;;
+			Battery) battery=1 ;;
+		esac
+	done
+	[ "$mains" = 1 ] || [ "$battery" = 0 ]
+}
+
+# What became of a night, for the shell to say: "" once it goes ahead, else why it did not install. Skipped, the unit
+# ended as a success with no record, and Settings went on saying Tonight as if it would happen.
+said() {
+	printf '{"at": %s, "skipped": "%s"}\n' "$(date +%s)" "$1" > "$state/night.new"
+	chmod 644 "$state/night.new"
+	mv "$state/night.new" "$state/night"
+}
+skip() {
+	said "$1"
+	exit 0
+}
 
 # Before a restart that installs: a download still running is stopped (cleanly: KillSignal=SIGINT), a lock left by one
 # stopped another way is cleared, and what the install needs is downloaded now, while the computer is online. The install
@@ -37,38 +65,43 @@ cancel)
 	;;
 tonight)
 	# enabled, not only started: a restart before three o'clock keeps Tonight
-	systemctl enable --now tacit-update-night.timer
+	systemctl enable --now tacit-update-night.timer || exit 1
+	# when it was chosen: a night that came after with no word from it was a night the computer was off
+	touch "$state/tonight"
 	;;
 night)
-	mains=0 battery=0
-	for d in /sys/class/power_supply/*; do
-		# a wireless mouse's battery is not the computer's
-		[ "$(cat "$d/scope" 2>/dev/null)" = Device ] && continue
-		case "$(cat "$d/type" 2>/dev/null)" in
-			Mains|USB|USB_C|USB_PD*) [ "$(cat "$d/online" 2>/dev/null)" = 1 ] && mains=1 ;;
-			Battery) battery=1 ;;
-		esac
-	done
-	# a computer without a battery is always on the charger
-	[ "$mains" = 1 ] || [ "$battery" = 0 ] || exit 0
+	# three o'clock, not later: a timer that came due while the computer slept fires as it wakes, with the person at the
+	# lock screen. A night missed is never made up as the computer starts or wakes; the next one comes.
+	now=$(date +%s)
+	hm=$(date -d "@$now" +%-H%M)
+	[ "$hm" -ge 300 ] && [ "$hm" -lt 330 ] || skip asleep
+	charger || skip battery
 	# someone at the computer at three in the morning keeps their work: only a locked screen restarts
 	for s in $(loginctl list-sessions --no-legend | awk '{print $1}'); do
 		# the sign-in screen is an unlocked graphical session too, with nobody at it
 		[ "$(loginctl show-session "$s" -p Class --value)" = greeter ] && continue
-		[ "$(loginctl show-session "$s" -p Active --value)" = yes ] && [ "$(loginctl show-session "$s" -p Type --value)" = wayland ] \
-			&& [ "$(loginctl show-session "$s" -p LockedHint --value)" != yes ] && exit 0
+		[ "$(loginctl show-session "$s" -p Active --value)" = yes ] && [ "$(loginctl show-session "$s" -p Type --value)" = wayland ] || continue
+		uid=$(loginctl show-session "$s" -p User --value)
+		run=$(loginctl show-user "$uid" -p RuntimePath --value)
+		# Caffeine on (the shell's mark, Idle.qml) is someone keeping the screen awake, locked or not
+		[ -e "$run/tacit-caffeine" ] && skip caffeine
+		# Tacit's lock tells logind; the boot lock and hyprlock, its fallback, do not
+		[ "$(loginctl show-session "$s" -p LockedHint --value)" = yes ] || pgrep -U "$uid" -f 'bootlock[.]qml' >/dev/null \
+			|| pgrep -U "$uid" -x hyprlock >/dev/null || skip unlocked
 	done
+	said ""
 	# the timer is stopped only once the download is here: offline at three, the next night tries again (it was stopped
 	# first, and Tonight was lost without a word)
-	ready || exit 1
+	ready || { said download; exit 1; }
 	systemctl disable --now tacit-update-night.timer
 	ln -sfn /var/cache/pacman/pkg /system-update
 	systemctl reboot
 	;;
 install)
-	# The screen says what the minutes are for: it showed the boot picture, then black once the splash let the display go
-	# (about 40 s), and nothing else until the restart. Plain dots: the console's own font has no ellipsis.
-	printf '\n\n  Installing updates...\n' > /dev/console
+	# The screen says what the minutes are for, and to leave the computer on: it showed the boot picture, then black once
+	# the splash let the display go (about 40 s), and nothing else until the restart. Plain dots: the console's own font
+	# has no ellipsis.
+	printf "\n\n  Installing updates... Don't switch off.\n" > /dev/console
 	# taken away first: an install that fails can never run again at every start
 	rm -f /system-update
 	# nothing else runs at this point of the start: a lock is one a stopped pacman left behind
@@ -92,8 +125,27 @@ install)
 	systemctl disable --now tacit-update-night.timer 2>/dev/null
 	systemctl reboot
 	;;
+pre)
+	# Asleep on battery the night's timer would wake the computer for nothing (WakeSystem=true, then no charger): it is
+	# stopped for the sleep, still enabled, and started again on waking, when it waits for the next three o'clock.
+	charger && exit 0
+	systemctl -q is-active tacit-update-night.timer || exit 0
+	now=$(date +%s)
+	three=$(date -d "$(date -d "@$now" +%F) 03:00" +%s)
+	[ "$now" -lt "$three" ] || three=$(date -d "$(date -d "@$now" +%F) 03:00 tomorrow" +%s)
+	echo "$three" > /run/tacit-update-held
+	systemctl stop tacit-update-night.timer
+	;;
+post)
+	[ -e /run/tacit-update-held ] || exit 0
+	three=$(cat /run/tacit-update-held)
+	rm -f /run/tacit-update-held
+	systemctl start --no-block tacit-update-night.timer
+	# three o'clock came while it slept: that night was one on battery
+	[ "$(date +%s)" -lt "$three" ] || said battery
+	;;
 *)
-	echo "usage: tacit-update now|cancel|tonight|night|install" >&2
+	echo "usage: tacit-update now|cancel|tonight|night|install|pre|post" >&2
 	exit 2
 	;;
 esac

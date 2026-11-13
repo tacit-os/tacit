@@ -74,6 +74,25 @@ Singleton {
     property bool guarding: false       // the warnings are being read
     // Tonight was chosen: the night's timer is waiting (read with the list, and set at once when chosen)
     property bool tonightSet: false
+    // Why the last night did not install while Tonight stays set: Settings said "Tonight, on the charger" every morning
+    // after nights that skipped without a word. "" when no night has come since it was chosen, or it went ahead.
+    property string nightSkipped: ""
+    readonly property var nightWords: ({ "asleep": "it was asleep", "battery": "it wasn't plugged in", "caffeine": "Caffeine was on",
+        "unlocked": "the screen wasn't locked", "download": "the download failed" })
+    // the last three o'clock after Tonight was chosen: what the night wrote of it (tacit-update night), or, with nothing
+    // written, a computer started after it was off then. key: said once for it
+    function lastNight(night, chosen, booted, now) {
+        const three = new Date(now);
+        three.setHours(3, 0, 0, 0);
+        if (three.getTime() > now)
+            three.setDate(three.getDate() - 1);
+        const at = three.getTime();
+        if (!(chosen > 0) || chosen > at)
+            return { "why": "", "key": "" };
+        if (night && night.at * 1000 >= at)
+            return { "why": root.nightWords[night.skipped] ?? "", "key": `${night.at}` };
+        return booted > at ? { "why": "it was switched off", "key": `off ${at / 1000}` } : { "why": "", "key": "" };
+    }
     // the next start installs them; no password (50-tacit-updates.rules)
     function restartNow() {
         if (root.restarting || root.guarding)
@@ -89,8 +108,8 @@ Singleton {
     function go() {
         root.restartWarning = "";
         disarmTimer.stop();
-        // from the first press the notch says so: the download can take minutes
-        IslandController.request("update", { "icon": "system_update", "text": "Getting ready to restart", "restarting": true }, 60);
+        // from the first press the notch says so: the download can take minutes, and the install at the start minutes more
+        IslandController.request("update", { "icon": "system_update", "text": "Getting ready to restart · this takes a few minutes", "restarting": true }, 60);
         restartProc.running = true;
     }
     Connections {
@@ -100,7 +119,7 @@ Singleton {
                 return;
             root.guarding = false;
             const warning = IslandController.workUnsaved ? "Unsaved changes"
-                : SessionWarnings.agentWorking ? "An agent is still working"
+                : SessionWarnings.agentWorking ? `${SessionWarnings.agentTitles.length > 1 ? "Agents are" : "An agent is"} still working: ${SessionWarnings.agentTitles.join(", ")}`
                 : SessionWarnings.packageManagerRunning ? "The package manager is running"
                 : SessionWarnings.downloadRunning ? "A download may be in progress" : "";
             if (warning.length === 0) {
@@ -141,8 +160,12 @@ Singleton {
         command: ["systemctl", "start", "tacit-update@tonight.service"]
         onExited: (code, status) => {
             root.tonightSet = code === 0;
-            IslandController.request("copied", code === 0 ? { "icon": "schedule", "text": "Tonight, on the charger" }
-                : { "icon": "error", "text": "Couldn't set the update for tonight" }, 65);
+            // the time and what it needs, read rather than flashed: "Tonight, on the charger" left out the lock, and a
+            // computer switched off or on Caffeine skipped the night without a word
+            if (code === 0)
+                IslandController.request("updated", { "icon": "schedule", "text": "Tonight at 03:00 if left on · plugged in, locked, Caffeine off", "wide": true }, 65);
+            else
+                IslandController.request("copied", { "icon": "error", "text": "Couldn't set the update for tonight" }, 65);
         }
     }
 
@@ -191,7 +214,9 @@ Singleton {
         // what is waiting ("name old -> new"), then where each of its files is: file:// once downloaded
         // (only where Tacit installs its updates itself, tacit-session's tacit-update: not on a computer set up by hand,
         // as the owner's Book4 with its held Qt)
-        command: ["bash", "-c", "[ -x /usr/lib/tacit/tacit-update ] || { echo unmanaged; exit 0; }; pacman -Qu 2>/dev/null; echo ---; pacman -Sup --print-format %l 2>/dev/null; echo ---; stat -c %Y /var/lib/pacman/sync/*.db /var/lib/tacit/updates-checked 2>/dev/null | sort -n | tail -1; echo ---; systemctl is-active tacit-update-night.timer"]
+        command: ["bash", "-c", "[ -x /usr/lib/tacit/tacit-update ] || { echo unmanaged; exit 0; }; pacman -Qu 2>/dev/null; echo ---; pacman -Sup --print-format %l 2>/dev/null; echo ---; stat -c %Y /var/lib/pacman/sync/*.db /var/lib/tacit/updates-checked 2>/dev/null | sort -n | tail -1; echo ---; systemctl is-active tacit-update-night.timer; "
+            // and the last night's word, when Tonight was chosen, when this start began
+            + "echo ---; cat /var/lib/tacit/night 2>/dev/null; echo ---; stat -c %Y /var/lib/tacit/tonight 2>/dev/null; echo ---; awk '/^btime /{print $2}' /proc/stat"]
         stdout: StdioCollector {
             onStreamFinished: {
                 if (text.trim() === "unmanaged") {
@@ -211,6 +236,14 @@ Singleton {
                 if (synced > 0)
                     root.lastChecked = synced;
                 root.tonightSet = (halves[3] ?? "").trim() === "active";
+                let night = null;
+                try {
+                    night = JSON.parse((halves[4] ?? "").trim() || "null");
+                } catch (e) {}
+                const last = root.lastNight(night, parseInt(halves[5]) * 1000, parseInt(halves[6]) * 1000, Date.now());
+                root.nightSkipped = root.tonightSet ? last.why : "";
+                if (root.nightSkipped.length > 0 && nightSeenFile.text().trim() !== last.key)
+                    root.say("updated", { "icon": "schedule", "text": `Didn't install last night · ${last.why}`, "wide": true }, () => nightSeenFile.setText(last.key));
                 // pacman -Qu lists a held package (IgnorePkg) with " [ignored]"; -Sup never downloads it
                 const waiting = halves[0].split("\n").filter(l => l.includes(" -> ") && !l.endsWith(" [ignored]"));
                 const files = halves[1].split("\n").filter(l => l.length > 0 && !l.startsWith(":"));
@@ -484,6 +517,12 @@ Singleton {
         id: seenFile
         blockLoading: true
         path: `${Directories.userStateDir}/updates-seen`
+        printErrors: false
+    }
+    FileView {
+        id: nightSeenFile
+        blockLoading: true
+        path: `${Directories.userStateDir}/updates-night-seen`
         printErrors: false
     }
 }

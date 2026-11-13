@@ -5470,7 +5470,8 @@ ApplicationWindow {
                         : Updates.restartWarning.length > 0 ? `${Updates.restartWarning} · restart anyway, or wait`
                         : updatesGroup.restartFailed === "prepare" ? "Couldn't finish the download · check that this computer is online, then try again"
                         : updatesGroup.restartFailed === "reboot" ? "Couldn't restart · someone else may be signed in on this computer"
-                        : updatesGroup.tonight ? "Tonight, on the charger"
+                        : updatesGroup.tonight ? (Updates.nightSkipped.length > 0 ? `Didn't install last night: ${Updates.nightSkipped}`
+                            : "Tonight at 03:00 if it's left on, plugged in and locked, with Caffeine off")
                         : updatesGroup.ready ? `${updatesGroup.waiting} ${updatesGroup.waiting === 1 ? "update" : "updates"} · they install while the computer restarts`
                         : updatesGroup.waiting > 0 ? "Check for updates gets them now"
                         : updatesGroup.checkedText

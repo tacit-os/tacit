@@ -4,6 +4,8 @@ Description=Tacit: the updates tonight, at three on the charger
 
 [Timer]
 OnCalendar=*-*-* 03:00
+# No Persistent=: a three o'clock missed while the computer was off never restarts it as it starts (owner, 2026-11-13).
+# Asleep on battery the sleep hook (tacit-update pre) stops it, so it never wakes the computer on battery.
 WakeSystem=true
 AccuracySec=1min
 Unit=tacit-update@night.service

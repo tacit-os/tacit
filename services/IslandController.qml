@@ -406,8 +406,9 @@ Singleton {
         case "update":      // Tonight and Restart; "Restart anyway" is longer
             return root.payload?.warning ? 260 : 204;
         case "claudeAsk":
-        case "updated":
             return 204;
+        case "updated":     // a night's line (Tonight's conditions, why one skipped) as wide as the update's warning
+            return root.payload?.wide ? 260 : 204;
         case "window":      // with its Reopen, Show or Undo; the hint is words alone
             return root.payload?.pill ? 204 : 182;
         case "flow":

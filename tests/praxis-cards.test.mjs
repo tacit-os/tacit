@@ -1,6 +1,6 @@
 // Praxis's permission, question and choose cards (modules/claude/*Card.qml): what they answer to and what they show
 // before the person says yes. Their own expressions run under node; the rest is read from the QML.
-import { inScope, matchBrace, qmlProperty } from "./lib/qml.mjs";
+import { inScope, matchBrace, qmlFunction, qmlProperty } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const perm = read("modules/claude/PermissionCard.qml");
@@ -29,7 +29,7 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
 // reply is never typed or sent with. 7657c6c chose Alt chords; the 1.2.14 merge put back Ctrl+Enter for Allow once.
 {
   const keys = [];
-  for (const tool of ["Bash", "Edit", "Door", "Wall"])
+  for (const tool of ["Bash", "Edit", "Door", "Wall", "ExitPlanMode"])
     for (const b of cardValue("buttons", { tool, input: {}, suggestions: [{}] })) for (const k of b.keys ?? []) keys.push(`${tool} ${b.label}: ${k}`);
   for (const f of ["QuestionCard", "ChooseCard"]) {
     const src = read(`modules/claude/${f}.qml`);
@@ -73,5 +73,29 @@ check("the command, path or address is drawn as plain text", /\btextFormat:\s*Te
     !/ExitPlanMode/.test(label) && plan === pending.input.plan && cardValue("plan", { tool: "Bash", input: { command: "ls" } }) === ""
       && drawn.type === "ClaudeText" && itemAt(perm, drawn.at - 1).type === "Flickable",
     `"${label}", plan ${JSON.stringify(plan)}, drawn by ${drawn.type || "nothing"}`);
+}
+
+// the plan's answers were Allow once / Always allow / Deny in a 220 px area: Claude Code's are start, or keep planning
+{
+  const pending = { tool: "ExitPlanMode", input: { plan: "## Steps" }, suggestions: [{}] };
+  const buttons = cardValue("buttons", pending) ?? [];
+  const sent = [];
+  const pick = qmlFunction(perm, "pick");
+  const answer = b => inScope({ card: { sent: false, pending, answered: (...a) => sent.push(a) } }, pick.params, pick.body)(b);
+  buttons.forEach(answer);
+  const keep = sent[1] ?? [];
+  check("a plan is answered with Start on this plan or Keep planning, and Keep planning tells the agent so",
+    JSON.stringify(buttons.map(b => [b.label, b.allow])) === '[["Start on this plan",true],["Keep planning",false]]'
+      && sent[0]?.[0] === true && sent[0]?.[3] === "" && keep[0] === false && /keep planning/i.test(keep[3] ?? ""),
+    `${JSON.stringify(buttons.map(b => b.label))}, Keep planning sends ${JSON.stringify(keep)}`);
+  const flick = itemWith(perm, "readonly property Item shown"), m = /Layout\.preferredHeight:\s*/.exec(flick.text);
+  const height = (plan, implicit, maxHeight) => m ? inScope({ card: { plan, maxHeight }, detailFlick: { shown: { implicitHeight: implicit } } }, "",
+    `return (${flick.text.slice(m.index + m[0].length).split("\n")[0]});`)() : 0;
+  const conv = read("modules/claude/Conversation.qml");
+  const at = conv.indexOf("PermissionCard {"), inConv = at < 0 ? "" : conv.slice(at, matchBrace(conv, conv.indexOf("{", at)) + 1);
+  check("the plan grows into the room the conversation gives it, a command still stops at 220 px",
+    height("## Steps", 2000, 1000) > 600 && height("## Steps", 2000, 0) === 220 && height("", 2000, 1000) === 220 && height("## Steps", 90, 1000) === 90
+      && /\bmaxHeight:/.test(inConv) && /req\.message\s*=\s*message/.test(inConv),
+    `a long plan gets ${height("## Steps", 2000, 1000)} px of a 1000 px room, a command ${height("", 2000, 1000)}; Conversation ${/\bmaxHeight:/.test(inConv) ? "gives" : "gives no"} maxHeight and ${/req\.message/.test(inConv) ? "passes" : "drops"} the message`);
 }
 done();
