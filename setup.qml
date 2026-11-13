@@ -76,7 +76,7 @@ ApplicationWindow {
         onExited: {
             setup.joining = false;
             if (setup.installState !== "running") return;
-            setup.installUntouched = false; setup.installReason = "Setup's helper stopped"; setup.installState = "failed"; setup.go("failed");
+            setup.helperStopped(false);
         }
     }
     function receive(line) {
@@ -154,12 +154,19 @@ ApplicationWindow {
             if (installing || page === "failed" || trail.length === 0) return;
             const t = trail.slice(); page = t.pop(); trail = t;
         }
+        // a helper that has stopped is written to for nothing: Install led to "Installing" for good, with Back, Esc and
+        // closing the window refused while it ran
+        function helperStopped(untouched) {
+            installUntouched = untouched; installReason = "Setup's helper stopped"; installState = "failed"; go("failed");
+        }
         function startInstall() {
             if (installing) return;
+            if (!proc.running) { helperStopped(true); return; }
             backend.send({ op: "install", place: place }); installState = "running"; trail = []; go("you");
         }
         function startManual() {
             if (installing) return;
+            if (!proc.running) { helperStopped(true); return; }
             place = "manual";
             backend.send({ op: "install", place: "manual", root: partRoot, efi: partEfi, boot: partBoot || null });
             installState = "running"; trail = []; go("you");
@@ -350,7 +357,7 @@ ApplicationWindow {
                                         MouseArea { id: nma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.pickNetwork(net.modelData) }
                                     }
                                     Loader {
-                                        active: net.on && net.modelData.secure && !net.modelData.inUse
+                                        active: net.on && net.modelData.secure && !net.modelData.inUse && !net.modelData.enterprise
                                         visible: active
                                         sourceComponent: Column {
                                             width: Look.px(600)
@@ -844,7 +851,7 @@ ApplicationWindow {
         return on.length === 0 ? "" : ` What you chose with the accessibility button is not kept: Settings, under Accessibility, has ${on.join(" and ")}.`;
     }
     // a password field is on the page: the chosen network asks for one, or its name is being typed in
-    readonly property bool pwFieldShown: { const n = backend.wifi.find(w => w.ssid === setup.network); return setup.otherNet || (n !== undefined && n.secure && !n.inUse); }
+    readonly property bool pwFieldShown: { const n = backend.wifi.find(w => w.ssid === setup.network); return setup.otherNet || (n !== undefined && n.secure && !n.inUse && !n.enterprise); }
     // the system Tacit goes next to
     readonly property string other: backend.disk.case === "windows" ? "Windows" : backend.disk.case === "linux" ? "Linux" : "it"
     readonly property string primaryText: ({
@@ -869,7 +876,9 @@ ApplicationWindow {
         else { setup.layout = item.code; setup.layoutPicked = true; }
         setup.back();
     }
-    function pickNetwork(n) { setup.otherNet = false; setup.network = n.ssid; setup.joinError = ""; }
+    // an 802.1X network has no password box (Setup asks no user name, and every try said "Could not connect"): said instead
+    function pickNetwork(n) { setup.otherNet = false; setup.network = n.ssid;
+        setup.joinError = n.enterprise && !n.inUse ? "This network needs a user name too. Connect to it later in Settings, or use a cable." : ""; }
     function pickOther() { setup.otherNet = true; setup.network = ""; setup.joinError = ""; Qt.callLater(() => otherName.focusIn()); }
     // scroll the Wi-Fi list so that an item in it shows (Tab moves down a list longer than its window); a taller one shows its top
     function reveal(item) {
@@ -903,7 +912,7 @@ ApplicationWindow {
                 break;
             }
             const n = backend.wifi.find(w => w.ssid === setup.network);
-            if (!n || n.inUse || setup.joined === n.ssid) { setup.go("where"); break; }
+            if (!n || n.inUse || n.enterprise || setup.joined === n.ssid) { setup.go("where"); break; }
             setup.joining = true; setup.joinName = n.ssid; setup.joinError = "";
             backend.send({ op: "join", ssid: n.ssid, secure: n.secure, password: root.pwFieldRef?.text ?? "" });
             break;
@@ -937,8 +946,14 @@ ApplicationWindow {
         case "you": if (!root.primaryLater) root.afterQuestions(); break;
         case "ready": if (backend.practice) root.endPractice(); else backend.send({ op: "restart" }); break;
         // the disks are read again (a failed install may have changed them), and Back and Esc lead on from the page it shows;
-        // until they are, the page says it is looking and nothing can start on what they were
-        case "failed": setup.installState = ""; setup.trail = ["welcome", "wifi"]; backend.disksRead = false; setup.page = "where"; backend.send({ op: "disks" }); break;
+        // until they are, the page says it is looking and nothing can start on what they were. A helper that stopped before
+        // an installer was given anything is started again (its hello reads the disks); one that stopped mid-install is
+        // not, as that installer may still be running as root
+        case "failed":
+            if (!proc.running && setup.installUntouched) { backend.ready = false; proc.running = true; }
+            // after "Choose partitions myself" the page has no choice of that name: none was shown, and Continue led to erasing the disk
+            if (setup.place === "manual") setup.place = "next";
+            setup.installState = ""; setup.trail = ["welcome", "wifi"]; backend.disksRead = false; setup.page = "where"; backend.send({ op: "disks" }); break;
         }
     }
     function afterQuestions() {

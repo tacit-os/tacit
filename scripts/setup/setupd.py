@@ -110,7 +110,9 @@ def wifi():
         if len(p) < 4 or not p[1]:
             continue
         ssid = p[1]
-        n = {"ssid": ssid, "signal": int(p[2] or 0), "secure": p[3] not in ("", "--"), "inUse": p[0] == "*"}
+        # an 802.1X network (a university's, an office's) wants a user name too, which Setup does not ask: Settings joins it
+        n = {"ssid": ssid, "signal": int(p[2] or 0), "secure": p[3] not in ("", "--"), "inUse": p[0] == "*",
+             "enterprise": bool(re.search(r"802\.1X|EAP", p[3], re.I))}
         if ssid not in nets or n["signal"] > nets[ssid]["signal"]:
             nets[ssid] = n
     return sorted(nets.values(), key=lambda n: (not n["inUse"], -n["signal"]))[:24]
@@ -406,18 +408,28 @@ def shown_disk(d):
 def power():
     base = "/sys/class/power_supply"
     ac, pct, battery = False, None, False
+    def read(n, f):
+        try:
+            return open(f"{base}/{n}/{f}").read().strip()
+        except OSError:
+            return ""
     try:
-        for n in os.listdir(base):
-            t = open(f"{base}/{n}/type").read().strip()
-            if t == "Mains" and open(f"{base}/{n}/online").read().strip() == "1":
-                ac = True
-            battery = battery or t == "Battery"
-            if t == "Battery" and pct is None:
-                c = open(f"{base}/{n}/capacity").read().strip()
-                if c.isdigit() and int(c) > 0:
-                    pct = int(c)
+        names = os.listdir(base)
     except OSError:
-        pass
+        names = []
+    for n in names:
+        t = read(n, "type")
+        # a wireless mouse's, keyboard's or controller's own battery (scope Device) is not the computer's: a desktop with
+        # one was asked to plug in a charger it does not have. A charger on USB-C is type USB
+        if t == "Battery" and read(n, "scope") == "Device":
+            continue
+        if t in ("Mains", "USB") and read(n, "online") == "1":
+            ac = True
+        battery = battery or t == "Battery"
+        if t == "Battery" and pct is None:
+            c = read(n, "capacity")
+            if c.isdigit() and int(c) > 0:
+                pct = int(c)
     # a computer without a battery (a desktop) is always on the charger: Setup asked it to plug one in
     return {"ac": ac or not battery, "battery": pct}
 

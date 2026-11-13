@@ -53,4 +53,21 @@ check("setupd reads the disks for the list only, not again for a choice or Insta
     setup.page === "where" && backend.disksRead === false && JSON.stringify(sent) === '[{"op":"disks"}]',
     `page ${setup.page}, disksRead ${backend.disksRead}, sent ${JSON.stringify(sent)}`);
 }
+// Try again after "Choose partitions myself" failed: the disk page, read again with room next to Windows, has its first
+// choice on and its button says so; it had none on, and Continue went to "Erase this disk?"
+{
+  const backend = { disksRead: true, send: () => {} };
+  const setup = { installState: "failed", trail: [], page: "failed", place: "manual", installUntouched: false };
+  inScope({ shownPage: "failed", backend, setup, proc: { running: true }, root: {} }, forward.params, forward.body)();
+  Object.assign(backend, { disksRead: true, disk: { name: "/dev/nvme0n1", case: "windows", size: 512e9 },
+    plan: { room: true, windowsKeeps: 300e9, tacitGets: 210e9 }, disks: [] });
+  const went = [];
+  Object.assign(setup, { go: p => went.push(p), startInstall: () => went.push("install") });
+  const scope = { shownPage: "where", backend, setup, root: { other: "Windows" } };
+  const text = inScope(scope, "", `return (${primary});`)();
+  inScope(scope, forward.params, forward.body)();
+  check("Try again after a failed install on partitions chosen: Next to Windows is on, and the button installs next to it",
+    setup.place === "next" && text === "Install next to Windows" && JSON.stringify(went) === '["install"]',
+    `place ${setup.place}, "${text}", went to ${JSON.stringify(went)}`);
+}
 done();

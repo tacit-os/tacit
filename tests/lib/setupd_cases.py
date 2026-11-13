@@ -127,5 +127,53 @@ def zone():
               f"timezone {got!r}, {len(asked)} lookups, last sent {m.sent[-1]}")
 
 
-{"small": small, "reuse": reuse, "zone": zone}[sys.argv[2]]()
+def enterprise():
+    """An 802.1X network, as nmcli names it in SECURITY, is told apart from one a password alone joins."""
+    m = load()
+    m.run = lambda *cmd, timeout=10: "*:Home:80:WPA2\n :eduroam:70:WPA2 802.1X\n :Office\\:3F:60:WPA1 WPA2 802.1X\n" \
+        " :Flat:50:WPA3\n :Cafe:40:\n" if cmd[:1] == ("nmcli",) else ""
+    nets = {n["ssid"]: n for n in m.wifi()}
+    for ssid, want in [("eduroam", True), ("Office:3F", True), ("Home", False), ("Flat", False), ("Cafe", False)]:
+        got = nets.get(ssid, {}).get("enterprise")
+        check(f"{ssid}: {'802.1X' if want else 'not 802.1X'}", got is want, f"enterprise {got!r}")
+    check("an 802.1X network still shows as locked", nets["eduroam"]["secure"] is True)
+
+
+def power():
+    """On the charger or not, from a made-up /sys/class/power_supply: a mouse's, keyboard's or controller's battery is
+    not the computer's, and a charger on USB-C is a charger."""
+    import tempfile, types
+    sysfs = "/sys/class/power_supply"
+    mouse = {"type": "Battery", "scope": "Device", "capacity": "90"}
+    pad = {"type": "Battery", "scope": "Device", "capacity": "60", "online": "1"}
+    bat = {"type": "Battery", "capacity": "40"}
+    for name, supplies, want in [
+        ("a desktop with a wireless mouse: on mains", {"hidpp_battery_0": mouse}, {"ac": True, "battery": None}),
+        ("a desktop with a controller and a Bluetooth keyboard: on mains",
+         {"ps-controller-battery-aa:bb": pad, "hid-cc:dd-battery": mouse}, {"ac": True, "battery": None}),
+        ("a desktop with nothing: on mains", {}, {"ac": True, "battery": None}),
+        ("a laptop on its battery", {"BAT0": bat, "AC": {"type": "Mains", "online": "0"}}, {"ac": False, "battery": 40}),
+        ("a laptop on its battery, with a mouse: its own battery's 40 %",
+         {"BAT0": bat, "AC": {"type": "Mains", "online": "0"}, "hidpp_battery_0": mouse}, {"ac": False, "battery": 40}),
+        ("a laptop on its charger", {"BAT0": bat, "AC": {"type": "Mains", "online": "1"}}, {"ac": True, "battery": 40}),
+        ("a laptop charged by USB-C only, on it", {"BAT1": bat, "ucsi-source-psy-USBC000:001": {"type": "USB", "online": "1"}},
+         {"ac": True, "battery": 40}),
+        ("a laptop with USB-C charging, on its battery", {"BAT1": bat, "ucsi-source-psy-USBC000:001": {"type": "USB", "online": "0"}},
+         {"ac": False, "battery": 40}),
+    ]:
+        with tempfile.TemporaryDirectory() as base:
+            for n, files in supplies.items():
+                os.makedirs(f"{base}/{n}")
+                for f, v in files.items():
+                    with open(f"{base}/{n}/{f}", "w") as fh:
+                        fh.write(v + "\n")
+            m = load()
+            # the helper's reads of /sys/class/power_supply go to the made-up one
+            m.open = lambda p, *a, base=base, **k: open(p.replace(sysfs, base, 1), *a, **k)
+            m.os = types.SimpleNamespace(**dict(vars(os), listdir=lambda p, base=base: os.listdir(p.replace(sysfs, base, 1))))
+            got = m.power()
+        check(name, got == want, str(got))
+
+
+{"small": small, "reuse": reuse, "zone": zone, "enterprise": enterprise, "power": power}[sys.argv[2]]()
 sys.exit(1 if bad else 0)
