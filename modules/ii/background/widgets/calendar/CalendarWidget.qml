@@ -78,15 +78,15 @@ AbstractBackgroundWidget {
     }
 
     // The week starts where the person's locale says (0 = Sunday, as Date.getDay()), and the headers
-    // are the locale's day names. Latin short names are cut to two letters to fit the columns, as
-    // they were; names in other scripts are kept whole and shrink to fit instead.
+    // are the locale's short day names, cut to two letters (Mo Tu We) where the seven cuts still
+    // differ and whole where they do not, shrinking to fit, as the clock popup's week strip has them:
+    // Indonesian's Sen and Sel were both cut to Se.
     readonly property int weekStart: Qt.locale().firstDayOfWeek
     readonly property var dayHeads: {
         const l = Qt.locale();
-        return [0, 1, 2, 3, 4, 5, 6].map(i => {
-            const name = l.dayName((root.weekStart + i) % 7, Locale.ShortFormat);
-            return /^[A-Za-z]{3,}$/.test(name) ? name.substring(0, 2) : name;
-        });
+        const names = [0, 1, 2, 3, 4, 5, 6].map(i => l.dayName((root.weekStart + i) % 7, Locale.ShortFormat));
+        const cut = names.map(n => n.slice(0, 2));
+        return new Set(cut).size === 7 ? cut : names;
     }
 
     function getMonthMatrix(date) {

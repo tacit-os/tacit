@@ -20,21 +20,24 @@ Item {
     function projectX(lon) { return ((lon + 180) / 360) * width }
     function projectY(lat) { return ((90 - lat) / 180) * height }
 
-    // By words, accents and case aside (the table's names are plain: "São Paulo" is sao paulo): the city itself, else the
-    // longest one named in what was typed ("London, UK", "Santiago de Chile"), else one it names part of ("Ho Chi Minh").
-    // Never inside a word: "Nice" put the marker on Venice.
+    // By words, accents and case aside (the table's names are plain: "São Paulo" is sao paulo): the city itself, or by
+    // another name of it ("Kiev", "Wien": WorldCities.aliases), else the longest one named in what was typed ("London,
+    // UK", "Santiago de Chile"), else one it names part of ("Ho Chi Minh"). Never inside a word: "Nice" put the marker on
+    // Venice.
     function findCityCoords(cityName) {
         if (!cityName || cityName.length === 0) return null
         const words = s => ` ${s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim()} `
         const key = words(cityName)
         if (key.trim().length === 0) return null
+        const at = name => WorldCities.cityCoords[name] ?? WorldCities.cityCoords[WorldCities.aliases[name]]
+        const names = Object.keys(WorldCities.cityCoords).concat(Object.keys(WorldCities.aliases))
         let best = null
-        for (const name in WorldCities.cityCoords) {
-            if (` ${name} ` === key) return WorldCities.cityCoords[name]
+        for (const name of names) {
+            if (` ${name} ` === key) return at(name)
             if (key.includes(` ${name} `) && (best === null || name.length > best.length)) best = name
         }
-        if (best === null) best = Object.keys(WorldCities.cityCoords).find(name => ` ${name} `.includes(key)) ?? null
-        return best === null ? null : WorldCities.cityCoords[best]
+        if (best === null) best = names.find(name => ` ${name} `.includes(key)) ?? null
+        return best === null ? null : at(best)
     }
 
     function nearestCity(lat, lon) {

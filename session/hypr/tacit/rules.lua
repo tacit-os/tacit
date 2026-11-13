@@ -79,7 +79,9 @@ hl.window_rule({ match = { class = "thorium.*" }, opacity = pair(0.85, 0.77) })
 hl.window_rule({ match = { class = "[cC]hromium" }, opacity = pair(0.85, 0.77) })
 hl.window_rule({ match = { class = "zen" },       opacity = pair(0.85, 0.77) })
 hl.window_rule({ match = { class = "[hH]elium" }, opacity = pair(0.85, 0.77) })
-hl.window_rule({ match = { class = "browser" },   opacity = pair(0.85, 0.77) })  -- ~/dev/browser
+-- "browser" is the old ~/dev/browser build's class. Thyris is browser-cef and has no rule here: it stays opaque, not
+-- frosted, and fades only as any unfocused window does.
+hl.window_rule({ match = { class = "browser" },   opacity = pair(0.85, 0.77) })
 -- Helium's compact tab strip starts 4px in; the global 22px corner cuts the first tab.
 hl.window_rule({ match = { class = "[hH]elium" }, rounding = 16 })
 

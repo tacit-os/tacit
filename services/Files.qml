@@ -326,6 +326,11 @@ Singleton {
         const i = p.lastIndexOf("/");
         return i <= 0 ? "/" : p.substring(0, i);
     }
+    // Qt's folder model (6.12) can't list a folder whose path holds # or ?: it reads the path as a url again, where a #
+    // or ? ends it, and lists another folder or none. What Files' lists say there instead of rows, or "" when it can.
+    function cantList(path) {
+        return /[#?]/.test(path ?? "") ? "Files can't list a folder with # or ? in its name yet" : "";
+    }
 
     // ------------------------------------------------------------------ where to open
     function open(folder, select) {

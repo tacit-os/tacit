@@ -56,6 +56,35 @@ AbstractWidget {
 
     onReleased: root.commitPosition()
 
+    // Switched on while the desktop runs (Background.qml's switchedOn), a widget whose saved spot lies under one
+    // already shown takes the next free spot: every widget's saved spot starts at 400,100, so a second one switched on
+    // sat exactly over the first. The spots tried are beside those shown, to the right of each and below it, in reading
+    // order; the first that is on the screen and clear of them all is saved. With none, it stays where it was.
+    function takeFreeSpot() {
+        const canvas = root.registeredCanvas;
+        if (!canvas || root.placementStrategy !== "free") return;
+        const shown = canvas.registeredWidgets.filter(w => w !== root && w.visible && w.enabled);
+        const clear = (x, y) => x >= 0 && y >= 0
+            && x + root.width <= root.scaledScreenWidth && y + root.height <= root.scaledScreenHeight
+            && !shown.some(w => canvas.rectsIntersect(Qt.rect(x, y, root.width, root.height),
+                Qt.rect(w.x, w.y, w.width, w.height)));
+        if (clear(root.targetX, root.targetY)) return;
+        const gap = 24;
+        const spots = [];
+        for (const w of shown) spots.push(Qt.point(w.x + w.width + gap, w.y), Qt.point(w.x, w.y + w.height + gap));
+        const spot = spots.sort((a, b) => a.y - b.y || a.x - b.x).find(p => clear(p.x, p.y));
+        if (!spot) return;
+        root.configEntry.x = spot.x;
+        root.configEntry.y = spot.y;
+    }
+    Component.onCompleted: {
+        const canvas = root.findCanvas(root.parent);
+        if (!canvas?.switchedOn?.[root.configEntryName]) return;
+        canvas.switchedOn[root.configEntryName] = false;
+        // once its content has given it a size
+        Qt.callLater(root.takeFreeSpot);
+    }
+
     property bool needsColText: false
     property color dominantColor: Appearance.colors.colPrimary
     property bool dominantColorIsDark: dominantColor.hslLightness < 0.5

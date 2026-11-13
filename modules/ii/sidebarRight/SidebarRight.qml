@@ -90,11 +90,12 @@ Scope {
         // is the body plus one cove on the left and one above (DockedRect corner mode).
         readonly property int cove: 12
         implicitWidth: sidebarWidth + cove
-        // What the panel may never exceed: the screen minus the notch's reserved height. Past it the panel scrolls
+        // What the panel may never exceed: the screen minus the notch's reserved band, its height and its distance from
+        // the top (Island.qml's exclusiveZone). Past it the panel scrolls
         // its own content (SidebarRightContent.qml), because anything above the window's top
         // edge is outside the layer surface, where nothing is drawn and nothing is clickable.
         readonly property real panelMaxHeight: (screen?.height ?? 1080)
-            - Config.options.island.reservedHeight - cove
+            - Config.options.island.reservedHeight - Config.options.island.topMargin - cove
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
         // mask keeps the empty part click-through.

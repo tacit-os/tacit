@@ -481,7 +481,18 @@ PanelWindow {
                             label: `Up to ${Files.placeName(Files.parent(win.folder))}`
                             onClicked: win.go(Files.parent(win.folder))
                         }
-                        model: here
+                        model: Files.cantList(win.folder).length > 0 ? null : here   // Qt gives another folder's there, or none
+                        footer: StyledText {   // a folder Qt can't list (Files.cantList), where its rows would be
+                            width: listing.width
+                            height: visible ? 38 : 0
+                            visible: text.length > 0
+                            leftPadding: 10
+                            verticalAlignment: Text.AlignVCenter
+                            text: Files.cantList(win.folder)
+                            elide: Text.ElideRight
+                            font.pixelSize: 15
+                            color: Appearance.colors.colSubtext
+                        }
                         delegate: Row2 {
                             required property string fileName
                             required property string filePath

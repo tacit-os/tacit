@@ -138,11 +138,12 @@ FocusScope {
             if (r.mode === "clash") { if (event.key === Qt.Key_Escape) r.chooseOther(); return; }
             const bare = !(event.modifiers & (Qt.MetaModifier | Qt.ControlModifier | Qt.AltModifier | Qt.ShiftModifier));
             if (event.key === Qt.Key_Escape && bare) { r.cancelled(); return; }
-            const key = Shortcuts.keyName(event.key);
+            const key = Shortcuts.keyName(event.key, event.nativeScanCode, event.modifiers);
             let mods = Shortcuts.modsOf(event.modifiers);
             if (event.key === Qt.Key_Meta && !mods.includes("Super")) mods = ["Super", mods].filter(x => x !== "").join("+");
-            if (key === "") { r.capturedHeld(mods); return; }
-            r.capturedKeys(mods === "" ? key : `${mods}+${key}`, mods);
+            // a modifier is only held so far; any other key with no name is said under the row (Shortcuts.problem)
+            if (key === "" && [Qt.Key_Meta, Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_AltGr].includes(event.key)) { r.capturedHeld(mods); return; }
+            r.capturedKeys(key === "" ? "" : mods === "" ? key : `${mods}+${key}`, mods);
         }
         Keys.onReleased: event => { if (r.mode === "listening") r.capturedHeld(Shortcuts.modsOf(event.modifiers)); }
         Rectangle {

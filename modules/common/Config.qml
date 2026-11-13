@@ -637,7 +637,6 @@ Singleton {
                     property bool showMicToggle: false
                     property bool showKeyboardToggle: false
                     property bool showWallpaperToggle: true
-                    property bool showDarkModeToggle: false
                     property bool showPerformanceProfileToggle: false
                     property bool showScreenRecord: false       
                 }

@@ -57,7 +57,7 @@ ApplicationWindow {
     }
     // A page switch: the new page is built and laid out unseen (its rows settled over the first
     // frames, a flicker), then comes in from the top of the scroll, rising 6 px as it fades in.
-    onCurrentChanged: { root.revealPage(); Qt.callLater(root.revealInRail); }
+    onCurrentChanged: { root.desktopSilent = false; root.revealPage(); Qt.callLater(root.revealInRail); }
     // The open place stays in view in the rail: a page opened from outside (a link to About, Down
     // from the search) used to light a row that was scrolled out of sight.
     function revealInRail() {
@@ -523,6 +523,15 @@ ApplicationWindow {
                 wrapMode: Text.Wrap
             }
 
+            // a setting the desktop carries out was not answered (root.callShell)
+            Group {
+                visible: root.desktopSilent
+                SettingRow {
+                    clickable: false
+                    glyph: "warning"
+                    label: "The desktop isn't answering. Try again in a moment."
+                }
+            }
             // config.json has a mistake in it: what is set here looks set but is not kept (Config.fileBroken)
             Group {
                 visible: Config.fileBroken
@@ -592,6 +601,17 @@ ApplicationWindow {
     // literals that stayed "5 min" whatever the config said. A listener is told apart by what its
     // on-timeout runs.
     property var idleTimes: ({})
+    // where notifications open: the pop-ups and the centre (Notifications), or only the centre while the notch shows
+    // the notifications (Notch > Advanced); "top" and "bottom" are older files' words for the right-hand corners
+    readonly property var notificationCorners: [
+        { value: "top_right", label: "Top right" }, { value: "top_center", label: "Top centre" },
+        { value: "top_left", label: "Top left" }, { value: "bottom_right", label: "Bottom right" },
+        { value: "bottom_center", label: "Bottom centre" }, { value: "bottom_left", label: "Bottom left" }
+    ]
+    readonly property string notificationCorner: Config.options.notifications.position === "top" ? "top_right"
+        : Config.options.notifications.position === "bottom" ? "bottom_right" : Config.options.notifications.position
+    readonly property bool notchShowsNotifications: (Config.options.island.enable ?? false)
+        && (Config.options.island.states.notification ?? false)
     // a few durations in minutes as choices, plus the current one when the config holds another
     function minuteOptions(list, now) {
         return (list.includes(now) ? list : [...list, now].sort((x, y) => x - y)).map(m => ({ value: m, label: root.durationText(m * 60) }));
@@ -839,8 +859,9 @@ ApplicationWindow {
     function startPick(folder, label, images, dir, done) {
         root.pickDone = done;
         root.pickImages = images;
-        Quickshell.execDetached(["qs", "-p", Directories.shellFile, "ipc", "call", "files", dir ? "pickdir" : "pick",
-            folder || Quickshell.env("HOME"), root.selfPath, "settingsApp", label]);
+        // unanswered, no Files window comes, so nothing waits for its pick
+        root.callShell(["files", dir ? "pickdir" : "pick", folder || Quickshell.env("HOME"), root.selfPath, "settingsApp", label],
+            () => { if (root.pickDone === done) root.pickDone = null; });
     }
     function pickFile(label, folder, done) {
         root.startPick(folder, label, true, false, done);
@@ -851,7 +872,43 @@ ApplicationWindow {
     // A pick's callback runs long after it was made, so it must not reach for a page's ids: a page is
     // built only while it is shown, and the wallpaper tile's callback calls this, not the page
     function applyWallpaper(path) {
-        Quickshell.execDetached(["qs", "-p", Directories.shellFile, "ipc", "call", "wallpapers", "apply", path]);
+        root.callShell(["wallpapers", "apply", path]);
+    }
+
+    // What the desktop itself carries out (a wallpaper, a file pick, Do not disturb, brightness, night light) is asked of
+    // the shell with `qs ipc call`, which goes unanswered while the shell reloads or after it stopped. qs exits 255 when
+    // no shell runs, but 0 with the shell's refusal on stderr ("Not ready to accept queries yet." while it reloads,
+    // "Target not found."), and waits for good on a shell that hangs. Each call is read: one not answered in 5 s, or
+    // refused, puts its setting back (failed) and the top of the page says so, until a call goes through or another
+    // page opens.
+    property bool desktopSilent: false
+    function shellAnswered(code, err) {
+        // qs's own words for a call the shell did not take (Quickshell's src/io/ipccomm.cpp and src/ipc/ipc.cpp)
+        const refused = ["Target not found", "Function not found", "Not ready to accept queries", "Unable to parse argument",
+            "arguments provided", "invalid IPC response", "Socket Error"];
+        const ok = code === 0 && !refused.some(w => err.includes(w));
+        root.desktopSilent = !ok;
+        return ok;
+    }
+    Component {
+        id: shellCall
+        Process {
+            id: call
+            property var failed: null
+            stderr: StdioCollector { id: callErr }
+            // a call killed for taking too long crashed: its code says nothing
+            onExited: (code, status) => {
+                if (!root.shellAnswered(status === 0 ? code : -1, callErr.text) && call.failed)
+                    call.failed();
+                call.destroy();
+            }
+            readonly property Timer patience: Timer { interval: 5000; running: true; onTriggered: call.running = false }
+        }
+    }
+    function callShell(args, failed) {
+        const call = shellCall.createObject(root, { command: ["qs", "-p", Directories.shellFile, "ipc", "call"].concat(args),
+            failed: failed ?? null });
+        call.running = true;
     }
     // the list arrives as JSON text, as one path, or already unwrapped (claude.qml's picked)
     function receivePick(json) {
@@ -1432,6 +1489,13 @@ ApplicationWindow {
                     checked: Config.options.background.showBlur
                     onToggled: value => Config.options.background.showBlur = value
                 }
+                // the bar's frame (modules/ii/frame/ScreenFrame.qml), which lost its switch with the Bar page
+                SwitchRow {
+                    label: "Screen frame"
+                    description: "A thin band round the edges of the screen, with the windows inside it"
+                    checked: Config.options.bar.showFrame
+                    onToggled: value => Config.options.bar.showFrame = value
+                }
                 SettingRow {
                     label: "Lock screen picture"
                     description: Config.options.background.lockWall.length > 0
@@ -1702,6 +1766,7 @@ ApplicationWindow {
             // notch:<section>; the link is spent once the page has taken it, so choosing the page again opens its list
             function takeAnchor(anchor) {
                 if (["tells", "reminders", "music"].includes(anchor)) nt.viewing = anchor;
+                else if (anchor === "advanced") notchAdvanced.open = true;
                 root.pageAnchor = "";
             }
             Component.onCompleted: nt.takeAnchor(root.pageAnchor)
@@ -1953,6 +2018,7 @@ ApplicationWindow {
 
             // how long the notch shows things, and where it sits
             Advanced {
+                id: notchAdvanced
                 visible: nt.viewing === ""
                 StepperRow {
                     label: "A notification"
@@ -2006,6 +2072,14 @@ ApplicationWindow {
                     from: 0
                     to: 10
                     onMoved: value => Config.options.island.notificationQueueDepth = value
+                }
+                // the Notifications page's corner, here while the notch shows them: the centre still opens there
+                ChoiceRow {
+                    visible: root.notchShowsNotifications
+                    label: "Where the notification centre opens"
+                    options: root.notificationCorners
+                    current: root.notificationCorner
+                    onPicked: value => Config.options.notifications.position = value
                 }
             }
         }
@@ -2631,14 +2705,37 @@ ApplicationWindow {
                 visible: Vpn.connections.length > 0
                 Repeater {
                     model: Vpn.connections
-                    SwitchRow {
+                    // its switch, and behind ⋯ what the control panel's row holds (VpnSection.qml): coming on by itself
+                    // on a network not trusted, and Forget
+                    SettingRow {
+                        id: vpnRow
                         required property var modelData
+                        readonly property bool auto: Vpn.autoVpn === vpnRow.modelData.name
                         glyph: "vpn_key"
-                        label: modelData.name
-                        description: modelData.kind ?? ""
-                        checked: modelData.active
+                        label: vpnRow.modelData.name
+                        description: [vpnRow.modelData.kind ?? "", vpnRow.auto ? "On when not trusted" : ""]
+                            .filter(x => x.length > 0).join(" · ")
                         enabled: !Vpn.busy
-                        onToggled: Vpn.toggle(modelData.name)
+                        onActivated: Vpn.toggle(vpnRow.modelData.name)
+                        control: Row {
+                            spacing: 4
+                            RowMenu {
+                                items: [
+                                    { label: "On when not trusted", checked: vpnRow.auto, run: () => Vpn.setAuto(vpnRow.modelData.name) },
+                                    { label: "Forget", run: () => Vpn.forget(vpnRow.modelData.name) }
+                                ]
+                            }
+                            Toggle {
+                                anchors.verticalCenter: parent.verticalCenter
+                                focusPolicy: Qt.NoFocus
+                                enabled: vpnRow.enabled
+                                checked: vpnRow.modelData.active
+                                onClicked: {
+                                    Vpn.toggle(vpnRow.modelData.name);
+                                    checked = Qt.binding(() => vpnRow.modelData.active);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -2856,7 +2953,19 @@ ApplicationWindow {
             }
             Process {
                 id: writeSilent
-                onExited: readSilent.running = true
+                property bool was: false
+                stderr: StdioCollector { id: writeSilentErr }
+                // not answered (root.shellAnswered): Do not disturb is as it was, until the shell's own answer
+                onExited: (code, status) => {
+                    if (!root.shellAnswered(status === 0 ? code : -1, writeSilentErr.text))
+                        np.silent = writeSilent.was;
+                    readSilent.running = true;
+                }
+                readonly property Timer patience: Timer {
+                    interval: 5000
+                    running: writeSilent.running
+                    onTriggered: writeSilent.running = false
+                }
             }
             Connections {
                 target: root
@@ -2872,6 +2981,7 @@ ApplicationWindow {
                     description: "Notifications arrive without a pop-up and wait in the notification centre"
                     checked: np.silent
                     onToggled: value => {
+                        writeSilent.was = np.silent;
                         np.silent = value;
                         writeSilent.command = ["qs", "-p", Directories.shellFile, "ipc", "call", "notifications", "setSilent", value ? "true" : "false"];
                         writeSilent.running = true;
@@ -2880,7 +2990,16 @@ ApplicationWindow {
             }
             Group {
                 title: "Pop-ups"
+                // the notch shows them instead (NotificationPopup.qml's islandOwnsPopups): how long and where are its
+                // own then, and the corner left is the centre's, which is with them in Notch > Advanced
+                SettingRow {
+                    visible: root.notchShowsNotifications
+                    glyph: "call_to_action"
+                    label: "Notifications show in the notch · Notch › Advanced"
+                    onActivated: root.showPage("notch:advanced")
+                }
                 ChoiceRow {
+                    visible: !root.notchShowsNotifications
                     glyph: "timer"
                     label: "How long a pop-up stays"
                     options: [3000, 5000, 7000, 10000].concat([3000, 5000, 7000, 10000].includes(Config.options.notifications.timeout) ? [] : [Config.options.notifications.timeout])
@@ -2889,15 +3008,11 @@ ApplicationWindow {
                     onPicked: value => Config.options.notifications.timeout = value
                 }
                 ChoiceRow {
+                    visible: !root.notchShowsNotifications
                     glyph: "picture_in_picture"
                     label: "Where pop-ups appear"
-                    options: [
-                        { value: "top_right", label: "Top right" }, { value: "top_center", label: "Top centre" },
-                        { value: "top_left", label: "Top left" }, { value: "bottom_right", label: "Bottom right" },
-                        { value: "bottom_center", label: "Bottom centre" }, { value: "bottom_left", label: "Bottom left" }
-                    ]
-                    current: Config.options.notifications.position === "top" ? "top_right"
-                        : Config.options.notifications.position === "bottom" ? "bottom_right" : Config.options.notifications.position
+                    options: root.notificationCorners
+                    current: root.notificationCorner
                     onPicked: value => Config.options.notifications.position = value
                 }
             }
@@ -3079,11 +3194,26 @@ ApplicationWindow {
                     onToggled: value => Config.options.commandPalette.files.enable = value
                 }
                 FieldRow {
+                    id: lookIn
                     visible: Config.options.commandPalette.files.enable
                     label: "Look in"
                     placeholder: "Your home folder"
+                    // the folder the palette searches (PaletteFiles.searchRoot): in one that is not there it finds no
+                    // file, and only the palette said so ("File search failed.")
+                    property bool missing: false
+                    description: lookIn.missing ? "No such folder" : ""
                     text: Config.options.commandPalette.files.root
                     onCommitted: value => Config.options.commandPalette.files.root = value
+                    Process {
+                        id: lookInCheck
+                        running: true
+                        command: ["test", "-d", PaletteFiles.searchRoot]
+                        onExited: code => lookIn.missing = code !== 0
+                    }
+                    Connections {
+                        target: PaletteFiles
+                        function onSearchRootChanged() { lookInCheck.running = true; }
+                    }
                 }
             }
             Group {
@@ -3097,6 +3227,7 @@ ApplicationWindow {
                 FieldRow {
                     id: engineRow
                     label: "Web search address"
+                    description: "For example https://duckduckgo.com/?q=%s"
                     text: Config.options.search.engineBaseUrl
                     // the words are added to it as they are: with none, a web search opened nothing
                     onCommitted: value => {
@@ -4332,7 +4463,7 @@ ApplicationWindow {
 
             function setNight(on) {
                 dp.nightOn = on;
-                Quickshell.execDetached(["qs", "-p", Directories.shellFile, "ipc", "call", "nightLight", "set", on ? "true" : "false"]);
+                root.callShell(["nightLight", "set", on ? "true" : "false"], () => dp.nightOn = !on);
                 nightCheck.restart();
             }
             function scaleOptions(m) {
@@ -4432,7 +4563,8 @@ ApplicationWindow {
             Timer {
                 id: brightnessWrite
                 interval: 120
-                onTriggered: Quickshell.execDetached(["qs", "-p", Directories.shellFile, "ipc", "call", "brightness", "set", String(dp.wantBrightness)])
+                // unanswered, the knob goes back to the shell's own level (the file below)
+                onTriggered: root.callShell(["brightness", "set", String(dp.wantBrightness)], () => brightnessLevelFile.reload())
             }
             Timer {
                 id: nightCheck

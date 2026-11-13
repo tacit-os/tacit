@@ -86,6 +86,45 @@ def start_after_update(listed, offline=False):
     return seen
 
 
+def left_open(listed, glibc="2.42-1", updated=True, opened=True):
+    """Your apps' word (stored.py home()'s "waiting") for Discord got here at 0.0.111 sharing glibc 2.42-1: open or closed,
+    after Tacit's updates (the system changed since it was got) or before them, with the system's lists giving Discord at
+    `listed` and the system's glibc at `glibc`. bundle.py list runs as stored.py runs it, on this case's system (bundle-list);
+    the rest home() reads is empty"""
+    b, s = load("bundle"), load("stored")
+    local = os.path.join(home, "local", f"glibc-{glibc}"); os.makedirs(local)
+    open(os.path.join(local, "desc"), "w").write(f"%NAME%\nglibc\n\n%VERSION%\n{glibc}\n")
+    os.makedirs(os.path.join(home, "sync"))
+    with tarfile.open(os.path.join(home, "sync", "extra.db"), "w:gz") as t:
+        desc = f"%NAME%\ndiscord\n\n%VERSION%\n{listed}\n\n%FILENAME%\ndiscord-{listed}-x86_64.pkg.tar.zst\n".encode()
+        m = tarfile.TarInfo(f"discord-{listed}/desc"); m.size = len(desc); t.addfile(m, io.BytesIO(desc))
+    b.LOCAL_DB = os.path.dirname(local)
+    base = os.path.join(b.ROOT, "discord"); os.makedirs(base)
+    json.dump(dict(package="discord", version="1:0.0.111-1", versions={"discord": "1:0.0.111-1"}, shared=["glibc"],
+                   host_versions={"glibc": "2.42-1"}, host_stamp=1 if updated else b.host_stamp(), ids=["discord"], made=[], size=0),
+              open(os.path.join(base, "manifest.json"), "w"))
+    running = b.app_lock("discord", fcntl.LOCK_SH) if opened else None     # as run() holds it while the app is open
+    s.BUNDLE = [sys.executable, "-I", os.path.abspath(__file__), tree, "bundle-list", home]
+    s.editorial = lambda: {"apps": {}, "jobs": [], "picks": [], "feature": {"pkg": "discord"}}
+    s.load_index, s.available, s.installed, s.facts = lambda: {}, lambda: set(), s.bundles, lambda pkgs: {}
+    said = []; s.out = said.append
+    s.home()
+    if running is not None:
+        os.close(running)
+    return {"waiting": said[0].get("waiting")}
+
+
+def bundle_list():
+    """bundle.py run as left_open's stored.py runs it (store_cases.py <tree> bundle-list <its home> <args>), in that case's
+    home and on its system: the installed packages in <home>/local, the system's lists in <home>/sync"""
+    there = sys.argv[3]
+    os.environ["HOME"] = there
+    b = load("bundle")
+    b.LOCAL_DB, b.SYSTEM_SYNC, b.repos = os.path.join(there, "local"), os.path.join(there, "sync"), lambda: [("extra", [])]
+    sys.argv = ["bundle.py", *sys.argv[4:]]
+    b.main()
+
+
 class Unpacked(Exception):
     pass
 
@@ -130,10 +169,12 @@ def progress():
 
 
 def can():
-    """what an app's page is told it can use (stored.py info's "can"), for apps offered for calls and one with none"""
+    """what an app's page is told it can use (stored.py info's "can"), for apps offered for calls, ones given the whole home,
+    one with the defaults and one with none of it"""
     s = load("stored")
     ed = {"apps": {}}
-    return {p: s.info(p, {}, ed, {p}, set(), set()).get("can") for p in ("signal-desktop", "telegram-desktop", "discord", "element-desktop", "obs-studio", "gimp")}
+    return {p: s.info(p, {}, ed, {p}, set(), set()).get("can") for p in ("signal-desktop", "telegram-desktop", "discord", "element-desktop", "obs-studio",
+                                                                          "code", "libreoffice-fresh", "libreoffice-still", "gimp", "gnome-mines")}
 
 
 def restart_mark():
@@ -262,7 +303,10 @@ CASES = {"yours": yours, "can": can, "version": version, "restart-mark": restart
          "lists-slow": lambda: lists_on_a_line(125_000), "lists-stalled": lambda: lists_on_a_line(500), "lists-dead": lambda: lists_on_a_line(0),
          "fetch-no-resume": lambda: fetch_again(False), "fetch-resume": lambda: fetch_again(True),
          "start-newer": lambda: start_after_update("1:0.0.112-1"), "start-same": lambda: start_after_update("1:0.0.111-1"),
-         "start-newer-offline": lambda: start_after_update("1:0.0.112-1", offline=True)}
+         "start-newer-offline": lambda: start_after_update("1:0.0.112-1", offline=True),
+         "open-newer": lambda: left_open("1:0.0.112-1"), "open-same": lambda: left_open("1:0.0.111-1"),
+         "open-shared-changed": lambda: left_open("1:0.0.111-1", glibc="2.42-2"), "closed-newer": lambda: left_open("1:0.0.112-1", opened=False),
+         "open-newer-not-updated": lambda: left_open("1:0.0.112-1", updated=False), "bundle-list": bundle_list}
 try:
     seen = CASES[case]()
     if seen is not None:

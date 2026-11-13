@@ -774,7 +774,11 @@ Singleton {
                     for (const site of Config.options.search.excludedSites) {
                         query += ` -site:${site}`;
                     }
-                    Qt.openUrlExternally(Config.options.search.engineBaseUrl + encodeURIComponent(query));
+                    // %s is where the words go (Settings' example, https://duckduckgo.com/?q=%s); an address without
+                    // one has them at its end
+                    const base = Config.options.search.engineBaseUrl;
+                    Qt.openUrlExternally(base.includes("%s") ? base.replace("%s", () => encodeURIComponent(query))
+                        : base + encodeURIComponent(query));
                 }
             })];
     }

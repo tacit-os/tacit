@@ -883,6 +883,7 @@ ApplicationWindow {
         id: lr
         property var a
         property bool removable: false
+        property bool updateWaits: false
         readonly property string said: a ? (root.outcome[a.pkg] ?? "") : ""
         visible: !!a
         height: 84
@@ -897,6 +898,8 @@ ApplicationWindow {
             x: 68; anchors.verticalCenter: parent.verticalCenter; spacing: 3; width: lr.width - 68 - rowEnd.width - 24
             Body { text: lr.a?.name ?? ""; font.pixelSize: 17; font.weight: Font.DemiBold; width: parent.width; elide: Text.ElideRight }
             Small { text: [lr.a?.like, lr.a?.line].filter(x => x).join(" · "); width: parent.width; elide: Text.ElideRight }
+            // the row has room for three lines: what went wrong (Remove on it while open) is said instead
+            Small { visible: lr.updateWaits && ["", "ok"].includes(lr.said); text: "Updates when you next open it"; width: parent.width; elide: Text.ElideRight }
             Small { visible: lr.said !== "" && lr.said !== "ok"; text: (root.outcomeWords[lr.said] ?? ["", ""]).join(". "); color: Tacit.risk }
         }
         Row {
@@ -1379,7 +1382,8 @@ ApplicationWindow {
                                   : appPage.st === "get" && root.work ? `After ${root.appOf(root.work.pkg)?.name ?? root.work.pkg}`
                                   : [appPage.a?.plan?.download ? `${appPage.a.plan.download} MB` : appPage.a?.plan?.appMB ? `${appPage.a.plan.appMB} MB` : "",
                                      appPage.a?.free === false ? "Free to use" : "Free"].filter(x => x).join(" · ") }
-                        // the camera and the microphone, which its sandbox reaches (assets/store/permissions.json)
+                        // the whole home folder, the network, the camera and the microphone, which its sandbox reaches
+                        // (assets/store/permissions.json)
                         Small { visible: (appPage.a?.can?.length ?? 0) > 0; anchors.right: parent.right
                             text: `Can use: ${(appPage.a?.can ?? []).join(", ")}` }
                         Word { visible: root.restartNeeded && !["getting", "removing"].includes(appPage.st); anchors.right: parent.right
@@ -1457,7 +1461,9 @@ ApplicationWindow {
                 Item { width: 1; height: 56 }
                 Repeater {
                     model: yoursPage.list
-                    ListRow { required property var modelData; a: modelData; removable: !!modelData.removable; width: Math.min(root.cw, 1100) }
+                    // one left open over Tacit's updates runs the bundle it started on until its next start (bundle.py run)
+                    ListRow { required property var modelData; a: modelData; removable: !!modelData.removable
+                        updateWaits: (root.home?.waiting ?? []).includes(modelData.pkg); width: Math.min(root.cw, 1100) }
                 }
             }
         }

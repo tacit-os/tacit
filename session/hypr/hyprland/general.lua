@@ -39,11 +39,12 @@ hl.bind("switch:off:Lid Switch", function() lid() end, { locked = true })
 hl.on("monitor.added", function() lid() end)
 hl.on("monitor.removed", function(m) lid(m and m.name) end)
 
--- Three fingers do what the window band does, to the window under the pointer (Discord 2026-10-29: the band's line
--- takes fiddling on a touchpad): down hides it into the dock, left and right take that half, up puts it back to its
--- size. It acts once the fingers have travelled far enough; a short brush does nothing. (Three fingers moved the window
--- before; the band's line still does.) Up used to close it, and people swiping up to bring a window back lost it
--- (Discord, Mustiya and Noid, #70); closing stays with the band's line, its menu, a middle click and Super+Q.
+-- Three fingers do what the window band does, to the focused window (Discord 2026-10-29: the band's line takes fiddling
+-- on a touchpad): down hides it into the dock, left and right take that half, up puts it back to its size. The focused
+-- window, the one keys go to: after Alt+Tab or a dock click it need not be the one under the pointer, which no longer
+-- moves with focus. It acts once the fingers have travelled far enough; a short brush does nothing. (Three fingers
+-- moved the window before; the band's line still does.) Up used to close it, and people swiping up to bring a window
+-- back lost it (Discord, Mustiya and Noid, #70); closing stays with the band's line, its menu, a middle click and Super+Q.
 -- "back" is the way out of the other three: a window filled to the screen is restored, a window taken to a half goes
 -- back to where it was and how big; with neither, the plugin answers "nothing to undo" and nothing moves. A window in
 -- true fullscreen (a three-finger pinch, Super+F: mode 2) leaves it: the plugin's fill knows only the filled (mode 1)

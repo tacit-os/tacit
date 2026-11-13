@@ -93,9 +93,11 @@ Item {
         // a .git folder, or the .git file of a worktree or a submodule; six deep reaches ~/go/src/github.com/owner/repo
         command: ["fd", "--hidden", "--no-ignore", "--max-depth", "6", "^\\.git$", Quickshell.env("HOME"),
             "--exclude", ".cache", "--exclude", ".local", "--exclude", "node_modules", "--exclude", ".gradle",
-            "--exclude", ".npm", "--exclude", ".cargo", "--exclude", ".var", "--exclude", "build",
-            // tools' own checkouts and caches (skills, marketplaces): repositories nobody opens as a project
-            "--exclude", "*cache*", "--exclude", "vendor_imports", "--exclude", ".codex", "--exclude", ".grok", "--exclude", ".claude"]
+            "--exclude", ".npm", "--exclude", ".cargo", "--exclude", ".var", "--exclude", "build", "--exclude", "target",
+            // tools' own checkouts and caches (skills, marketplaces): repositories nobody opens as a project; by whole
+            // name, so a project in a folder like http-cache is listed
+            "--exclude", "cache", "--exclude", "__pycache__", "--exclude", ".pub-cache",
+            "--exclude", "vendor_imports", "--exclude", ".codex", "--exclude", ".grok", "--exclude", ".claude"]
         stdout: StdioCollector {
             onStreamFinished: picker.found = this.text.split("\n").filter(l => l.length)
                 .map(l => l.replace(/\/\.git\/?$/, "")).sort()

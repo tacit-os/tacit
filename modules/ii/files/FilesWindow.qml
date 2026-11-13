@@ -701,7 +701,9 @@ FloatingWindow {
         function rebuild() {
             const kinds = ({}), all = [];
             let total = 0;
-            for (let i = 0; i < raw.count; i++) {
+            // none for a folder Qt can't list: what it gives there is another folder's (Files.cantList)
+            const listed = Files.cantList(win.folder).length > 0 ? 0 : raw.count;
+            for (let i = 0; i < listed; i++) {
                 const name = raw.get(i, "fileName") + "";
                 const isDir = raw.get(i, "fileIsDir");
                 const row = { "fileName": name, "filePath": raw.get(i, "filePath"), "fileIsDir": isDir,
@@ -3222,6 +3224,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                         : `${Files.placeName(win.folder)} was moved or deleted.`;
                                 if (win.unreadable)
                                     return `You don't have permission to look in ${Files.placeName(win.folder)}.`;
+                                if (Files.cantList(win.folder).length > 0)   // in Columns its own column says it
+                                    return win.view === "columns" ? "" : Files.cantList(win.folder);
                                 if (folderModel.status !== FolderListModel.Ready || win.shownCount > 0)
                                     return "";
                                 if (win.query.length > 0)

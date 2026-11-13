@@ -61,7 +61,7 @@ ColumnLayout {
     }
     function captured(id, combo, held) {
         Shortcuts.listen(false);
-        page.held = combo;
+        page.held = combo || held;
         const why = Shortcuts.problem(combo);
         if (why !== "") { page.clashText = why; page.pend = { combo, holder: null }; page.mode = "clash"; return; }
         const adding = id === "adding";

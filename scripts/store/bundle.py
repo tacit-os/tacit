@@ -429,6 +429,17 @@ def app_lock(app, how):
     return fd
 
 
+def waiting(app, man):
+    """open, with an update its next start brings: run() brings a bundle in line with the system only when no copy of it is
+    running, so one left open over Tacit's updates keeps the bundle it started on"""
+    if man.get("host_stamp") == host_stamp():
+        return False
+    free = app_lock(app, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    if free is not None:
+        os.close(free); return False
+    return stale(man) or behind(man)
+
+
 def run(app, cmd):
     base = os.path.join(ROOT, app)
     # nobody has it open: the lock is ours alone, so the bundle can be brought in line without changing the folder under a
@@ -772,7 +783,8 @@ def main():
                 remove(a[1], keep_data="--data" not in a)
         elif a[0] == "list":
             for m in sorted(glob.glob(os.path.join(ROOT, "*/manifest.json"))):
-                j = json.load(open(m)); say(app=j["package"], version=j["version"], size=j["size"], packages=len(j["versions"]))
+                j = json.load(open(m)); say(app=j["package"], version=j["version"], size=j["size"], packages=len(j["versions"]),
+                                            waiting=waiting(j["package"], j))
         elif a[0] == "run":
             run(a[1], a[a.index("--") + 1:] if "--" in a else [])
         else:

@@ -1,6 +1,7 @@
 // Graphis's project picker lists the git repositories under home (modules/code/ProjectPicker.qml): the scan's own fd
 // command and its output handler run on a home of its own with a repository, a worktree and a submodule (whose .git is
-// a file), repositories five and six folders down, and the tool folders the picker leaves out.
+// a file), repositories five and six folders down, ones in a folder with "cache" in its name, and the tool and
+// build folders the picker leaves out by name.
 import { spawnSync } from "child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -27,6 +28,11 @@ else {
     repo("code/github.com/owner/tool");            // five down
     repo("go/src/github.com/owner/server");        // six down
     repo(".cache/someone/checkout");               // a tool's own: left out, as before
+    repo("dev/http-cache");                        // a project named so
+    repo("dev/image-cache-lib");
+    repo("work/cache-tools/server");               // under such a folder
+    const leftOut = ["cache/x", "build/x", "node_modules/x", "target/x", "__pycache__/x", ".pub-cache/git/pkg-1234"];
+    for (const p of leftOut) repo(`dev/app2/${p}`);   // tools' and builds' own folders
     const argv = inScope({ Quickshell: { env: k => (k === "HOME" ? home : "") } }, "", `return (${command});`)();
     const out = spawnSync(argv[0], argv.slice(1), { encoding: "utf8" }).stdout;
     const picker = { found: [] };
@@ -36,6 +42,10 @@ else {
       ["code/github.com/owner/tool", "a repository five folders down"], ["go/src/github.com/owner/server", "a repository six folders down"]])
       check(`${what} is listed (~/${p})`, found.includes(p), JSON.stringify(found));
     check("a tool's checkout under ~/.cache is still left out", !found.some(p => p.startsWith(".cache")), JSON.stringify(found));
+    for (const p of ["dev/http-cache", "dev/image-cache-lib", "work/cache-tools/server"])
+      check(`"cache" in a folder's name no longer hides it (~/${p})`, found.includes(p), JSON.stringify(found));
+    for (const p of leftOut)
+      check(`one under ${p.split("/")[0]}/ is left out`, !found.includes(`dev/app2/${p}`), JSON.stringify(found));
   } finally {
     rmSync(home, { recursive: true, force: true });
   }

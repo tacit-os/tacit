@@ -227,6 +227,11 @@ def bundle_version(pkg):
     return v.split(":")[-1].rsplit("-", 1)[0]
 
 
+def bundles_waiting():
+    """the bundles open now with an update that waits for their next start (bundle.py list), for Your apps to say"""
+    return [j["app"] for j in map(json.loads, run(BUNDLE + ["list"]).splitlines()) if j.get("waiting")]
+
+
 def bundle_plan(pkg):
     """the sandbox's plan in the window's words, or None when the app cannot be a bundle"""
     try:
@@ -526,14 +531,16 @@ PERMS = {}
 
 
 def can_use(pkg):
-    """what of the camera and the microphone the app's sandbox reaches, for its page to say ("Can use: camera, microphone")"""
+    """what of the whole home folder, the network, the camera and the microphone the app's sandbox reaches, for its page to
+    say ("Can use: your home folder, the network"). The person's own folders ("user-folders") have no words yet"""
     if not PERMS:
         try:
             PERMS.update(json.load(open(PERMISSIONS)))
         except (OSError, ValueError):
             pass
-    devices = PERMS.get("apps", {}).get(pkg, {}).get("devices", PERMS.get("default", {}).get("devices", []))
-    return [d for d in ("camera", "microphone") if d in devices]
+    p = dict(PERMS.get("default", {}), **PERMS.get("apps", {}).get(pkg, {}))
+    return ((["your home folder"] if p.get("files") == "home" else []) + (["the network"] if p.get("network") else [])
+            + [d for d in ("camera", "microphone") if d in p.get("devices", [])])
 
 
 def icon_ready(src):
@@ -591,7 +598,7 @@ def home():
                 continue
             break
     page = {"arch": os.uname().machine, "feature": feature, "picks": picks, "issue": issue(ed, cat), "jobs": ed["jobs"], "apps": apps, "windows": windows,
-         "installed": sorted(p for p in apps if apps[p]["installed"]), "restartNeeded": restart_needed()}
+         "installed": sorted(p for p in apps if apps[p]["installed"]), "restartNeeded": restart_needed(), "waiting": bundles_waiting()}
     # kept, so the window can draw the front page the moment it opens and refresh it from this a moment later
     try:
         os.makedirs(CACHE, exist_ok=True)

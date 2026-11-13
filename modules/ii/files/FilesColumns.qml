@@ -90,6 +90,7 @@ Item {
                 required property int index
                 readonly property alias list: lv
                 readonly property string chosen: columns.levels[col.index + 1] ?? ""
+                readonly property string cantList: Files.cantList(col.modelData)
                 x: col.index * columns.columnWidth
                 width: columns.columnWidth
                 height: strip.height
@@ -118,7 +119,7 @@ Item {
                     topMargin: 8
                     bottomMargin: 8
                     clip: true
-                    model: dir
+                    model: col.cantList.length > 0 ? null : dir   // Qt gives another folder's rows there, or none
                     boundsBehavior: Flickable.StopAtBounds
                     GlideWheel { view: lv }
                     delegate: K.ListRow {
@@ -144,6 +145,14 @@ Item {
                             color: K.Kit.tokens.inkMeta
                         }
                     }
+                }
+                // a folder Qt can't list: the sentence where the first row's symbol would be
+                K.PageState {
+                    x: lv.x + K.Kit.tokens.space.l
+                    y: lv.topMargin + K.Kit.tokens.space.m
+                    maxWidth: columns.columnWidth - 2 * x
+                    visible: text.length > 0
+                    text: col.cantList
                 }
                 Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: K.Kit.tokens.hairline }
             }
@@ -195,6 +204,13 @@ Item {
                         color: K.Kit.tokens.inkMeta
                     }
                 }
+            }
+            K.PageState {   // the same for the folder shown, which the window gives no rows for
+                x: last.x + K.Kit.tokens.space.l
+                y: last.topMargin + K.Kit.tokens.space.m
+                maxWidth: columns.columnWidth - 2 * x
+                visible: text.length > 0
+                text: Files.cantList(columns.folder)
             }
             Rectangle { anchors.right: parent.right; width: 1; height: parent.height; color: K.Kit.tokens.hairline }
         }

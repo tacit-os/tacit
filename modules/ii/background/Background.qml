@@ -761,6 +761,19 @@ Variants {
                 // so a click there lets go of the desktop's files here
                 onClicked: DesktopIcons.clear()
 
+                // the widgets switched on while the desktop runs, not loaded on with it: each looks for a free spot as it
+                // comes (AbstractBackgroundWidget.takeFreeSpot)
+                property var switchedOn: ({})
+                Instantiator {
+                    model: ["visualizer", "customImage", "calendar", "weather", "clock", "notes", "media", "images",
+                        "resources", "worldClock", "userCard", "todo", "timers"]
+                    delegate: Connections {
+                        required property string modelData
+                        target: Config.options.background.widgets[modelData]
+                        function onEnableChanged() { widgetCanvas.switchedOn[modelData] = Config.ready && target.enable }
+                    }
+                }
+
                 transitions: Transition {
                     PropertyAnimation {
                         properties: "width,height"

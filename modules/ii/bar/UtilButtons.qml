@@ -218,42 +218,6 @@ Item {
         }
 
         Loader {
-            active: Config.options.bar.utilButtons.showDarkModeToggle
-            visible: active
-            sourceComponent: isMaterial ? darkModeM3 : legacyDarkMode
-        }
-        Component {
-            id: darkModeM3
-            UtilButton {
-                iconText: Appearance.m3colors.darkmode ? "light_mode" : "dark_mode"
-                onClicked: (e) => {
-                    if (Appearance.m3colors.darkmode)
-                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "light", "--noswitch"])
-                    else
-                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "dark", "--noswitch"])
-                }
-            }
-        }
-        Component {
-            id: legacyDarkMode
-            CircleUtilButton {
-                onClicked: (e) => {
-                    if (Appearance.m3colors.darkmode)
-                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "light", "--noswitch"])
-                    else
-                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "dark", "--noswitch"])
-                }
-                MaterialSymbol {
-                    horizontalAlignment: Qt.AlignHCenter
-                    fill: 0
-                    text: Appearance.m3colors.darkmode ? "light_mode" : "dark_mode"
-                    iconSize: Appearance.font.pixelSize.large
-                    color: Appearance.colors.colOnLayer2
-                }
-            }
-        }
-
-        Loader {
             active: Config.options.bar.utilButtons.showPerformanceProfileToggle
             visible: active
             sourceComponent: isMaterial ? perfM3 : legacyPerf

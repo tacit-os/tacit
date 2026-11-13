@@ -11,7 +11,8 @@ local ORDER = { "SUPER", "CTRL", "ALT", "SHIFT" }
 local ALIAS = { MOD4 = "SUPER", WIN = "SUPER", LOGO = "SUPER", CONTROL = "CTRL", MOD1 = "ALT" }
 
 -- "SUPER + shift + S" -> "SUPER+SHIFT+s": one spelling per combination (nil when it is not one); then Hyprland's
--- spelling of it, "SUPER + SHIFT + S"
+-- spelling of it, "SUPER + SHIFT + S", with a digit by its place on the number row ("SUPER + code:10" for 1), as Settings
+-- records it: Hyprland matches a named key against the first layout's own, and AZERTY's 1 key is & there
 function M.normalize(s)
     if type(s) ~= "string" or s == "" then return nil end
     local mods, key, shown = {}, nil, nil
@@ -29,7 +30,7 @@ function M.normalize(s)
     local pretty = {}
     for _, m in ipairs(out) do pretty[#pretty + 1] = m end
     out[#out + 1] = key
-    pretty[#pretty + 1] = shown
+    pretty[#pretty + 1] = shown:match("^%d$") and ("code:" .. (shown == "0" and 19 or 9 + tonumber(shown))) or shown
     return table.concat(out, "+"), table.concat(pretty, " + ")
 end
 

@@ -52,7 +52,8 @@ try {
   const ran = [];
   const win = { trashDir: F.trashDir, home, folder: F.trashDir, selectedPaths: [], cursorPath: "", run: (op, items) => ran.push([op, items]), clearSelection() {} };
   const Files = { ...F, parent: inScope({ root: { trim: p => p.replace(/\/+$/, "") } }, fn(files, "parent").params, fn(files, "parent").body),
-    placeName: p => p.split("/").pop(), driveOf: F.driveOf ?? (() => null) };
+    placeName: p => p.split("/").pop(), driveOf: F.driveOf ?? (() => null),
+    cantList: fn(files, "cantList") ? inScope({}, fn(files, "cantList").params, fn(files, "cantList").body) : () => "" };
   const wscope = { win, Files, Devices, Things: { kindOf: () => "image" } };
   const bindWin = () => {
     if (fn(win_, "trashOf")) win.trashOf = inScope(wscope, fn(win_, "trashOf").params, fn(win_, "trashOf").body);

@@ -113,19 +113,35 @@ Singleton {
         [Qt.Key_Down]: "Down", [Qt.Key_Print]: "Print", [Qt.Key_Comma]: "comma", [Qt.Key_Period]: "period", [Qt.Key_Slash]: "slash",
         [Qt.Key_Semicolon]: "semicolon", [Qt.Key_Apostrophe]: "apostrophe", [Qt.Key_BracketLeft]: "bracketleft",
         [Qt.Key_BracketRight]: "bracketright", [Qt.Key_Backslash]: "backslash", [Qt.Key_Minus]: "minus", [Qt.Key_Equal]: "equal",
-        [Qt.Key_QuoteLeft]: "grave",
-        // what Shift turns a key into: the key itself is what the shortcut is on
-        [Qt.Key_Exclam]: "1", [Qt.Key_At]: "2", [Qt.Key_NumberSign]: "3", [Qt.Key_Dollar]: "4", [Qt.Key_Percent]: "5",
-        [Qt.Key_AsciiCircum]: "6", [Qt.Key_Ampersand]: "7", [Qt.Key_Asterisk]: "8", [Qt.Key_ParenLeft]: "9", [Qt.Key_ParenRight]: "0",
+        [Qt.Key_QuoteLeft]: "grave"
+    })
+    // what Shift turns a key into on a US keyboard, so with Shift only: the key itself is what the shortcut is on (AZERTY
+    // types : and < with no Shift, on keys of their own)
+    readonly property var shiftKeys: ({
         [Qt.Key_Underscore]: "minus", [Qt.Key_Plus]: "equal", [Qt.Key_BraceLeft]: "bracketleft", [Qt.Key_BraceRight]: "bracketright",
         [Qt.Key_Bar]: "backslash", [Qt.Key_Colon]: "semicolon", [Qt.Key_QuoteDbl]: "apostrophe", [Qt.Key_Less]: "comma",
         [Qt.Key_Greater]: "period", [Qt.Key_Question]: "slash", [Qt.Key_AsciiTilde]: "grave"
     })
+    // a US keyboard's letter rows by place; nativeScanCode is the evdev code + 8, as Qt's Wayland keyboard and xkb number keys
+    readonly property var usPlaces: {
+        const m = {};
+        for (const [first, keys] of [[24, "Q W E R T Y U I O P bracketleft bracketright"], [38, "A S D F G H J K L semicolon apostrophe grave"],
+                                     [51, "backslash Z X C V B N M comma period slash"]])
+            keys.split(" ").forEach((k, i) => m[first + i] = k);
+        return m;
+    }
     // The key name for a key event, or "" when it is only a modifier or is not a key a shortcut can be on.
-    function keyName(key: int): string {
+    // The number row goes by place, whatever the layout types there (AZERTY's & on the 1 key, a Shift symbol), and
+    // tacit/shortcuts.lua binds a digit by place too. A letter of another script (Russian, Greek; Qt gives its upper-case
+    // code point) is the US key at its place: Hyprland matches a named key against the first layout's keys, and Tacit
+    // puts US first beside such a layout.
+    function keyName(key: int, scan: int, mods: int): string {
+        if (scan >= 10 && scan <= 19) return String((scan - 9) % 10);
         if (key >= Qt.Key_A && key <= Qt.Key_Z) return String.fromCharCode(key);
+        if (key >= 0x370 && key < 0x01000000) return root.usPlaces[scan] ?? "";
         if (key >= Qt.Key_0 && key <= Qt.Key_9) return String.fromCharCode(key);
         if (key >= Qt.Key_F1 && key <= Qt.Key_F24) return `F${key - Qt.Key_F1 + 1}`;
+        if (mods & Qt.ShiftModifier && root.shiftKeys[key]) return root.shiftKeys[key];
         return root.qtKeys[key] ?? "";
     }
     // Modifiers held, as the words of a combo ("Super+Shift")
@@ -138,9 +154,10 @@ Singleton {
         return out.join("+");
     }
 
-    // What a pressed combination may be. A shortcut with no Super would take that key from every app (Ctrl+W), so
-    // it needs Super; "" says it is fine.
+    // What a pressed combination may be ("" when the key pressed has no name here: ù, a dead key). A shortcut with no
+    // Super would take that key from every app (Ctrl+W), so it needs Super; "" says it is fine.
     function problem(combo: string): string {
+        if (combo === "") return "This key can't be used for a shortcut.";
         if (!combo.split("+").includes("Super")) return "Use Super with another key, so no app loses a key it needs.";
         if (combo.split("+").length < 2) return "Add another key to Super.";
         return "";
