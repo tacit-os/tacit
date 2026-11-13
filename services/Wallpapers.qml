@@ -142,6 +142,58 @@ Singleton {
         Config.writeNow();
     }
 
+    // A picture's own size in pixels, read from its header once (Pillow is a dependency) and kept: Qt never scales a
+    // decode up and gives no picture's size without decoding it, so the desktop needs it to cut a picture smaller than
+    // the screen from its own pixels (WallpaperImage). (-1, -1) while it is read, (0, 0) when it cannot be.
+    property var sizes: ({})
+    property var sizeQueue: []
+    function sizeFor(path) {
+        const key = FileUtils.trimFileProtocol(String(path ?? ""));
+        if (key === "")
+            return Qt.size(0, 0);
+        const s = root.sizes[key];
+        if (s === undefined) {
+            Qt.callLater(root.askSize, key);
+            return Qt.size(-1, -1);
+        }
+        return Qt.size(s[0], s[1]);
+    }
+    function askSize(key) {
+        if (root.sizes[key] !== undefined || root.sizeQueue.includes(key) || sizeProc.asking === key)
+            return;
+        root.sizeQueue.push(key);
+        sizeProc.next();
+    }
+    Process {
+        id: sizeProc
+        property string asking: ""
+        function next() {
+            if (sizeProc.running || root.sizeQueue.length === 0)
+                return;
+            sizeProc.asking = root.sizeQueue.shift();
+            // the path is an argument, never part of the script
+            sizeProc.exec(["python3", "-I", "-c",
+                "import sys\nfrom PIL import Image\ntry:\n    print(*Image.open(sys.argv[1]).size)\nexcept Exception:\n    print(0, 0)",
+                sizeProc.asking]);
+        }
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const n = text.trim().split(/\s+/).map(Number);
+                const size = n.length === 2 && n.every(v => v >= 0) ? n : [0, 0];
+                root.sizes = Object.assign({}, root.sizes, { [sizeProc.asking]: size });
+            }
+        }
+        // after the output, and also when python3 could not start (no exited then), or the picture would wait for ever
+        onRunningChanged: {
+            if (sizeProc.running || sizeProc.asking === "")
+                return;
+            if (root.sizes[sizeProc.asking] === undefined)
+                root.sizes = Object.assign({}, root.sizes, { [sizeProc.asking]: [0, 0] });
+            sizeProc.asking = "";
+            sizeProc.next();
+        }
+    }
+
     // An online picture (OnlineWallpapers.results item): downloaded to Pictures/Wallpapers, then
     // applied. The url and id come out of a provider's JSON: https only, the id reduced to
     // file-name characters, curl given argv (OnlineWallpaperGrid.qml did the same). A stalled transfer gives up (under
