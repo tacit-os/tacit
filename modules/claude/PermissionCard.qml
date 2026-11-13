@@ -86,8 +86,9 @@ Rectangle {
     // answer in that place
     property bool keys: true
     readonly property bool keyed: card.keys && card.visible && !card.sent
+    // Enter and Esc only: a digit stays the box's, so a message started with "2" can never grant Always allow
     function key(k) {
-        const b = k === "enter" ? card.buttons[0] : k === "esc" ? card.buttons.find(x => !x.allow) : card.buttons[k - 1];
+        const b = k === "enter" ? card.buttons[0] : k === "esc" ? card.buttons.find(x => !x.allow) : null;
         if (!card.keyed || !b) return false;
         card.pick(b);
         return true;

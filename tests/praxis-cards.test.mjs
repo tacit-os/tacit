@@ -65,8 +65,8 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
     for (const k of [2, 3, "enter", "esc"]) out.push(key(k) ? log.pop() : "-");
     return out;
   };
-  check("Enter allows, Esc denies (or keeps planning), and a digit is the answer in that place on a permission card",
-    JSON.stringify(permSaid) === JSON.stringify(["allow", "allow always", "deny", "deny", "-", "allow session", "allow folder", "deny", "deny"]), JSON.stringify(permSaid));
+  check("Enter allows and Esc denies (or keeps planning) on a permission card; a digit is never an answer there, it is typed",
+    JSON.stringify(permSaid) === JSON.stringify(["allow", "-", "deny", "-", "-", "-", "-", "deny", "deny"]), JSON.stringify(permSaid));
   check("on a question card a digit picks that choice, Enter goes on and Esc skips; on a choose card a digit ticks, Enter answers, Esc leaves it to the agent",
     JSON.stringify(question()) === '["pick B","-","next","skip"]' && JSON.stringify(choose()) === '["nothing","tick /b","-","answer /b","leave"]',
     `question ${JSON.stringify(question())}, choose ${JSON.stringify(choose())}`);
