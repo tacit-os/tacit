@@ -2,7 +2,8 @@
 """phone-link.py <command> [args]: the shell's one way to the phone daemon (kdeconnectd), over D-Bus with busctl.
 
   start                  start the daemon for this session (as at sign-in), wait until it answers, ask it to look for phones
-  state                  JSON: installed, running, this computer's name, and every device it knows
+  state                  JSON: installed, running, this computer's name, every device it knows (a connected phone with
+                         its battery, -1 when it has sent none), and whether the phone can move the pointer and type here
   refresh                ask the daemon to look for devices again
   accept <id>            accept a pairing the phone asked for (asks for one when the phone has not)
   decline <id>           turn a pairing request down
@@ -29,6 +30,12 @@ DAEMON = "/modules/kdeconnect"
 I_DAEMON = "org.kde.kdeconnect.daemon"
 I_DEVICE = "org.kde.kdeconnect.device"
 I_SHARE = "org.kde.kdeconnect.device.share"
+I_BATTERY = "org.kde.kdeconnect.device.battery"
+# A phone's touchpad and keyboard (its remote input) reach a Wayland desktop only through this portal's remote desktop
+# interface, which the portal offers only when one of its backends has it (none of Hyprland's does yet)
+PORTAL = "org.freedesktop.portal.Desktop"
+PORTAL_PATH = "/org/freedesktop/portal/desktop"
+I_REMOTE = "org.freedesktop.portal.RemoteDesktop"
 
 
 def bus(*args, timeout=5):
@@ -42,9 +49,9 @@ def call(path, iface, method, sig="", *args):
     return bus("call", NAME, path, iface, method, sig, *args)
 
 
-def prop(path, name):
+def prop(path, name, iface=I_DEVICE):
     # a property comes back as the value itself, a call's reply as a list of values
-    return bus("get-property", NAME, path, I_DEVICE, name)
+    return bus("get-property", NAME, path, iface, name)
 
 
 def dev_path(i):
@@ -60,7 +67,7 @@ def computer_name():
 
 def device(i):
     p = dev_path(i)
-    d = {"id": i, "name": "", "paired": False, "reachable": False, "asked": False, "key": ""}
+    d = {"id": i, "name": "", "paired": False, "reachable": False, "asked": False, "key": "", "battery": -1, "charging": False}
     try:
         d["name"] = prop(p, "name")
         d["reachable"] = bool(prop(p, "isReachable"))
@@ -74,7 +81,23 @@ def device(i):
             d["key"] = call(p, I_DEVICE, "verificationKey")[0]
     except Exception:
         pass
+    # what the phone last said of its battery; -1 until it says (an iPhone never does: its app sends it only to a
+    # computer that asks for it, which this daemon no longer does), and no battery object without the plugin
+    if d["paired"] and d["reachable"]:
+        try:
+            d["battery"] = int(prop(f"{p}/battery", "charge", I_BATTERY))
+            d["charging"] = bool(prop(f"{p}/battery", "isCharging", I_BATTERY))
+        except Exception:
+            d["battery"], d["charging"] = -1, False
     return d
+
+
+def remote_input():
+    try:
+        bus("get-property", PORTAL, PORTAL_PATH, I_REMOTE, "version")
+        return True
+    except Exception:
+        return False
 
 
 def state():
@@ -86,6 +109,8 @@ def state():
     s["running"] = True
     s["name"] = computer_name()
     s["devices"] = [d for d in (device(i) for i in ids) if d]
+    if any(d["paired"] for d in s["devices"]):
+        s["remoteInput"] = remote_input()
     return s
 
 

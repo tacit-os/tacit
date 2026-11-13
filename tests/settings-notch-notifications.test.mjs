@@ -1,15 +1,15 @@
-// While the notch shows notifications, Settings > Notifications' two pop-up rows (how long, where) do nothing: the notch
-// holds them for its own time. They are one line then, "Notifications show in the notch · Notch › Advanced", which opens
-// that page's Advanced, and the corner they set, which is still where the notification centre opens, is a row there.
-// The rows' visible, current and run bindings (tacit-settings.qml) go under node with a stand-in Config. Advanced is the
-// Notch page's last group and the corner its last row, below the fold of Settings' 780 px window: the line opens the page
-// with Advanced at the top. The page's own anchor handling runs under qmltestrunner offscreen, in a Flickable and Qt
-// Layouts as Settings has them, with stand-in rows of the real rows' heights (48 px, 62 with a description).
-import { inScope, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
+// The notch never shows notifications (the owner, 2026-11-13): Settings has no switch for it, and a file that saved one
+// on from before 1.2.15 gets Settings > Notifications' two pop-up rows (how long, where) as everyone does, with no line
+// sending them to the notch and no second corner row in Notch > Advanced. The rows' visible, current and run bindings
+// (tacit-settings.qml) go under node with Config's own defaults and a saved file read as its JsonAdapter reads one (the
+// keys it declares, nothing else). Notch > Advanced still opens in view from "notch:advanced": the page's own anchor
+// handling runs under qmltestrunner offscreen, in a Flickable and Qt Layouts as Settings has them, with stand-in rows
+// of the real rows' heights (48 px, 62 with a description).
+import { adapterDefaults, inScope, loadInto, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { logged, module, objectWith, runScene } from "./lib/qtscene.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
-console.log("== the pop-up rows while the notch shows notifications (tacit-settings.qml)");
+console.log("== the pop-up rows, with the notch's notifications saved on and off (tacit-settings.qml)");
 const src = read("tacit-settings.qml");
 // the objects directly inside a block, with their type
 function children(block) {
@@ -31,8 +31,10 @@ const expr = (block, name) => {
 };
 const label = row => (/label:\s*"([^"]*)"/.exec(row) ?? [])[1];
 
-for (const notch of [true, false]) {
-  const Config = { options: { island: { enable: true, states: { notification: notch } }, notifications: { position: "bottom" } } };
+const defaults = adapterDefaults(read("modules/common/Config.qml"));
+for (const saved of [true, false]) {
+  const options = loadInto(defaults, { island: { enable: true, states: { notification: saved } }, notifications: { position: "bottom" } });
+  const Config = { options };
   const root = { pages: [], showPage: p => root.pages.push(p) };
   for (const name of ["notificationCorners", "notificationCorner", "notchShowsNotifications"]) {
     const e = qmlProperty(src, name);
@@ -40,46 +42,32 @@ for (const notch of [true, false]) {
   }
   const value = e => (e === null ? true : inScope({ Config, root }, "", `return (${e});`)());
   const rows = children(objectWith(src, 'title: "Pop-ups"'));
-  const shown = rows.filter(r => value(expr(r.text, "visible")));
-  const words = shown.map(r => label(r.text));
-  if (notch) {
-    check("with the notch showing notifications, Pop-ups is one line: \"Notifications show in the notch · Notch › Advanced\"",
-      JSON.stringify(words) === JSON.stringify(["Notifications show in the notch · Notch › Advanced"]), JSON.stringify(words));
-    const line = shown.find(r => label(r.text)?.startsWith("Notifications show in the notch"));
-    if (line) {
-      value(expr(line.text, "onActivated"));
-      check("and the line opens Notch › Advanced", JSON.stringify(root.pages) === '["notch:advanced"]', JSON.stringify(root.pages));
-    }
-    // the Notch page takes that anchor by opening its Advanced
-    const take = qmlFunction(objectWith(src, "id: notchPage"), "takeAnchor");
-    const notchAdvanced = { open: false };
-    inScope({ nt: { viewing: "" }, notchAdvanced, root: { pageAnchor: "advanced" }, toAdvancedEnd: { restart() {} }, Qt: { callLater() {} } },
-      take.params, take.body)("advanced");
-    check("which the Notch page opens at its Advanced", notchAdvanced.open === true);
-  } else {
-    check("with the notch not showing them, Pop-ups has its two rows", JSON.stringify(words) === '["How long a pop-up stays","Where pop-ups appear"]',
-      JSON.stringify(words));
-  }
-
-  // the corner, in the Notch page's Advanced while the notch shows notifications
-  const notchPage = objectWith(src, "id: notchPage"), advAt = notchPage.indexOf("Advanced {");
-  const advanced = children(notchPage.slice(advAt, matchBrace(notchPage, notchPage.indexOf("{", advAt)) + 1)).filter(r => r.type === "ChoiceRow"
-    && (expr(r.text, "onPicked") ?? "").includes("notifications.position"));
-  const corner = advanced.find(r => value(expr(r.text, "visible")));
-  if (notch) {
-    check("Notch › Advanced has the notification centre's corner", !!corner, `${advanced.length} such rows`);
-    if (corner) {
-      const options = value(expr(corner.text, "options")).map(o => o.value);
-      check("with the six corners, an old \"bottom\" read as bottom right",
-        options.length === 6 && value(expr(corner.text, "current")) === "bottom_right", `${JSON.stringify(options)}, ${value(expr(corner.text, "current"))}`);
-      value(expr(corner.text, "onPicked"))("top_left");
-      check("and picking one sets where notifications open", Config.options.notifications.position === "top_left");
-    }
-  } else {
-    check("and the Notch page has no second corner row then", !corner);
+  const words = rows.filter(r => value(expr(r.text, "visible"))).map(r => label(r.text));
+  check(`notifications in the notch saved ${saved ? "on" : "off"}: Pop-ups has its two rows`,
+    JSON.stringify(words) === '["How long a pop-up stays","Where pop-ups appear"]', JSON.stringify(words));
+  const corner = rows.find(r => label(r.text) === "Where pop-ups appear");
+  if (corner) {
+    check("with the six corners, an old \"bottom\" read as bottom right",
+      value(expr(corner.text, "options")).length === 6 && value(expr(corner.text, "current")) === "bottom_right", value(expr(corner.text, "current")));
+    value(expr(corner.text, "onPicked"))("top_left");
+    check("and picking one sets where notifications open", Config.options.notifications.position === "top_left");
   }
 }
-// the line's way to the page, to the end: the corner's row in view once the page has laid out
+check("no line sends the pop-ups to the notch", !src.includes("Notifications show in the notch"));
+{
+  const notchPage = objectWith(src, "id: notchPage"), advAt = notchPage.indexOf("Advanced {");
+  const advanced = children(notchPage.slice(advAt, matchBrace(notchPage, notchPage.indexOf("{", advAt)) + 1));
+  const corners = advanced.filter(r => (expr(r.text, "onPicked") ?? "").includes("notifications.position"));
+  check("Notch › Advanced has no second corner row", corners.length === 0, `${corners.length} such rows`);
+  const held = advanced.filter(r => /hold\.notification/.test(r.text)).map(r => label(r.text));
+  check("nor a time a notification is held in the notch", held.length === 0, JSON.stringify(held));
+  const tells = children(objectWith(notchPage, 'title: "What it tells you about"'));
+  const switches = tells.filter(r => /states\.notification/.test(r.text)).map(r => label(r.text));
+  check("Notch › What it tells you about has no Notifications switch", switches.length === 0, JSON.stringify(switches));
+  const keys = inScope({}, "", `return (${readExpression(notchPage, notchPage.indexOf("tellKeys:") + "tellKeys:".length).expr});`)();
+  check("and its count leaves notifications out", !keys.includes("notification"), JSON.stringify(keys));
+}
+// notch:advanced, to the end: Advanced's last row in view once the page has laid out
 {
   const nt = objectWith(src, "id: notchPage");
   const fn = (block, name) => { const f = qmlFunction(block, name); return f ? `function ${name}(${f.params}) {${f.body}}` : ""; };
@@ -158,10 +146,9 @@ TestCase {
                     Layout.topMargin: 6
                     Layout.fillWidth: true
                     spacing: 0
-                    Repeater { model: 4; Item { implicitHeight: 48; Layout.fillWidth: true } }
+                    Repeater { model: 3; Item { implicitHeight: 48; Layout.fillWidth: true } }
                     Item { implicitHeight: 62; Layout.fillWidth: true }
-                    Item { implicitHeight: 48; Layout.fillWidth: true }
-                    Item { objectName: "corner"; implicitHeight: 48; Layout.fillWidth: true }
+                    Item { objectName: "last"; implicitHeight: 48; Layout.fillWidth: true }
                 }
             }
         }
@@ -186,7 +173,7 @@ TestCase {
         wait(100);
         root.showPage("notch:advanced");
         wait(400);
-        out.corner = root.place("corner");
+        out.last = root.place("last");
         out.anchor = root.pageAnchor;
         root.current = 0;
         wait(100);
@@ -204,8 +191,8 @@ TestCase {
     check("the scene ran", false, String(e.message ?? e));
   }
   if (out) {
-    const c = out.corner;
-    check("the line lands with Advanced's last row, the centre's corner, in view, not at the top of the page",
+    const c = out.last;
+    check("notch:advanced lands with Advanced's last row in view, not at the top of the page",
       c.top >= c.from && c.bottom <= c.to && out.anchor === "", JSON.stringify(out));
     check("and the Notch page opened from the rail still starts at its top", out.plain === 0, JSON.stringify(out));
   }

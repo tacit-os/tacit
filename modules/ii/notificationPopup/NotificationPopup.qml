@@ -27,10 +27,7 @@ Scope {
     // The window exists only while something shows here, and while it folds away: an empty window kept a renderer of
     // its own (39-77 MB on a 1080p test computer, 2026-11-04). The corner door, the edge that opens the centre when
     // nothing shows, lives in the top and bottom strips of ScreenCorners, which are always there.
-    readonly property bool islandOwnsPopups: (Config.options.island.enable ?? false)
-        && (Config.options.island.states.notification ?? false)
-    readonly property bool showing: GlobalStates.notificationCenterOpen
-        || (!notificationPopup.islandOwnsPopups && Notifications.popupList.length > 0)
+    readonly property bool showing: GlobalStates.notificationCenterOpen || Notifications.popupList.length > 0
     property bool folding: false
 
     LazyLoader {
@@ -54,13 +51,9 @@ Scope {
             property bool isRight: position.endsWith("right")
 
             readonly property bool centerOpen: GlobalStates.notificationCenterOpen
-            // One event, one surface: with the island peeking notifications, the transient popup here
-            // would be the second. Only the popup stands down - this file also owns the notification
-            // CENTRE and the `notifications` IPC, and gating the whole panel off (which is what the
-            // panel family did) left a default install with no centre at all, a screen corner that
-            // toggled it into the void, and `ipc call notifications` answering nothing.
-            readonly property bool islandOwnsPopups: notificationPopup.islandOwnsPopups
-            readonly property bool hasPopups: !root.islandOwnsPopups && Notifications.popupList.length > 0
+            // Notifications are this panel's alone: the notch never shows them (the owner, 2026-11-13), so a saved
+            // island.states.notification from before 1.2.15 no longer stands the pop-ups down
+            readonly property bool hasPopups: Notifications.popupList.length > 0
             readonly property bool showing: root.hasPopups || root.centerOpen
 
             WlrLayershell.namespace: "quickshell:notificationPopup"
@@ -72,7 +65,7 @@ Scope {
             // ends it.
             readonly property bool replying: Notifications.list.some(n => n.replyActive)
             WlrLayershell.keyboardFocus: root.replying ? WlrKeyboardFocus.Exclusive
-                : (root.centerOpen || (!root.islandOwnsPopups && Notifications.popupList.some(n => n.hasInlineReply))) ? WlrKeyboardFocus.OnDemand
+                : (root.centerOpen || Notifications.popupList.some(n => n.hasInlineReply)) ? WlrKeyboardFocus.OnDemand
                 : WlrKeyboardFocus.None
             // Ignore other layers' reserved zones (the notch reserves 38px at the top), so the
             // panel really starts at the screen edge like the notch does.
@@ -297,7 +290,7 @@ Scope {
                     anchors.left: parent.left
                     anchors.right: parent.right
                     anchors.margins: dock.pad
-                    visible: !root.centerOpen && !root.islandOwnsPopups
+                    visible: !root.centerOpen
                     reverse: root.isBottom
                     maxHeight: dock.cap - dock.pad * 2
                 }

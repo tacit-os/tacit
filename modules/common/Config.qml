@@ -709,8 +709,9 @@ Singleton {
                     // Empty falls through to profile.displayName, and then to no name at all.
                     property string name: ""
                 }
+                // no notification: notifications are the pop-ups' and the centre's, never the notch's; a saved
+                // one is not read (the adapter reads only what it declares) and goes at the next save
                 property JsonObject states: JsonObject {
-                    property bool notification: false
                     property bool volume: true
                     property bool brightness: true
                     property bool power: true
@@ -725,7 +726,6 @@ Singleton {
                     property int power: 2600
                     property int battery: 4000
                     property int meter: 1300
-                    property int notification: 4000
                     property int network: 2400
                     property int workspace: 750
                     property int timerDone: 3500

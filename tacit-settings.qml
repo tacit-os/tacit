@@ -601,8 +601,8 @@ ApplicationWindow {
     // literals that stayed "5 min" whatever the config said. A listener is told apart by what its
     // on-timeout runs.
     property var idleTimes: ({})
-    // where notifications open: the pop-ups and the centre (Notifications), or only the centre while the notch shows
-    // the notifications (Notch > Advanced); "top" and "bottom" are older files' words for the right-hand corners
+    // where notifications open, the pop-ups and the centre (Notifications); "top" and "bottom" are older files' words for
+    // the right-hand corners
     readonly property var notificationCorners: [
         { value: "top_right", label: "Top right" }, { value: "top_center", label: "Top centre" },
         { value: "top_left", label: "Top left" }, { value: "bottom_right", label: "Bottom right" },
@@ -610,8 +610,6 @@ ApplicationWindow {
     ]
     readonly property string notificationCorner: Config.options.notifications.position === "top" ? "top_right"
         : Config.options.notifications.position === "bottom" ? "bottom_right" : Config.options.notifications.position
-    readonly property bool notchShowsNotifications: (Config.options.island.enable ?? false)
-        && (Config.options.island.states.notification ?? false)
     // a few durations in minutes as choices, plus the current one when the config holds another
     function minuteOptions(list, now) {
         return (list.includes(now) ? list : [...list, now].sort((x, y) => x - y)).map(m => ({ value: m, label: root.durationText(m * 60) }));
@@ -1794,9 +1792,9 @@ ApplicationWindow {
             property string viewing: ""
             onViewingChanged: root.revealPage()
             // notch:<section>; the link is spent once the page has taken it, so choosing the page again opens its list.
-            // notch:advanced (Notifications' line for the centre's corner, Advanced's last row): Advanced, the page's
-            // last group, opens scrolled into view, as About's Updates group does. The page is placed only once it is
-            // laid out, so the scroll is kept there for two seconds, unless the page is scrolled by hand.
+            // notch:advanced: Advanced, the page's last group, opens scrolled into view, as About's Updates group does.
+            // The page is placed only once it is laid out, so the scroll is kept there for two seconds, unless the page
+            // is scrolled by hand.
             property bool toAdvanced: false
             function takeAnchor(anchor) {
                 if (["tells", "reminders", "music"].includes(anchor)) nt.viewing = anchor;
@@ -1825,7 +1823,7 @@ ApplicationWindow {
                 target: pageScroll
                 function onMovementStarted() { nt.toAdvanced = false; }
             }
-            readonly property var tellKeys: ["notification", "power", "network", "workspace", "focus", "download", "activity"]
+            readonly property var tellKeys: ["power", "network", "workspace", "focus", "download", "activity"]
             readonly property int tellsOn: nt.tellKeys.filter(k => Config.options.island.states[k]).length
 
             Group {
@@ -1865,7 +1863,7 @@ ApplicationWindow {
                 OpenRow {
                     label: "What it tells you about"
                     value: `${nt.tellsOn} of ${nt.tellKeys.length} on`
-                    description: "Notifications, battery, network and more, shown briefly as they happen"
+                    description: "Battery, network and more, shown briefly as they happen"
                     onActivated: nt.viewing = "tells"
                 }
                 OpenRow {
@@ -1891,12 +1889,6 @@ ApplicationWindow {
                 visible: nt.viewing === "tells"
                 title: "What it tells you about"
                 note: "Each of these shows briefly in the notch when it happens, then gets out of the way."
-                EyeRow {
-                    glyph: "notifications"
-                    label: "Notifications"
-                    checked: Config.options.island.states.notification
-                    onToggled: value => Config.options.island.states.notification = value
-                }
                 // No Volume or Brightness switch: the notch always shows both (held true,
                 // panelFamilies/IllogicalImpulseFamily.qml); off, end-4's on-screen meter loaded.
                 EyeRow {
@@ -2072,15 +2064,6 @@ ApplicationWindow {
                 id: notchAdvanced
                 visible: nt.viewing === ""
                 StepperRow {
-                    label: "A notification"
-                    value: Config.options.island.hold.notification
-                    from: 1000
-                    to: 15000
-                    stepSize: 500
-                    format: v => `${v / 1000} s`
-                    onMoved: value => Config.options.island.hold.notification = value
-                }
-                StepperRow {
                     label: "Volume and brightness"
                     value: Config.options.island.hold.meter
                     from: 500
@@ -2118,19 +2101,11 @@ ApplicationWindow {
                     onMoved: value => Config.options.island.topMargin = value
                 }
                 StepperRow {
-                    label: "Notifications waiting behind the one on show"
+                    label: "Peeks kept waiting behind another"
                     value: Config.options.island.notificationQueueDepth
                     from: 0
                     to: 10
                     onMoved: value => Config.options.island.notificationQueueDepth = value
-                }
-                // the Notifications page's corner, here while the notch shows them: the centre still opens there
-                ChoiceRow {
-                    visible: root.notchShowsNotifications
-                    label: "Where the notification centre opens"
-                    options: root.notificationCorners
-                    current: root.notificationCorner
-                    onPicked: value => Config.options.notifications.position = value
                 }
             }
         }
@@ -3050,16 +3025,7 @@ ApplicationWindow {
             }
             Group {
                 title: "Pop-ups"
-                // the notch shows them instead (NotificationPopup.qml's islandOwnsPopups): how long and where are its
-                // own then, and the corner left is the centre's, which is with them in Notch > Advanced
-                SettingRow {
-                    visible: root.notchShowsNotifications
-                    glyph: "call_to_action"
-                    label: "Notifications show in the notch · Notch › Advanced"
-                    onActivated: root.showPage("notch:advanced")
-                }
                 ChoiceRow {
-                    visible: !root.notchShowsNotifications
                     glyph: "timer"
                     label: "How long a pop-up stays"
                     options: [3000, 5000, 7000, 10000].concat([3000, 5000, 7000, 10000].includes(Config.options.notifications.timeout) ? [] : [Config.options.notifications.timeout])
@@ -3068,7 +3034,6 @@ ApplicationWindow {
                     onPicked: value => Config.options.notifications.timeout = value
                 }
                 ChoiceRow {
-                    visible: !root.notchShowsNotifications
                     glyph: "picture_in_picture"
                     label: "Where pop-ups appear"
                     options: root.notificationCorners

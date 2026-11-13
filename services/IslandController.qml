@@ -134,8 +134,6 @@ Singleton {
         case "brightness":
         case "mic":
             return hold.meter;
-        case "notification":
-            return hold.notification;
         case "network":
             return hold.network;
         case "workspace":
@@ -204,17 +202,15 @@ Singleton {
             return;
         if (!root.warmedUp && name !== "greeting")
             return;
-        // the sign-in holds the sheet: a notification and an agent's ask wait until it folds (signinHeldBack)
+        // the sign-in holds the sheet: an agent's ask waits until it folds (signinHeldBack)
         if (root.signinHeldBack(name)) {
             root.enqueue(name, data, priority);
             return;
         }
         if (root.transientShowing && root.transientState === name) {
-            // Three notifications arriving together are three things to read: each one waits
-            // its turn instead of overwriting the text of the one on screen. Every other
-            // state is a value that has moved on, so re-firing it just refreshes the pill.
-            // Likewise two agents asking: the second ask waits behind the first (the same request re-fires).
-            if (name === "notification" || (name === "claudeAsk" && data?.request !== root.payload?.request)) {
+            // Two agents asking are two things to answer: the second ask waits behind the first (the same request
+            // re-fires). Every other state is a value that has moved on, so re-firing it just refreshes the pill.
+            if (name === "claudeAsk" && data?.request !== root.payload?.request) {
                 root.enqueue(name, data, priority);
                 return;
             }
@@ -245,14 +241,14 @@ Singleton {
             return;
         }
         // a copy of it waiting (put back behind a meter) is older news of the same thing
-        if (name !== "notification" && name !== "claudeAsk")
+        if (name !== "claudeAsk")
             root.queue = root.queue.filter(q => q.name !== name);
         root.activate(name, data, priority);
     }
 
     function enqueue(name, data, priority) {
         const depth = Config.options.island.notificationQueueDepth;
-        let queued = root.queue.slice().filter(q => q.name !== name || name === "notification" || (name === "claudeAsk" && q.data?.request !== data?.request));
+        let queued = root.queue.slice().filter(q => q.name !== name || (name === "claudeAsk" && q.data?.request !== data?.request));
         queued.push({
             "name": name,
             "data": data ?? ({}),
@@ -283,10 +279,10 @@ Singleton {
         root.transientState = "";
         root.transientPriority = -1;
         // a peek is news of a moment: one that waited more than 10 s (behind an ask, say) goes rather than arriving
-        // late; an ask, a notification and an update's lines wait their turn (said once: "Updated to Tacit 1.0.1" waited
+        // late; an ask and an update's lines wait their turn (said once: "Updated to Tacit 1.0.1" waited
         // behind the greeting at a start and was dropped unseen, VM 2026-10-20)
         const now = Date.now();
-        const waits = q => q.name === "claudeAsk" || q.name === "notification" || q.name === "update" || q.name === "updated";
+        const waits = q => q.name === "claudeAsk" || q.name === "update" || q.name === "updated";
         if (root.queue.some(q => !waits(q) && q.at > 0 && now - q.at > 10000))
             root.queue = root.queue.filter(q => waits(q) || !(q.at > 0) || now - q.at <= 10000);
         const at = root.queue.findIndex(q => !root.signinHeldBack(q.name));
@@ -409,7 +405,6 @@ Singleton {
             return 182;
         case "workspace":
             return 40;
-        case "notification":
         case "pr":
         case "wallpaper":
             return 172;
@@ -1078,28 +1073,6 @@ Singleton {
     readonly property real focusedBrightness: {
         const monitor = Brightness.monitors.find(m => m.screen?.name === Hyprland.focusedMonitor?.name);
         return monitor?.brightness ?? 0;
-    }
-
-    // ------------------------------------------------------------------ notifications
-    Connections {
-        target: Notifications
-        enabled: root.enabled && Config.options.island.states.notification
-
-        function onNotify(notification) {
-            if (Notifications.popupInhibited)
-                return;
-            root.request("notification", {
-                "summary": notification.summary ?? "",
-                "body": notification.body ?? "",
-                "appName": notification.appName ?? "",
-                "appIcon": notification.appIcon ?? "",
-                "image": notification.image ?? "",
-                "urgency": notification.urgency ?? "1",
-                // Notif.urgency is notification.urgency.toString(); "2" is Critical, the same
-                // comparison NotificationGroup.qml makes.
-                "tone": String(notification.urgency ?? "1") === "2" ? "notifyUrgent" : "notify"
-            }, 60);
-        }
     }
 
     // ------------------------------------------------------------------ radios
@@ -2142,10 +2115,10 @@ Singleton {
         return s ? Qt.point(Math.round(s.x + (s.width - root.signinPageWidth) / 2), s.y + Config.options.island.topMargin + 36) : Qt.point(0, 0);
     }
 
-    // What arrives while the sign-in holds the sheet: a notification, and an agent asking ("Claude needs you", "1
-    // waiting" in the right wing), wait until it folds. Volume and the rest show in the right wing for their hold.
+    // What arrives while the sign-in holds the sheet: an agent asking ("Claude needs you", "1 waiting" in the right
+    // wing) waits until it folds. Volume and the rest show in the right wing for their hold.
     function signinHeldBack(name) {
-        return root.signinHolding && (name === "notification" || name === "claudeAsk");
+        return root.signinHolding && name === "claudeAsk";
     }
     readonly property int signinAgents: root.signinHolding ? root.queue.filter(q => q.name === "claudeAsk").length : 0
     onSigninHoldingChanged: {

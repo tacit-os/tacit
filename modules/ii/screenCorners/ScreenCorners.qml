@@ -90,9 +90,7 @@ Scope {
         Item {
             id: door
             // NotificationPopup's `showing`, for the window that is not there
-            readonly property bool panelShowing: GlobalStates.notificationCenterOpen
-                || (!((Config.options.island.enable ?? false) && (Config.options.island.states.notification ?? false))
-                    && Notifications.popupList.length > 0)
+            readonly property bool panelShowing: GlobalStates.notificationCenterOpen || Notifications.popupList.length > 0
             readonly property bool active: strip.top === strip.notificationPosition.startsWith("top")
                 && strip.screen?.name === Hyprland.focusedMonitor?.name && !door.panelShowing
             visible: door.active

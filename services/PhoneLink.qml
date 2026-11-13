@@ -29,7 +29,9 @@ Singleton {
     property bool installed: true
     property bool running: false
     property string computerName: ""     // what the phone's list calls this computer
-    property var devices: []             // [{ id, name, paired, reachable, asked, key }]
+    property var devices: []             // [{ id, name, paired, reachable, asked, key, battery, charging }]
+    // the phone can be a touchpad and keyboard here: false when the portal has no remote desktop to give it
+    property bool remoteInput: true
 
     readonly property var phone: root.devices.find(d => d.paired) ?? null
     readonly property var asking: root.devices.find(d => d.asked && !d.paired) ?? null
@@ -37,6 +39,9 @@ Singleton {
     readonly property string phoneId: root.phone?.id ?? ""
     readonly property string phoneName: root.phone?.name ?? ""
     readonly property bool phoneReachable: root.phone?.reachable ?? false
+    // what the phone last said of its battery, in percent; -1 when it has said nothing
+    readonly property int phoneBattery: root.phone?.battery ?? -1
+    readonly property bool phoneCharging: root.phone?.charging ?? false
     // the part that talks to phones is there and running
     readonly property bool usable: root.loaded && root.installed && root.running
     // What a file's menu says: "Send to your phone…" opens the way in; once connected it sends.
@@ -77,6 +82,7 @@ Singleton {
                 root.running = s.running;
                 root.computerName = s.name;
                 root.devices = s.devices;
+                root.remoteInput = s.remoteInput !== false;
                 root.loaded = true;
                 root.pump();
             }

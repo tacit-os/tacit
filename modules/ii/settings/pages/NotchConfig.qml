@@ -125,12 +125,6 @@ ContentPage {
         shape: MaterialShape.Shape.Clover4Leaf
 
         GroupedList {
-            ConfigSwitch {
-                buttonIcon: "notifications"
-                text: Translation.tr("Notifications")
-                checked: Config.options.island.states.notification
-                onSwitched: (value) => { Config.options.island.states.notification = value }
-            }
             // No Volume or Brightness switch: the notch always shows both (held, panelFamilies/IllogicalImpulseFamily.qml)
             ConfigSwitch {
                 buttonIcon: "battery_charging_full"

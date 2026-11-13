@@ -80,8 +80,28 @@ Item {
             "foot": { "name": "Terminal", "symbol": "terminal" }
         })
 
+    // A program's menu entry as the entries are now. A lookup is a plain call, so a name bound to it alone kept what it
+    // first found for the whole session: the id made readable when the dock was made before the entries were first
+    // read (at sign-in), the old name after the app was reinstalled or an Apps launcher took its place. The revision
+    // is read only to tie each name to every new read.
+    property int entriesRead: 0
+    Connections {
+        target: DesktopEntries
+        function onApplicationsChanged() {
+            root.entriesRead++;
+        }
+    }
     function entryFor(appId) {
-        return DesktopEntries.heuristicLookup(appId);
+        const revision = root.entriesRead;
+        const exact = DesktopEntries.byId(appId);
+        if (exact)
+            return exact;
+        // a window's class that two launchers declare (an app and its URL handler): the one in the menus, the shorter
+        // id first, where Quickshell's lookup gave whichever its table held first
+        const cls = String(appId).toLowerCase();
+        const shown = Array.from(DesktopEntries.applications.values).filter(e => (e.startupClass ?? "").toLowerCase() === cls)
+            .sort((a, b) => a.id.length - b.id.length || (a.id < b.id ? -1 : 1));
+        return shown[0] ?? DesktopEntries.heuristicLookup(appId);
     }
     // Quickshell reads the menu entries only when something first asks for their list, and a lookup before that
     // finds nothing: on a fresh session the first click on a closed program did nothing (2026-10-29). Asked at start.

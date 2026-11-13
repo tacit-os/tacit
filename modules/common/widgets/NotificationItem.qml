@@ -207,10 +207,10 @@ Item { // Notification item area
                     wrapMode: Text.Wrap // Needed for proper eliding????
                     // two lines alone, as phones show before a row is opened; one in a stack, after its title
                     maximumLineCount: root.onlyNotification ? 2 : 1
-                    textFormat: Text.StyledText
-                    text: {
-                        return NotificationUtils.processNotificationBody(notificationObject?.body, notificationObject?.appName || notificationObject?.summary).replace(/\n/g, "<br/>")
-                    }
+                    // the words alone, as the copy button reads them: a picture at the start of the body took these lines
+                    // and the message under it was cut off, in a stack the rows below it too; opened, the row shows it
+                    textFormat: Text.PlainText
+                    text: NotificationUtils.plainBody(notificationObject?.body, notificationObject?.appName || notificationObject?.summary)
                 }
             }
 

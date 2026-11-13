@@ -346,8 +346,6 @@ Item {
             return briefLeftWing;
         case "workspace":
             return workspaceLabelWing;
-        case "notification":
-            return notificationTextWing;
         case "notAnswering":    // the prompt under the header says it all
         case "recordSheet":     // the time alone over the recording's choice or card
             return null;
@@ -409,8 +407,6 @@ Item {
             return briefRightWing;
         case "workspace":
             return workspaceNumeralWing;
-        case "notification":
-            return notificationAppWing;
         case "wallpaper":
             return undoPillWing;
         case "window":
@@ -662,8 +658,6 @@ Item {
                     return `Workspace ${wingItem.p?.number ?? ""}`;
                 if (state === "activity")
                     return wingItem.p?.name ?? "";
-                if (state === "notification")
-                    return wingItem.p?.summary ?? "";
                 if (wingItem.p?.wide)     // a sentence told as its point and the rest: here in one piece
                     return `${wingItem.p?.text ?? ""} ${wingItem.p?.value ?? ""}`;
                 return wingItem.p?.text ?? "";
@@ -676,8 +670,6 @@ Item {
                     return "grid_view";
                 if (state === "activity")
                     return "progress_activity";
-                if (state === "notification")
-                    return "notifications";
                 if (state === "greeting")
                     return "waving_hand";
                 return wingItem.p?.icon ?? "info";
@@ -1521,32 +1513,6 @@ Item {
                 horizontalAlignment: Text.AlignRight
                 text: `back to ${IslandController.payload?.opener ?? ""}`
                 elide: Text.ElideLeft
-            }
-        }
-    }
-
-    // -- notification (off by default; popups live top-right)
-    Component {
-        id: notificationTextWing
-        Item {
-            StripWords {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                point: true
-                text: IslandController.payload?.summary ?? ""
-            }
-        }
-    }
-    Component {
-        id: notificationAppWing
-        Item {
-            StripWords {
-                anchors.left: parent.left
-                anchors.right: parent.right
-                anchors.verticalCenter: parent.verticalCenter
-                horizontalAlignment: Text.AlignRight
-                text: IslandController.payload?.appName ?? ""
             }
         }
     }

@@ -267,11 +267,25 @@ Item {
                 text: `Drop a file here, or choose Send to ${PhoneLink.phoneName} on any file.`
             }
             K.TacitText {
+                visible: PhoneLink.usable && PhoneLink.paired && PhoneLink.phoneReachable && PhoneLink.phoneBattery >= 0
+                ink: "meta"
+                text: `Battery ${PhoneLink.phoneBattery}%${PhoneLink.phoneCharging ? ", charging" : ""}`
+            }
+            K.TacitText {
                 visible: PhoneLink.usable && PhoneLink.paired && !PhoneLink.phoneReachable
                 width: col.width
                 wrapMode: Text.WordWrap
                 ink: "meta"
                 text: `${PhoneLink.phoneName} is not in reach. Your phone and this computer need the same Wi-Fi.`
+            }
+            // its remote input (touchpad and keyboard) does nothing without the portal's remote desktop, which no
+            // backend for Hyprland has yet: said, rather than left to fail
+            K.TacitText {
+                visible: PhoneLink.usable && PhoneLink.paired && !PhoneLink.remoteInput
+                width: col.width
+                wrapMode: Text.WordWrap
+                ink: "meta"
+                text: "Using your phone as a touchpad or keyboard doesn't work on Tacit yet: Tacit is missing the part that lets another device move the pointer and type."
             }
             K.SectionHeading { visible: PhoneLink.usable && PhoneLink.paired && PhoneLink.sends.length > 0; x: -page.t.space.l; text: `Files for ${PhoneLink.phoneName}` }
             Repeater {
