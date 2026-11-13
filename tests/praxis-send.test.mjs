@@ -1,6 +1,6 @@
 // What Praxis sends, and what it keeps when it cannot send yet (claude.qml, modules/claude/Conversation.qml and the
 // box and panels it feeds). The handlers' own code is run under node with a pretend conversation and host.
-import { inScope, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
+import { inScope, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const appSrc = read("claude.qml"), convSrc = read("modules/claude/Conversation.qml"), boxSrc = read("modules/claude/Composer.qml");
@@ -193,4 +193,32 @@ console.log("What Praxis sends and keeps (claude.qml, modules/claude/Conversatio
     all.every(r => JSON.stringify(r.asked) === '[""]' && r.during === "checking" && r.after === "" && r.finished === 1),
     `asked ${JSON.stringify(notInstalled.asked)}, shown ${notInstalled.during}, then pending "${notInstalled.after}", finished ${notInstalled.finished}`);
 }
+// later-praxis-2 [4] Copy under your own message changed nothing on screen, while Copy under a reply turns into a check
+{
+  const at = convSrc.indexOf("id: acts"), open = convSrc.lastIndexOf("{", at);
+  const row = at < 0 ? "" : convSrc.slice(open, matchBrace(convSrc, open) + 1), del = row.slice(row.indexOf("delegate:"));
+  const expr = (src, name) => { const i = src.search(new RegExp(`\\b${name}:`)); return i < 0 ? "" : readExpression(src, i + name.length + 1).expr; };
+  const Quickshell = { clipboardText: "" };
+  const added = [];
+  const entries = inScope({ d: { b: { text: "fix the login", images: [] } }, Quickshell, composer: { addText: t => added.push(t) },
+    conv: { locked: false, busy: false, rewinding: false, caps: {}, borrowedFrom: "" } }, "", `return (${expr(row, "model")});`)();
+  const press = entry => {
+    let resets = 0;
+    const act = { done: false };
+    const scope = { act, modelData: entry, actReset: { restart() { resets++; } }, Quickshell };
+    const use = qmlFunction(del, "use");
+    if (use) act.use = inScope(scope, use.params, use.body);
+    inScope(scope, "", `${expr(del, "onClicked")};`)();
+    const glyph = () => inScope(scope, "", `return (${expr(del, "text")});`)();
+    const shown = glyph();
+    if (expr(del, "onTriggered")) inScope(scope, "", `${expr(del, "onTriggered")};`)();
+    return { shown, after: glyph(), resets };
+  };
+  const copy = press(entries[0]), edit = press(entries[1]);
+  check("Copy under your message copies it and shows a check for a moment, then the copy glyph again; Edit shows no check",
+    Quickshell.clipboardText === "fix the login" && copy.shown === "check" && copy.after === "content_copy" && copy.resets === 1
+      && edit.shown === "edit" && added[0] === "fix the login",
+    `copied "${Quickshell.clipboardText}", Copy shows ${copy.shown} then ${copy.after}, Edit shows ${edit.shown}`);
+}
+
 done();

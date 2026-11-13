@@ -103,11 +103,19 @@ Item {
     function shownTitle(t) {
         return String(t ?? "").replace(/^(?:[\u2190-\u2BFF\u2600-\u27BF\uFE0F\u200D\u20E3]|[\uD83C-\uD83E][\uDC00-\uDFFF])+\s*/, "") || String(t ?? "");
     }
+    // markdown's marks out, the words kept: a heading's or a quote's leading marks, emphasis around words, code's
+    // backticks; a # > _ or * inside words and expressions (C#, x >= 5, my_func_name) stays
+    function unmarked(t) {
+        return String(t ?? "").replace(/^[ \t]*(?:#{1,6}[ \t]+|>[ \t]?)+/gm, "")
+            .replace(/\*\*([^*\n]+)\*\*/g, "$1").replace(/(^|[^_\w])__([^_\n]+)__(?![_\w])/g, "$1$2")
+            .replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, "$1$2").replace(/(^|[^_\w])_([^_\s][^_\n]*?)_(?![_\w])/g, "$1$2")
+            .replace(/`/g, "");
+    }
     // a search hit's snippet: markdown marks out, the words searched for in sand
     function markedSnippet(t, q) {
         const esc = x => x.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-        let out = esc(String(t ?? "").replace(/[`*#>_]{1,3}/g, ""));
-        const w = String(q ?? "").trim();
+        let out = esc(rail.unmarked(t));
+        const w = rail.unmarked(q).trim();
         if (w.length < 2) return out;
         const re = new RegExp(esc(w).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
         return out.replace(re, m => `<font color="${Appearance.colors.colPrimary}"><b>${m}</b></font>`);
@@ -178,7 +186,7 @@ Item {
         return null;
     }
     // the last reply as plain words: links keep their text, marks go
-    function replyOf(r) { return (r.session?.lastReply ?? "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/[`*#>]+/g, "").replace(/\s+/g, " ").trim(); }
+    function replyOf(r) { return rail.unmarked((r.session?.lastReply ?? "").replace(/!?\[([^\]]*)\]\([^)]*\)/g, "$1")).replace(/\s+/g, " ").trim(); }
     // the open session's row opens only from the keyboard: the conversation already shows it
     function openable(key, byKeys) {
         const r = rail.rowOf(key);
@@ -1207,6 +1215,7 @@ Item {
                 visible: false
                 width: title.width
                 text: title.text
+                textFormat: Text.PlainText
                 font: title.font
                 wrapMode: Text.Wrap
                 maximumLineCount: 3
@@ -1239,6 +1248,8 @@ Item {
                 // which moved the hover (a flicker at the rows' seams)
                 width: sp.width - 44 - (sp.opened || sp.hover ? 42 + 18 + 10 : context.visible ? context.width + 20 + 10 : 20)
                 text: rail.shownTitle(sp.d.title)
+                // as typed: a prompt starting "<div> not centering" is no markup
+                textFormat: Text.PlainText
                 font.family: Appearance.font.family.compact
                 elide: Text.ElideRight
                 wrapMode: sp.opened ? Text.Wrap : Text.NoWrap
@@ -1394,6 +1405,7 @@ Item {
                     id: nameText
                     width: Math.min(implicitWidth, fp.width - 20 - fp.tail - (suffix.visible ? suffix.implicitWidth : 0))
                     text: `${fp.d.name ?? ""}${fp.d.collapsed && (fp.d.count ?? 0) > 0 ? ` · ${fp.d.count}` : ""}`
+                    textFormat: Text.PlainText
                     font.family: Appearance.font.family.compact
                     elide: Text.ElideRight
                     font.pixelSize: 14

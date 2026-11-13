@@ -898,26 +898,28 @@ Item {
     // Switching sessions: the one on screen stays until the next has arrived, then the whole list
     // is replaced in one go and put at its end before the frame is drawn. No blank frame, no
     // fade, no scroll; "Reading…" only when a transcript is slow to read.
+    // again: the host is back with this conversation on screen, read whole. What was written while it was away
+    // follows on, and the place, the opened steps and an open menu stay (read anew, it went to its end, all folded).
     property real testChosenAt: 0
-    function load() {
+    function load(again) {
         conv.testChosenAt = Date.now();
         conv.testLog("switch: load starts");
         // the message that started this session keeps its echo through the swap to the real one
         const startedHere = conv.starting.length > 0 && conv.session !== null && conv.session.id === conv.starting;
         conv.starting = "";
-        conv.offset = -1;
+        if (!again) conv.offset = -1;
         conv.busyFlipAt = 0;
         conv.partialText = "";
         conv.partialThinking = "";
         if (!startedHere) { conv.pendingUser = ""; conv.pendingImages = []; }
         conv.error = "";
-        conv.settled = false;
+        if (!again) conv.settled = false;
         conv.shownChars = 0;
         conv.seenSeq = -1;
         conv.queued = [];
         conv.sendingNow = false;
         conv.echoHandoff = false;
-        conv.waiting = [];
+        if (!again) conv.waiting = [];
         conv.liveTools = [];
         conv.textReplayed = false;
         conv.thoughtReplayed = false;
@@ -927,15 +929,17 @@ Item {
         conv.authLost = null;
         // a message sent from another session is not this one's to send again
         if (!startedHere) conv.lastSent = null;
-        composer.dismiss();
-        conv.openIds = ({});
-        conv.mdCache = ({});
         conv.readFailed = false;
         conv.borrowedFrom = "";
-        conv.rewindAt = "";
-        conv.asideThread = [];
-        conv.touchIndex = -1;
-        conv.touchTurn = -1;
+        if (!again) {
+            composer.dismiss();
+            conv.openIds = ({});
+            conv.mdCache = ({});
+            conv.rewindAt = "";
+            conv.asideThread = [];
+            conv.touchIndex = -1;
+            conv.touchTurn = -1;
+        }
         if (conv.session && !conv.session.fresh) conv.desktopContext = "";
         // a request lost with the socket never answers: its flag would park the follow loop for good
         conv.following = false;
@@ -961,6 +965,7 @@ Item {
         // the host names the session a fork came from until its first message is sent (fork_from)
         const from = live?.from ?? "";
         conv.borrowedFrom = from;
+        if (again) { conv.follow(); conv.loadChanges(); if (conv.live) conv.watch(); return; }
         // Only the newest read may change the screen. A session started a moment ago is not on disk
         // yet, its first read can outlast loadTimeout, and that read's late "not found" used to wipe
         // what the retry had already shown (the first message vanished for seconds).
@@ -1479,7 +1484,8 @@ Item {
                 const queued = conv.queued, reported = conv.reported;
                 const kept = { mode: reported.mode ? conv.modeOf(reported.mode) : conv.chosenMode, model: conv.chosenModel,
                                effort: conv.chosenEffort || reported.effort || "", account: conv.chosenAccount };
-                conv.load();
+                // the conversation on screen is this one, read whole (not a fork's borrowed history): it follows on
+                conv.load(conv.shownSession?.id === conv.session.id && conv.offset >= 0 && !conv.borrowedFrom.length && !conv.readFailed);
                 conv.queued = queued;
                 conv.reported = reported;
                 conv.chosenMode = kept.mode;
@@ -1645,7 +1651,8 @@ Item {
     function typeInto(e) {
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return;
         if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { composer.focusInput(); e.accepted = true; return; }
-        if (!e.text.length || e.text.charCodeAt(0) < 32) return;
+        // a control character is no letter: Delete's text is DEL (127), which went into the box unseen
+        if (!e.text.length || e.text.charCodeAt(0) < 32 || e.text.charCodeAt(0) === 127) return;
         composer.focusInput();
         composer.insertAtCursor(e.text);
         e.accepted = true;
@@ -2127,7 +2134,7 @@ Item {
                     StyledText {
                         anchors.verticalCenter: parent.verticalCenter
                         visible: conv.busySeconds > 0
-                        text: conv.busySeconds < 60 ? `${conv.busySeconds}s` : `${Math.floor(conv.busySeconds / 60)}m ${conv.busySeconds % 60}s`
+                        text: Words.span(conv.busySeconds * 1000)   // as the reply's footer will say it
                         font.family: Appearance.font.family.numbers
                         font.pixelSize: 14
                         color: Appearance.colors.colInkSecondary
@@ -2285,23 +2292,27 @@ Item {
                             color: Appearance.colors.colInkSecondary
                         }
                         Repeater {
-                            model: [{ glyph: "content_copy", tip: "Copy", run: () => Quickshell.clipboardText = d.b.text },
+                            model: [{ glyph: "content_copy", tip: "Copy", run: () => Quickshell.clipboardText = d.b.text, check: true },
                                     { glyph: "edit", tip: "Edit in the box", run: () => composer.addText(d.b.text), hide: conv.locked },
                                     { glyph: "replay", tip: "Send again", run: () => conv.send(d.b.text.length ? d.b.text : "Look at this.", d.b.images ?? []), hide: conv.locked || conv.busy, pictures: true },
                                     { glyph: "undo", tip: "Go back to here", run: () => conv.askRewind(d.b.rec), hide: conv.locked || conv.busy || conv.rewinding || !(d.b.rec ?? "").length || !conv.caps?.rewind || conv.borrowedFrom.length > 0 }]
                             delegate: MaterialSymbol {
+                                id: act
                                 required property var modelData
+                                property bool done: false   // Copy: a check for a moment, as under a reply
+                                function use() { modelData.run(); if (modelData.check) { act.done = true; actReset.restart(); } }
                                 visible: !modelData.hide && (d.b.text.length > 0 || (!!modelData.pictures && (d.b.images ?? []).length > 0))
                                 anchors.verticalCenter: parent.verticalCenter
-                                text: modelData.glyph
+                                text: act.done ? "check" : modelData.glyph
                                 iconSize: 16
                                 color: actArea.containsMouse || activeFocus ? Appearance.colors.colInkMain : Appearance.colors.colInkSecondary
                                 activeFocusOnTab: true
                                 onActiveFocusChanged: acts.focused += activeFocus ? 1 : -1
-                                Keys.onReturnPressed: modelData.run()
-                                Keys.onEnterPressed: modelData.run()
-                                Keys.onSpacePressed: modelData.run()
-                                MouseArea { id: actArea; anchors { fill: parent; margins: -5 } enabled: acts.opacity > 0.5; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: modelData.run() }
+                                Keys.onReturnPressed: act.use()
+                                Keys.onEnterPressed: act.use()
+                                Keys.onSpacePressed: act.use()
+                                MouseArea { id: actArea; anchors { fill: parent; margins: -5 } enabled: acts.opacity > 0.5; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: act.use() }
+                                Timer { id: actReset; interval: 1500; onTriggered: act.done = false }
                                 StyledToolTip { text: modelData.tip; extraVisibleCondition: actArea.containsMouse }
                             }
                         }
@@ -2369,7 +2380,7 @@ Item {
             Component { id: codeC; CodeBlock { code: d.b.content; lang: d.b.lang } }
             Component { id: toolC; ToolLine { item: d.b.item; openIds: conv.openIds; onToggled: key => conv.toggleOpen(key); viewer: conv.viewer; files: conv.files; running: conv.runningIds.includes(d.b.item.id) } }
             Component { id: activityC; ActivityGroup { tools: d.b.tools; openIds: conv.openIds; onToggled: key => conv.toggleOpen(key); viewer: conv.viewer; files: conv.files; runningIds: conv.runningIds; asking: conv.pending.length > 0 && d.isLast } }
-            Component { id: agentsC; AgentsGroup { calls: d.b.calls; info: conv.agentsInfo; pending: conv.running || conv.agentsInfo === null; now: conv.clock; openAgent: conv.openAgent; onOpened: a => conv.agentOpened(a) } }
+            Component { id: agentsC; AgentsGroup { calls: d.b.calls; info: conv.agentsInfo; pending: conv.running || (conv.agentsInfo === null && conv.host.connected); now: conv.clock; openAgent: conv.openAgent; onOpened: a => conv.agentOpened(a) } }
             Component {
                 id: workflowC
                 WorkflowCard {
@@ -2377,7 +2388,7 @@ Item {
                     run: (conv.agentsInfo?.workflows ?? []).find(w => w.call === d.b.item.id) ?? null
                     open: run !== null && conv.openRun === run.run
                     canStop: conv.canStop
-                    pending: conv.running || conv.agentsInfo === null
+                    pending: conv.running || (conv.agentsInfo === null && conv.host.connected)
                     now: conv.clock
                     onOpened: if (run) conv.runOpened(run.run)
                     onStopRequested: task => conv.stopTask(task)

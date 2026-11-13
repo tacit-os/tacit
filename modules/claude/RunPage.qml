@@ -46,20 +46,29 @@ PanelPage {
     readonly property var order: ({ failed: 0, running: 1, waiting: 2, done: 3, stopped: 4 })
     function sorted(ms) { return ms.slice().sort((a, b) => (rp.order[a.state] ?? 2) - (rp.order[b.state] ?? 2)); }
 
-    // the rows the keys move through
-    property var navIds: []
+    // the rows the keys move through: the agents each phase draws, in the order drawn (a big phase one state at a
+    // time, the finished folded, a small phase of a big run left to the lanes)
+    function navIds() {
+        const out = [];
+        for (let i = 0; i < phaseList.count; i++) {
+            const ph = phaseList.itemAt(i);
+            if (ph?.drawn) for (const m of ph.shown) out.push(m.agent);
+        }
+        return out;
+    }
     function navKey(k) {
-        const n = rp.navIds.length;
+        const ids = rp.navIds(), n = ids.length;
         if (!n) return false;
-        const at = rp.navIds.indexOf(rp.entry.f.cursor ?? "");
-        if (k === Qt.Key_Down || k === Qt.Key_Up) { rp.entry.f.cursor = rp.navIds[Math.max(0, Math.min(n - 1, at < 0 ? 0 : at + (k === Qt.Key_Down ? 1 : -1)))]; rp.bump(); return true; }
-        if ((k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Right) && at >= 0) { rp.p.openAgent(rp.navIds[at]); return true; }
+        const at = ids.indexOf(rp.entry.f.cursor ?? "");
+        if (k === Qt.Key_Down || k === Qt.Key_Up) { rp.entry.f.cursor = ids[Math.max(0, Math.min(n - 1, at < 0 ? 0 : at + (k === Qt.Key_Down ? 1 : -1)))]; rp.bump(); return true; }
+        if ((k === Qt.Key_Return || k === Qt.Key_Enter || k === Qt.Key_Right) && at >= 0) { rp.p.openAgent(ids[at]); return true; }
         return false;
     }
     property string came: ""
     Timer { running: rp.came.length > 0; interval: 1600; onTriggered: rp.came = "" }
 
     component Member: PanelRow {
+        id: member
         property var m: ({})
         mark: m.state === "stopped" ? "stopped" : (m.state ?? "waiting")
         title: rp.p.niceLabel(m.label, m.phase)
@@ -67,6 +76,8 @@ PanelPage {
         tone: m.state === "failed" ? "bad" : m.state === "running" ? "live" : ""
         meta: rp.p.took(m)
         cursor: (rp.entry.f.cursor ?? "") === m.agent
+        // the keys' row is scrolled into view, as on the Results page
+        onCursorChanged: if (cursor) rp.reveal(member)
         cameFrom: rp.came === `agent:${m.agent}`
         onClicked: rp.p.openAgent(m.agent)
     }
@@ -179,6 +190,7 @@ PanelPage {
         // ── the agents, phase by phase ─────────────────────────────────────
         PanelSection { visible: rp.allSingle; text: "Agents"; count: rp.members.length }
         Repeater {
+            id: phaseList
             model: rp.phases
             Column {
                 id: phaseCol
@@ -197,7 +209,8 @@ PanelPage {
                 readonly property int limit: rp.entry.f[`lim-${phaseCol.key}`] ?? 30
                 readonly property var shown: phaseCol.big ? (phaseCol.byState[phaseCol.pick] ?? []).slice(0, phaseCol.limit)
                     : phaseCol.ms.length > 5 ? rp.sorted(phaseCol.ms).filter(m => m.state !== "done" || rp.entry.f[`done-${phaseCol.key}`]) : rp.sorted(phaseCol.ms)
-                visible: !(rp.huge && phaseCol.ms.length <= 2)
+                readonly property bool drawn: !(rp.huge && phaseCol.ms.length <= 2)
+                visible: phaseCol.drawn
                 width: parent.width
                 spacing: 1
                 topPadding: phaseCol.single && !rp.allSingle ? 12 : 0
@@ -301,7 +314,5 @@ PanelPage {
             color: Appearance.colors.colInkSecondary
         }
     }
-    // the keys' rows: what is drawn, in order
-    onMembersChanged: Qt.callLater(() => { rp.navIds = [].concat(...rp.phases.map(ph => ph.members.map(m => m.agent))); })
-    function begin() { rp.came = rp.entry.came ?? ""; rp.navIds = [].concat(...rp.phases.map(ph => ph.members.map(m => m.agent))); }
+    function begin() { rp.came = rp.entry.came ?? ""; }
 }

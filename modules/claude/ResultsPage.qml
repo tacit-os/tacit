@@ -215,7 +215,9 @@ PanelPage {
         spacing: 2
 
         StyledText {
-            readonly property string says: !rp.p.canResults ? "Results need a newer background service. Restarting it gets the new one."
+            // what the host can do is known once it has said hello: away or just back, it is not too old
+            readonly property string says: !rp.p.canResults ? (rp.p.host?.greeted ? "Results need a newer background service. Restarting it gets the new one."
+                    : "Reconnecting to Praxis's background service…")
                 : rp.p.resultsError.length ? rp.p.resultsError
                 : !rp.r ? "Reading the agents' reports…"
                 : rp.r.counts?.sources === 0 ? "Nothing has reported in this session yet." : ""
@@ -227,7 +229,7 @@ PanelPage {
             font.pixelSize: 15
             color: Appearance.colors.colInkSecondary
         }
-        PillButton { visible: !rp.p.canResults; text: "Restart it"; onClicked: rp.p.restartHostRequested() }
+        PillButton { visible: !rp.p.canResults && !!rp.p.host?.greeted; text: "Restart it"; onClicked: rp.p.restartHostRequested() }
 
         // ── the headline ────────────────────────────────────────────────────
         Row {

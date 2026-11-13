@@ -190,4 +190,95 @@ console.log("The session's agents (modules/claude/AgentsPane.qml, AgentPage.qml,
   check("one that says nothing new keeps the page as it is", same === first);
 }
 
+// later-praxis-2 [5] while agent-host was away (its agents reply dropped with it) every old Agent or Workflow call with
+// only a launch note read "running", the group header "· N running", until the host answered again
+{
+  const convSrc = read("modules/claude/Conversation.qml");
+  const groupSrc = read("modules/claude/AgentsGroup.qml"), cardSrc = read("modules/claude/WorkflowCard.qml");
+  const pendingOf = id => { const c = convSrc.slice(convSrc.indexOf(`id: ${id}`)); return readExpression(c, c.indexOf("pending:") + 8).expr; };
+  const pending = (id, connected) => inScope({ conv: { running: false, agentsInfo: null, host: { connected } } }, "", `return (${pendingOf(id)});`)();
+  const then = Date.UTC(2026, 10, 10, 9, 0), now = Date.UTC(2026, 10, 13, 9, 0);
+  const call = { id: "c1", tool: "Agent", ts: then, summary: "Review the diff", result: "Async agent launched successfully" };
+  const agent = connected => {
+    const group = { calls: [call], info: null, pending: pending("agentsC", connected), graceNow: now };
+    group.statusOf = fnIn(groupSrc, "statusOf", { group });
+    group.agentOf = fnIn(groupSrc, "agentOf", { group });
+    return { status: group.statusOf(call, null), count: inScope({ group }, "", `return (${qmlProperty(groupSrc, "runningCount")});`)() };
+  };
+  const workflow = connected => {
+    const card = { item: { id: "w1", tool: "Workflow", ts: then, result: "Workflow launched" }, run: null, pending: pending("workflowC", connected), graceNow: now };
+    return inScope({ card }, "", `const waiting = (${qmlProperty(cardSrc, "waiting")}); return (${qmlProperty(cardSrc, "status").replace(/card\.waiting/g, "waiting")});`)();
+  };
+  const away = agent(false), there = agent(true);
+  check("with the host away, an old Agent or Workflow call it has not read reads ended, and the group counts none running",
+    away.status === "ended" && away.count === 0 && workflow(false) === "ended", `agent ${JSON.stringify(away)}, workflow ${workflow(false)}`);
+  check("with the host there and its agents not read yet (a session just opened), it may still be running, as before",
+    there.status === "running" && workflow(true) === "running", `agent ${JSON.stringify(there)}, workflow ${workflow(true)}`);
+}
+
+// later-praxis-2 [15] the host's features are dropped on every disconnect, so while it was away or coming back the Results
+// page said "Results need a newer background service" and offered Restart it, which restarted the host coming up
+{
+  const src = read("modules/claude/ResultsPage.qml");
+  const restart = src.slice(src.lastIndexOf("PillButton {", src.indexOf('text: "Restart it"')));
+  const vis = readExpression(restart, restart.indexOf("visible:") + 8).expr;
+  const page = (features, greeted) => {
+    const rp = { p: { canResults: features.includes("results"), host: { greeted, features }, resultsError: "" }, r: null };
+    const says = inScope({ rp }, "", `return (${qmlProperty(src, "says")});`)();
+    return { says, restart: inScope({ rp }, "", `return (${vis});`)() };
+  };
+  const away = page([], false), old = page(["catalog"], true), now = page(["catalog", "results"], true);
+  check("while the host is away or coming back the page says it is reconnecting and offers no restart",
+    away.says === "Reconnecting to Praxis's background service…" && !away.restart, JSON.stringify(away));
+  check("a host that has answered without results is too old, with Restart it; one with results reads its reports",
+    /newer background service/.test(old.says) && old.restart && now.says === "Reading the agents' reports…" && !now.restart,
+    `${JSON.stringify(old)}, ${JSON.stringify(now)}`);
+}
+
+// later-praxis-2 [16] on a workflow's page the keys walked every agent of every phase, while a big phase draws one state at
+// a time and a run's small phases stay in the lanes: Down put the highlight on agents not drawn, and Enter opened one
+{
+  const src = read("modules/claude/RunPage.qml");
+  const val = (scope, e) => inScope(scope, "", e.startsWith("{") ? e.slice(1, -1) : `return (${e});`)();
+  const members = [{ agent: "p1", phase: "Plan", state: "done" }]
+    .concat(["running", "waiting", "done"].flatMap(st => Array.from({ length: 10 }, (_, i) => ({ agent: `${st[0]}${i + 1}`, phase: "Review", state: st }))));
+  const opened = [];
+  const rp = { entry: { f: {}, came: "" }, run: { phases: ["Plan", "Review"], agents: members }, members, came: "", p: { openAgent: id => opened.push(id) }, bump() {} };
+  const scope = { rp, Qt: { Key_Down: 0x01000015, Key_Up: 0x01000013, Key_Return: 0x01000004, Key_Enter: 0x01000005, Key_Right: 0x01000014 } };
+  for (const name of ["phases", "huge", "order"]) rp[name] = val(scope, qmlProperty(src, name));
+  rp.sorted = fnIn(src, "sorted", scope);
+  // the phases' Repeater: each delegate's bindings, read from the file
+  const at = src.indexOf("id: phaseCol"), open = src.lastIndexOf("{", at), col = src.slice(open, matchBrace(src, open) + 1);
+  const delegate = modelData => {
+    const phaseCol = { modelData };
+    for (const name of ["ms", "big", "key", "single", "byState", "pick", "limit", "shown", "drawn"]) {
+      const e = qmlProperty(col, name);
+      if (e) Object.defineProperty(phaseCol, name, { get: () => val({ rp, phaseCol }, e) });
+    }
+    return phaseCol;
+  };
+  scope.phaseList = { get count() { return rp.phases.length; }, itemAt: i => delegate(rp.phases[i]) };
+  const drawn = rp.phases.map(delegate).filter(c => (c.drawn ?? val({ rp, phaseCol: c }, readExpression(col, col.indexOf("visible:") + 8).expr)))
+    .flatMap(c => c.shown.map(m => m.agent));
+  const ids = qmlFunction(src, "navIds");
+  if (ids) rp.navIds = inScope(scope, ids.params, ids.body);
+  fnIn(src, "begin", scope)();
+  rp.navKey = fnIn(src, "navKey", scope);
+  const walked = [];
+  for (let i = 0; i < 12; i++) { rp.navKey(scope.Qt.Key_Down); walked.push(rp.entry.f.cursor); }
+  rp.navKey(scope.Qt.Key_Return);
+  check("Down walks only the agents drawn (the running ten of a 30-agent phase), in their order, and Enter opens the one lit",
+    JSON.stringify(drawn) === JSON.stringify(Array.from({ length: 10 }, (_, i) => `r${i + 1}`)) && walked.every(a => drawn.includes(a))
+      && walked[0] === "r1" && walked[11] === "r10" && opened[0] === "r10", `walked ${walked.join(" ")}, opened ${opened[0]}`);
+  const member = src.slice(src.indexOf("component Member:"));
+  const row = member.slice(0, matchBrace(member, member.indexOf("{")) + 1), m = /\bonCursorChanged:\s*/.exec(row);
+  const moved = cursor => {
+    const shown = [], me = { m: {} };
+    if (m) inScope({ cursor, member: me, rp: { reveal: x => shown.push(x) } }, "", `${readExpression(row, m.index + m[0].length).expr};`)();
+    return shown.length === 1 && shown[0] === me ? "revealed" : shown.length ? "something else" : "nothing";
+  };
+  check("the agent the keys move to is scrolled into view, and only that one", moved(true) === "revealed" && moved(false) === "nothing",
+    `the keys' row: ${moved(true)}, another: ${moved(false)}`);
+}
+
 done();

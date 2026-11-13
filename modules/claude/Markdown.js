@@ -38,7 +38,8 @@ function para(inner, t, extra) {
 
 const LIST = /^(\s*)([-*+]|\d+[.)])\s+(.*)$/;
 const RULE = /^\s*([-*_])(\s*\1){2,}\s*$/;
-const HEAD = /^(#{1,6})\s+(.*?)\s*#*\s*$/;
+// a closing run of # needs a space before it: "## Learning C#" keeps its #
+const HEAD = /^(#{1,6})\s+(.*?)(?:\s+#+)?\s*$/;
 
 function startsBlock(line) {
     return LIST.test(line) || HEAD.test(line) || RULE.test(line) || /^\s*>/.test(line) || /^\s*\|/.test(line);
@@ -47,6 +48,8 @@ function startsBlock(line) {
 function list(lines, i, t) {
     const base = LIST.exec(lines[i])[1].length;
     const ordered = /\d/.test(LIST.exec(lines[i])[2]);
+    // counted on from the number it starts at: a list split by a code block goes on at 3, not at 1 again
+    const first = ordered ? parseInt(LIST.exec(lines[i])[2], 10) : 1;
     let rows = "";
     let n = 0;
     while (i < lines.length) {
@@ -65,7 +68,7 @@ function list(lines, i, t) {
             body += "\n" + lines[i].trim();
             i++;
         }
-        const marker = ordered ? `${n}.` : "•";
+        const marker = ordered ? `${first + n - 1}.` : "•";
         rows += `<tr><td width="${ordered ? 22 : 16}" valign="top" style="color:${t.dim}">${para(marker, t, " margin-bottom:4px;")}</td>`
             + `<td valign="top">${para(inline(body, t).replace(/\n/g, "<br/>"), t, " margin-bottom:4px;")}</td></tr>`;
         while (i < lines.length && !lines[i].trim().length && i + 1 < lines.length && LIST.test(lines[i + 1]) && LIST.exec(lines[i + 1])[1].length >= base) i++;
@@ -141,6 +144,7 @@ function toHtmlUncached(md, t) {
     return html;
 }
 
+// as typed: Qt's rich text folds runs of spaces and drops a line's leading ones unless told to keep them (Highlight.js)
 function plain(text) {
-    return esc(text).replace(/\n/g, "<br/>");
+    return "<span style=\"white-space:pre-wrap\">" + esc(text).replace(/\n/g, "<br/>") + "</span>";
 }

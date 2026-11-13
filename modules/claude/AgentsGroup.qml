@@ -14,7 +14,7 @@ Column {
     property var info: null           // agent-host "agents" reply for this session
     property string openAgent: ""     // the agent the side panel shows
     property real now: Date.now()
-    // the host may still say how the calls stand: the session runs, or its agents have not been read
+    // the host may still say how the calls stand: the session runs, or the host is there and has not read its agents yet
     property bool pending: false
     signal opened(string agent)
 

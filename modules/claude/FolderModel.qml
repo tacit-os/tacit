@@ -53,16 +53,18 @@ Item {
 
     readonly property string home: Quickshell.env("HOME")
     readonly property var agentNames: ({ claude: "Claude", codex: "Codex", pi: "Pi", opencode: "OpenCode" })
-    // Files' fixed places, by path (Files.places; this app does not load the Files singleton)
+    // Files' fixed places, by path (Files.places; this app does not load the Files singleton). The first place with a
+    // path names it, as in Files' list: a folder xdg-user-dirs turns off by pointing it at home leaves home "Home".
     readonly property var placeNames: {
         const m = {};
-        m[fm.home] = "Home";
-        m[FileUtils.trimFileProtocol(Directories.downloads)] = "Downloads";
-        m[FileUtils.trimFileProtocol(Directories.documents)] = "Documents";
-        m[FileUtils.trimFileProtocol(Directories.pictures)] = "Pictures";
-        m[FileUtils.trimFileProtocol(Directories.music)] = "Music";
-        m[FileUtils.trimFileProtocol(Directories.videos)] = "Videos";
-        m[fm.home + "/Desktop"] = "Desktop";
+        const put = (p, n) => { if (m[p] === undefined) m[p] = n; };
+        put(fm.home, "Home");
+        put(FileUtils.trimFileProtocol(Directories.downloads), "Downloads");
+        put(FileUtils.trimFileProtocol(Directories.documents), "Documents");
+        put(FileUtils.trimFileProtocol(Directories.pictures), "Pictures");
+        put(FileUtils.trimFileProtocol(Directories.music), "Music");
+        put(FileUtils.trimFileProtocol(Directories.videos), "Videos");
+        put(fm.home + "/Desktop", "Desktop");
         return m;
     }
 

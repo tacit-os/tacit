@@ -1,5 +1,6 @@
-// Praxis's message box and what stands over it (modules/claude/Composer.qml, QuestionCard.qml, Conversation.qml): a
-// pasted picture, the attachments, a half-answered question. The files' own code runs under node and bash.
+// Praxis's message box and what stands over it (modules/claude/Composer.qml, QuestionCard.qml, ModelChooser.qml,
+// Conversation.qml): a pasted picture, the attachments, a half-answered question, the model menu. The files' own code runs
+// under node and bash.
 import { mkdirSync, mkdtempSync, rmSync, statSync, writeFileSync, chmodSync, readdirSync } from "fs";
 import { spawnSync } from "child_process";
 import { tmpdir } from "os";
@@ -88,6 +89,70 @@ console.log("Praxis's message box (modules/claude/Composer.qml, QuestionCard.qml
   conv.asksKept = {};
   const fresh = make();
   check("a question never answered starts empty on question 1", JSON.stringify(fresh.card.picked) === "{}" && fresh.card.shown === 0);
+}
+
+// later-praxis-2 [1] a key pressed while a reply has the keyboard goes into the box as typed: Delete's text is DEL
+// (U+007F), which passed the "below 32" test and was put in the box, unseen, and sent with the next message
+{
+  const convSrc = read("modules/claude/Conversation.qml");
+  const f = qmlFunction(convSrc, "typeInto");
+  const press = (key, text) => {
+    let box = "", focused = 0;
+    const e = { key, text, modifiers: 0, accepted: false };
+    const Qt = { ControlModifier: 0x04000000, AltModifier: 0x08000000, MetaModifier: 0x10000000, Key_Return: 0x01000004, Key_Enter: 0x01000005 };
+    inScope({ Qt, composer: { focusInput() { focused++; }, insertAtCursor(s) { box += s; } } }, f.params, f.body)(e);
+    return { box, focused, accepted: e.accepted };
+  };
+  const del = press(0x01000007, "\u007f"), letter = press(0x41, "a"), back = press(0x01000003, "\b");
+  check("Delete puts nothing in the box and does not take the keyboard there; a letter is typed into it as before",
+    del.box === "" && !del.focused && !del.accepted && back.box === "" && letter.box === "a" && letter.accepted,
+    `Delete put [${[...del.box].map(c => c.charCodeAt(0))}] in the box (focused ${del.focused}), a put "${letter.box}"`);
+}
+
+// later-praxis-2 [12] the model menu on a folder that keeps Opus at high: Auto lit on Opus compared the saved level with
+// itself ("" || "high"), so the keep line read "Saved for new sessions" and, still, took no click: Auto could not be kept
+{
+  const mcSrc = read("modules/claude/ModelChooser.qml");
+  const opus = { id: "claude-opus-4-7", label: "Opus", aliases: ["opus"], efforts: ["low", "medium", "high", "max"] };
+  const kept = (level, m = opus, saved = { model: "opus", effort: "high" }) => {
+    const mc = { level, wish: "", lit: m, agent: "claude", keepFolder: "/home/a/dev/app", isCurrent: () => true,
+      model: { defaults: { folders: { "/home/a/dev/app": { agent: "claude", run: { claude: saved } } } } } };
+    mc.levelFor = inScope({ mc }, qmlFunction(mcSrc, "levelFor").params, qmlFunction(mcSrc, "levelFor").body);
+    const e = qmlProperty(mcSrc, "kept");
+    return inScope({ mc }, "", e.startsWith("{") ? e.slice(1, -1) : `return (${e});`)();
+  };
+  const got = { auto: kept(""), high: kept("high"), low: kept("low"), autoSaved: kept("", opus, { model: "opus", effort: null }),
+    noLevels: kept("", { id: "sonnet", label: "Sonnet", efforts: [] }, { model: "sonnet", effort: "high" }) };
+  check("Auto lit on a model the folder keeps at high is not kept yet; high is, low is not, Auto is once saved",
+    !got.auto && got.high && !got.low && got.autoSaved, JSON.stringify(got));
+  check("a model that names no levels is kept whatever level was saved, as before", got.noLevels, JSON.stringify(got));
+}
+
+// later-praxis-2 [13] Ctrl+, in the model menu: the window's Ctrl+, Shortcut fires before the focused item sees the key
+// unless that item accepts the ShortcutOverride (Qt sends it to the focus item and up its parents first), so the menu's
+// own Ctrl+, (close, then Preferences) never ran and the menu stayed open beside the sheet
+{
+  const mcSrc = read("modules/claude/ModelChooser.qml");
+  const Qt = { Key_Comma: 0x2c, Key_N: 0x4e, Key_Escape: 0x01000000, Key_Down: 0x01000015, Key_Tab: 0x01000001, Key_Up: 0x01000013,
+    Key_Backtab: 0x01000002, Key_PageDown: 0x01000017, Key_PageUp: 0x01000016, Key_Left: 0x01000012, Key_Right: 0x01000014,
+    Key_Return: 0x01000004, Key_Enter: 0x01000005, ControlModifier: 0x04000000 };
+  const handler = name => { const m = new RegExp(`Keys\\.${name}:\\s*`).exec(mcSrc); return m ? readExpression(mcSrc, m.index + m[0].length).expr : ""; };
+  const press = (key, keepShown) => {
+    let prefs = 0;
+    const mc = { keepShown, allDefaults() { prefs++; }, levels: [], pick: 0, step() {}, use() {}, closed() {} };
+    const scope = { mc, Qt, field: { text: "" } };
+    const e = { key, modifiers: Qt.ControlModifier, accepted: false };
+    const over = handler("onShortcutOverride");
+    const claimed = over ? (inScope(scope, "", `return (${over});`)()(e), e.accepted) : false;
+    // the window's Shortcut runs unless the key was claimed; the menu's own handler sees it only then
+    if (claimed) { e.accepted = false; inScope(scope, "", `return (${handler("onPressed")});`)()(e); }
+    return { claimed, prefs };
+  };
+  const comma = press(Qt.Key_Comma, true), noKeep = press(Qt.Key_Comma, false), ctrlN = press(Qt.Key_N, true);
+  check("Ctrl+, in the model menu is the menu's: it goes to its Preferences once, not to the window's Shortcut",
+    comma.claimed && comma.prefs === 1, JSON.stringify(comma));
+  check("without the keep line (no Preferences there), and for other keys, the window's shortcuts run as before",
+    !noKeep.claimed && !ctrlN.claimed, `no keep line ${JSON.stringify(noKeep)}, Ctrl+N ${JSON.stringify(ctrlN)}`);
 }
 
 done();

@@ -165,6 +165,47 @@ function queue({ connected, answered, accepts }) {
     conv.chosenMode === "auto" && conv.chosenEffort === "", `${conv.chosenMode}, "${conv.chosenEffort}"`);
 }
 
+// later-praxis-2 [0] the host back after a drop: the conversation on screen was read again as on a switch, so a reader
+// scrolled up into a long answer was put at its end, every step they had opened folded and an open box menu closed
+{
+  const fn = name => qmlFunction(convSrc, name);
+  const [load, follow, modeOf, connectedOn] = [fn("load"), fn("follow"), fn("modeOf"), fn("onConnectedChanged")];
+  const reconnect = ({ shown = "s1", borrowed = "" } = {}) => {
+    const requests = [], swaps = [], merged = [];
+    let dismissed = 0;
+    const opened = { t1: true }, cache = { k: "<p>On it.</p>" };
+    const conv = { session: { id: "s1", cwd: "/home/a/dev/app", fresh: false }, shownSession: { id: shown }, starting: "", watching: "s1",
+      following: false, followAgain: false, followGen: 0, loading: false, loadGen: 0, offset: 5120, borrowedFrom: borrowed, readFailed: false,
+      settled: true, seenSeq: 41, queued: [], waiting: ["and the docs"], cuts: {}, openIds: opened, mdCache: cache, rewindAt: "",
+      asideThread: [], touchIndex: -1, touchTurn: -1, chosenMode: "manual", chosenModel: "opus", chosenEffort: "high", chosenAccount: "work",
+      reported: {}, live: null, busy: false, partialText: "", partialThinking: "", pendingUser: "", pendingImages: [], acc: null,
+      agent: "claude", desktopContext: "",
+      host: { connected: true, live: {}, request(op, cb) {
+        requests.push(op);
+        if (op.after !== undefined) cb({ ev: "transcript", id: op.id, offset: 5420, items: [{ role: "assistant", kind: "text", text: "Done." }] });
+      } },
+      testLog() {}, emptyReplay: () => ({}), resolveRun() {}, swapIn(...a) { swaps.push(a); }, loadChanges() {}, watch() {}, holdFooter() {},
+      merge(items) { merged.push(...items); }, applyCut() {} };
+    const timer = { restart() {}, stop() {} };
+    const scope = { conv, composer: { dismiss() { dismissed++; } }, slowRead: timer, loadTimeout: timer, errorFade: timer, followTimeout: timer, followSoon: timer };
+    for (const [name, f] of [["load", load], ["follow", follow], ["modeOf", modeOf]]) conv[name] = inScope(scope, f.params, f.body);
+    inScope(scope, connectedOn.params, connectedOn.body)();
+    const tail = requests.some(r => r.op === "transcript" && r.limit !== undefined);
+    const after = requests.find(r => r.op === "transcript" && r.after !== undefined);
+    return { dismissed, kept: conv.openIds === opened && conv.mdCache === cache, swapped: swaps.length > 0, tail, after: after?.after ?? null,
+      merged: merged.map(i => i.text), offset: conv.offset, seq: conv.seenSeq, waiting: conv.waiting, mode: conv.chosenMode, effort: conv.chosenEffort };
+  };
+  const same = reconnect();
+  check("back with this conversation on screen, only what was written since is read, and it follows on; the place, the opened steps and the box's menu stay",
+    !same.dismissed && same.kept && !same.swapped && !same.tail && same.after === 5120 && JSON.stringify(same.merged) === '["Done."]' && same.offset === 5420,
+    JSON.stringify(same));
+  check("and the new host's events are counted from the start, Claude's queue and the box's choices kept",
+    same.seq === -1 && JSON.stringify(same.waiting) === '["and the docs"]' && same.mode === "manual" && same.effort === "high", JSON.stringify(same));
+  const switching = reconnect({ shown: "s0" }), fork = reconnect({ borrowed: "s0" });
+  check("another session still being opened, or a fork showing the history it borrowed, is read whole as before",
+    switching.tail && switching.dismissed === 1 && !switching.kept && fork.tail && !fork.kept, `switching ${JSON.stringify(switching)}, fork ${JSON.stringify(fork)}`);
+}
+
 // should-notch-other [o0], the owner's call (decisions2-praxis [4]): signed out and in mid-turn, agent-host stopped with
 // the agents it ran, and the conversation ended on the last step or on an unanswered message with nothing said
 {

@@ -339,12 +339,13 @@ FocusScope {
         if (mc.isCurrent(m)) mc.effortPicked(l);
         else if (byPointer) mc.chosen(m.id, mc.levelFor(m), false);
     }
-    // the lit model is the folder's start already, at this level
+    // the lit model is the folder's start already, at this level: Auto ("") too, so Auto can be kept over a saved
+    // level; a model that names no levels is kept at whatever level was saved
     readonly property bool kept: {
         const run = mc.model?.defaults?.folders?.[mc.keepFolder]?.run?.[mc.agent];
         const m = mc.lit;
         if (!run?.model || !m) return false;
-        return (run.model === m.id || !!m.aliases?.includes(run.model)) && (run.effort ?? "") === (mc.levelFor(m) || (run.effort ?? ""));
+        return (run.model === m.id || !!m.aliases?.includes(run.model)) && (!(m.efforts ?? []).length || (run.effort ?? "") === mc.levelFor(m));
     }
     readonly property bool keepShown: mc.showKeep && mc.catalogs && !!mc.model?.available && mc.keepFolder.startsWith("/") && mc.need === "" && !!mc.lit
     readonly property string folderName: mc.keepFolder === Quickshell.env("HOME") ? "Home" : (mc.keepFolder.split("/").filter(s => s.length).pop() ?? "")
@@ -381,6 +382,9 @@ FocusScope {
     implicitWidth: Math.max(mc.want, mc.heldW)
     implicitHeight: head.height + list.height + foot.implicitHeight
 
+    // The window's Ctrl+, Shortcut (Preferences) takes the key unless the menu claims it here: from the menu it closes the
+    // menu first, else the menu stayed open beside the sheet
+    Keys.onShortcutOverride: e => e.accepted = e.key === Qt.Key_Comma && (e.modifiers & Qt.ControlModifier) !== 0 && mc.keepShown
     Keys.onPressed: e => {
         const ctrl = (e.modifiers & Qt.ControlModifier) !== 0;
         e.accepted = true;

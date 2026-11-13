@@ -63,6 +63,8 @@ Item {
     property string readPath: ""
     function check() {
         if (viewer.isImage || !viewer.path.length) return;
+        // a stat still running is stopped for this one and ends first, with nothing said: not a size of 0
+        sizeProc.stale = sizeProc.running;
         sizeProc.forPath = viewer.path;
         sizeProc.running = false;
         sizeProc.command = ["stat", "-Lc", "%s", "--", viewer.path];
@@ -71,8 +73,10 @@ Item {
     Process {
         id: sizeProc
         property string forPath: ""
+        property bool stale: false
         stdout: StdioCollector {
             onStreamFinished: {
+                if (sizeProc.stale) { sizeProc.stale = false; return; }
                 if (sizeProc.forPath !== viewer.path) return;
                 // a stat that fails says nothing: the read below finds the file gone
                 if (Number(this.text.trim()) > 8000000) { viewer.problem = "Too large to show here."; viewer.loaded = true; viewer.readPath = ""; return; }
@@ -101,6 +105,8 @@ Item {
         onLoadFailed: { viewer.problem = "This file is gone."; viewer.loaded = true; }
     }
     function take(t) {
+        // line breaks as the view's document holds them: a CRLF is one there, and a change is placed by its positions
+        t = t.replace(/\r\n?/g, "\n");
         if (t.length > 2000000) { viewer.problem = "Too large to show here."; viewer.loaded = true; return; }
         if (t.substring(0, 8000).includes("\u0000")) { viewer.problem = "A binary file."; viewer.loaded = true; return; }
         const before = viewer.text;

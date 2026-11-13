@@ -85,8 +85,10 @@ Item {
     }
     property real chosenWidth: Number((widthFile.text() || "420").trim()) || 420
     // a file on the Agents trail gets room for its diffs; Back gives it back
-    property real wideBy: (side.shownTab === "agents" || side.shownTab === "results") && agentsPane.wantsWide ? Math.max(0, 640 - side.chosenWidth) : 0
-    Behavior on wideBy { NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
+    readonly property bool wide: (side.shownTab === "agents" || side.shownTab === "results") && agentsPane.wantsWide
+    property real wideBy: side.wide ? Math.max(0, 640 - side.chosenWidth) : 0
+    // not while the edge is dragged: eased, it swung the edge out past the pointer and back
+    Behavior on wideBy { enabled: !grip.pressed; NumberAnimation { duration: 260; easing.type: Easing.OutCubic } }
     implicitWidth: Math.max(320, Math.min(side.chosenWidth + side.wideBy, side.maxWidth))
 
     MouseArea {
@@ -98,8 +100,14 @@ Item {
         cursorShape: Qt.SplitHCursor
         property real startX: 0
         property real startWidth: 0
-        onPressed: m => { startX = mapToGlobal(m.x, 0).x; startWidth = side.implicitWidth; }
-        onPositionChanged: m => { if (pressed) side.chosenWidth = Math.max(320, Math.min(side.maxWidth, startWidth - (mapToGlobal(m.x, 0).x - startX))); }
+        property real startChosen: 0
+        onPressed: m => { startX = mapToGlobal(m.x, 0).x; startWidth = side.implicitWidth; startChosen = side.chosenWidth; }
+        // while a file page holds the panel at 640, only a width past that is yours: dragged no wider, it stays as you had it
+        onPositionChanged: m => {
+            if (!pressed) return;
+            const w = Math.max(320, Math.min(side.maxWidth, startWidth - (mapToGlobal(m.x, 0).x - startX)));
+            side.chosenWidth = side.wide && w <= 640 ? Math.min(startChosen, 640) : w;
+        }
         onReleased: widthFile.setText(Math.round(side.chosenWidth) + "\n")
     }
     Rectangle {   // where to drag: shown only while the grip is hovered or held
