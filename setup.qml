@@ -249,19 +249,23 @@ ApplicationWindow {
                             Item {
                                 id: langRow
                                 required property var modelData
-                                readonly property bool on: modelData.code === setup.language
+                                required property int index
+                                // a language chosen from More languages takes the fifth row's place, shown as chosen: no
+                                // row said it was. The rows stay the same items, so a row with the keyboard keeps it
+                                readonly property var shown: index === 4 && backend.languages.indexOf(setup.lang) > 4 ? setup.lang : modelData
+                                readonly property bool on: shown.code === setup.language
                                 width: Look.px(600); height: Look.px(50)
                                 activeFocusOnTab: true
-                                Keys.onReturnPressed: root.pickLanguage(modelData)
-                                Keys.onSpacePressed: root.pickLanguage(modelData)
+                                Keys.onReturnPressed: root.pickLanguage(shown)
+                                Keys.onSpacePressed: root.pickLanguage(shown)
                                 T {
                                     anchors.centerIn: parent
-                                    text: langRow.modelData.name
+                                    text: langRow.shown.name
                                     font.pixelSize: langRow.on ? Look.fs(30) : Look.fs(24)
                                     font.weight: langRow.on || langRow.activeFocus ? Font.Medium : Font.Normal
                                     color: langRow.on || langRow.activeFocus || lma.containsMouse ? Look.main : Look.meta
                                 }
-                                MouseArea { id: lma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.pickLanguage(langRow.modelData) }
+                                MouseArea { id: lma; anchors.fill: parent; hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: root.pickLanguage(langRow.shown) }
                             }
                         }
                         Item { width: 1; height: Look.px(10) }
@@ -435,7 +439,7 @@ ApplicationWindow {
                             : parent.c === "asleep" ? "Windows didn't shut down fully."
                             : parent.c === "windows" && !parent.room && backend.plan ? "There is no room next to Windows."
                             : parent.c === "small" ? "This disk is too small for Tacit."
-                            : parent.c === "none" ? "There is no disk to install on."
+                            : parent.c === "none" ? "No disk found."
                             : parent.c === "empty" ? "Tacit will use the whole disk."
                             : "Where should Tacit go?"
                     }
@@ -456,7 +460,7 @@ ApplicationWindow {
                             : parent.c === "empty" && root.windowsElsewhere ? `This ${parent.size} disk is empty. Windows, on the other disk, stays as it is.`
                             : parent.c === "empty" ? `This computer's ${parent.size} disk is empty.`
                             : parent.c === "small" ? `Tacit needs a disk of 32 GB or more, and this one is ${parent.size}.${backend.disks.length > 1 ? " Choose another disk." : ""}`
-                            : parent.c === "none" ? "Tacit found no disk inside this computer. The USB stick it runs from can't be used."
+                            : parent.c === "none" ? "On computers set to Intel RST or RAID, the disk mode has to be AHCI in the firmware settings; prepare Windows for that first."
                             : `This computer's disk is ${parent.size}.${parent.noNext}`
                     }
                     Column {
@@ -511,6 +515,9 @@ ApplicationWindow {
                         Link { visible: backend.disks.length > 1 && parent.parent.c !== "choose"; bright: true
                             text: `Disk: ${root.diskName(backend.disk)}  ›`; onClicked: setup.go("disks") }
                         Link { visible: backend.parts.length > 0; text: "Choose partitions myself  ›"; onClicked: setup.go("parts") }
+                        // a drive slow to come up, or a mode just changed: read again, the page looking until the answer
+                        Link { visible: parent.parent.c === "none"; glyph: "refresh"; text: "Look again"; bright: true
+                            onClicked: { backend.disksRead = false; backend.send({ op: "disks" }); } }
                     }
                 }
 
@@ -682,6 +689,7 @@ ApplicationWindow {
                                 + (setup.place === "next" || setup.place === "manual" ? " If it starts the old system instead, open the boot menu (often F12 or Esc) and choose Tacit." : "") + root.zoneNote + root.a11yNote)
                             : setup.installUntouched ? "Nothing on the disk was changed, so the computer starts as before. You can try again."
                             : setup.place === "next" ? `Tacit stopped partway. ${root.other === "it" ? "What was on the disk" : root.other} should start as before${root.other === "Windows" ? ", after it checks its disk" : ""}. You can try again.`
+                            : setup.place === "manual" ? `Tacit stopped partway, after ${setup.partBoot !== "" ? "the two partitions chosen for it were" : "the partition chosen for it was"} erased. You can try again.`
                             : "Tacit stopped partway, after the disk was erased. You can try again."
                     }
                 }
@@ -946,11 +954,12 @@ ApplicationWindow {
         case "you": if (!root.primaryLater) root.afterQuestions(); break;
         case "ready": if (backend.practice) root.endPractice(); else backend.send({ op: "restart" }); break;
         // the disks are read again (a failed install may have changed them), and Back and Esc lead on from the page it shows;
-        // until they are, the page says it is looking and nothing can start on what they were. A helper that stopped before
-        // an installer was given anything is started again (its hello reads the disks); one that stopped mid-install is
-        // not, as that installer may still be running as root
+        // until they are, the page says it is looking and nothing can start on what they were. A helper that stopped is
+        // started again (its hello reads the disks); after one that stopped mid-install, whose installer may still be
+        // running as root, the new one reads them once that installer has gone (setupd.py's installer_left()). Left
+        // stopped, the page said it was looking at the disks for good
         case "failed":
-            if (!proc.running && setup.installUntouched) { backend.ready = false; proc.running = true; }
+            if (!proc.running) { backend.ready = false; proc.running = true; }
             // after "Choose partitions myself" the page has no choice of that name: none was shown, and Continue led to erasing the disk
             if (setup.place === "manual") setup.place = "next";
             setup.installState = ""; setup.trail = ["welcome", "wifi"]; backend.disksRead = false; setup.page = "where"; backend.send({ op: "disks" }); break;

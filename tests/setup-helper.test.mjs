@@ -1,9 +1,13 @@
 // Setup's helper (scripts/setup/setupd.py) gone before Install: setup.qml's own startInstall(), startManual(),
 // helperStopped() and Try again's forward() under node, with a pretend helper process. A request written to a stopped
 // process is dropped (Quickshell's Process.write), so Install led to "Installing" for good, and Back, Esc and closing
-// the window are refused while an install runs.
+// the window are refused while an install runs. And setupd.py's disk read after a helper stopped mid-install, under
+// python with a stand-in for the installer it left running.
+import { spawnSync } from "child_process";
+import { dirname, join } from "path";
+import { fileURLToPath } from "url";
 import { inScope, qmlFunction } from "./lib/qml.mjs";
-import { check, done, read } from "./lib/check.mjs";
+import { check, done, read, tree } from "./lib/check.mjs";
 
 console.log("== Setup with its helper stopped (setup.qml)");
 const src = read("setup.qml");
@@ -49,8 +53,15 @@ function tryAgain(untouched) {
     proc.running === true && backend.ready === false && setup.page === "where" && JSON.stringify(sent) === '[{"op":"disks"}]',
     `helper running ${proc.running}, ready ${backend.ready}, page ${setup.page}, sent ${JSON.stringify(sent)}`);
 }
+// one that stopped mid-install too: it was left stopped, as its installer may still run as root, and the page said
+// "Looking at the disks…" for good; the new helper waits for that installer before it reads the disks
 {
-  const { proc } = tryAgain(false);
-  check("but not a helper that stopped mid-install, whose installer may still run", proc.running === false, `helper running ${proc.running}`);
+  const { setup, backend, proc } = tryAgain(false);
+  check("Try again after the helper stopped mid-install starts it again too", proc.running === true && backend.ready === false && setup.page === "where",
+    `helper running ${proc.running}, ready ${backend.ready}, page ${setup.page}`);
 }
+const r = spawnSync("python3", ["-I", join(dirname(fileURLToPath(import.meta.url)), "lib", "setupd_cases.py"),
+  join(tree, "scripts/setup/setupd.py"), "left"], { encoding: "utf8" });
+process.stdout.write(r.stdout + r.stderr);
+check("and the helper reads the disks, and installs, only once the installer left behind has gone", r.status === 0);
 done();

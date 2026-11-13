@@ -532,10 +532,28 @@ zone_asked = threading.Event()
 # could show as unreadable. Only a survey reads them again (Try again, the partition editor closed, a slow drive)
 last = {"disks": None}
 
+def installer_left():
+    """An installer still running that this helper did not start: one a helper that stopped mid-install had started. It
+    goes on as root until its next progress line finds no one to read it, then takes away what it made and stops."""
+    if install.get("proc"):
+        return False
+    for pid in filter(str.isdigit, os.listdir("/proc")):
+        try:
+            with open(f"/proc/{pid}/cmdline", "rb") as f:
+                if INSTALLER in f.read().decode(errors="replace").split("\0"):
+                    return True
+        except OSError:
+            pass
+    return False
+
 def survey():
     if not surveying.acquire(blocking=False):
         return
     try:
+        # Try again starts the helper again after one stopped mid-install: the disks are read once its installer is gone,
+        # as they are then, and Install waits for this read
+        while installer_left():
+            time.sleep(1)
         many = all_disks()          # every disk read once (it was read twice: once for the disk, once for the list)
         last["disks"] = many
         d = disks(many)

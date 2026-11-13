@@ -1499,7 +1499,7 @@ ApplicationWindow {
                 SettingRow {
                     label: "Lock screen picture"
                     description: Config.options.background.lockWall.length > 0
-                        ? Config.options.background.lockWall.split("/").pop() : "The same picture as the desktop"
+                        ? `${Config.options.background.lockWall.split("/").pop()} · shows after sign-in` : "The same picture as the desktop"
                     clickable: false
                     control: Row {
                         spacing: 2

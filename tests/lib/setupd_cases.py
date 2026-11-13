@@ -175,5 +175,42 @@ def power():
         check(name, got == want, str(got))
 
 
-{"small": small, "reuse": reuse, "zone": zone, "enterprise": enterprise, "power": power}[sys.argv[2]]()
+def left():
+    """After a helper stopped mid-install, its installer goes on as root until its next progress line finds no one to
+    read it: the helper started again by Try again reads the disks once that installer has gone, and Install waits for
+    that read. A stand-in with the installer's path in its command line plays the installer (nothing is installed)."""
+    import subprocess, threading, time
+    m = load()
+    m.REAL = True
+    m.uefi = lambda: True
+    w = disk("/dev/nvme0n1", 512 * GB, "windows", gpt=True, esp=True, free=0, used=140 * GB, winSize=510 * GB)
+    stand_in = subprocess.Popen([sys.executable, "-I", "-c", "import time; time.sleep(1.5)", m.INSTALLER])
+    reads, started = [], []
+    m.all_disks = lambda: reads.append(stand_in.poll() is not None) or [w]
+    m.real_install = lambda *a: started.append(stand_in.poll() is not None)
+    survey = threading.Thread(target=m.survey)
+    survey.start()
+    time.sleep(0.2)
+    install = threading.Thread(target=m.act, args=({"op": "install", "place": "instead"},))
+    install.start()
+    survey.join(10)
+    install.join(10)
+    stand_in.wait()
+    check("the disks are read only once the installer left behind has gone", reads == [True], f"reads with it gone: {reads}")
+    check("and Install, asked meanwhile, starts only after that", started == [True], f"installs with it gone: {started}")
+    check("the page is answered", m.sent and m.sent[0].get("ev") == "disks", str(m.sent[:1]))
+
+    # this helper's own installer is no reason to wait: the read after its own failed install goes ahead
+    m = load()
+    m.install["proc"] = object()
+    stand_in = subprocess.Popen([sys.executable, "-I", "-c", "import time; time.sleep(1.5)", m.INSTALLER])
+    reads = []
+    m.all_disks = lambda: reads.append(stand_in.poll() is None) or [w]
+    m.survey()
+    stand_in.kill()
+    stand_in.wait()
+    check("a helper's own installer does not hold up its read", reads == [True], f"reads with it running: {reads}")
+
+
+{"small": small, "reuse": reuse, "zone": zone, "enterprise": enterprise, "power": power, "left": left}[sys.argv[2]]()
 sys.exit(1 if bad else 0)

@@ -20,6 +20,9 @@ Rectangle {
     readonly property string userName: userModel.data(userModel.index(shown, 0), Qt.UserRole + 1) ?? ""
     readonly property string realName: userModel.data(userModel.index(shown, 0), Qt.UserRole + 2) ?? ""
     property bool failed: false
+    // from Enter until SDDM says the password failed (on success the session takes the screen): the field looked
+    // unchanged for the seconds PAM takes, and a second Enter signed in again
+    property bool signingIn: false
 
     // the Tacit session, whatever else is installed
     readonly property int tacitSession: {
@@ -115,15 +118,16 @@ Rectangle {
             height: 58
             focus: true
             echoMode: TextInput.Password
-            placeholderText: root.failed ? "Incorrect password" : "Password"
+            placeholderText: root.signingIn ? "Signing in…" : root.failed ? "Incorrect password" : "Password"
             placeholderTextColor: root.failed ? config.error : config.onSurfaceVariant
             color: config.onSurface
             font.family: "Tacit Sans"
             font.pixelSize: 19
             background: null
             verticalAlignment: TextInput.AlignVCenter
+            readOnly: root.signingIn
             onTextEdited: root.failed = false
-            onAccepted: if (text.length) sddm.login(root.userName, text, root.tacitSession)
+            onAccepted: if (text.length && !root.signingIn) { root.signingIn = true; sddm.login(root.userName, text, root.tacitSession); text = ""; }
             Component.onCompleted: forceActiveFocus()
             transform: Translate { id: shake; x: 0 }
         }
@@ -137,7 +141,7 @@ Rectangle {
     }
     Connections {
         target: sddm
-        function onLoginFailed() { root.failed = true; password.text = ""; shakeAnim.restart(); password.forceActiveFocus(); }
+        function onLoginFailed() { root.signingIn = false; root.failed = true; password.text = ""; shakeAnim.restart(); password.forceActiveFocus(); }
     }
 
     // power, docked into the bottom right corner
