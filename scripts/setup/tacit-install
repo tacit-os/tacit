@@ -418,6 +418,19 @@ def windows_elsewhere(disk):
     return False
 
 
+def boot_entries(partuuid, offset):
+    """Tacit's boot entry, and "Tacit (safe start)" beside it: the same system with only the options it needs (no quiet or
+    splash, so what goes wrong shows), never the default, in the menu Space shows at start as Windows is. With loader.conf's
+    editor off, a kernel option added to tacit.conf that stops the start (video=, Discord, OYINOS, 2026-11-13: a blank
+    screen) otherwise needed the stick to undo. tacit-session's update writes the same entry on computers set up before."""
+    resume = f" resume=PARTUUID={partuuid} resume_offset={offset}" if offset is not None else ""
+    os.makedirs(f"{TARGET}/boot/loader/entries", exist_ok=True)
+    with open(f"{TARGET}/boot/loader/entries/tacit.conf", "w") as f:
+        f.write(f"title Tacit\nlinux /vmlinuz-linux\ninitrd /initramfs-linux.img\noptions root=PARTUUID={partuuid} rw quiet splash loglevel=1 rd.udev.log_level=0 udev.log_level=0 systemd.show_status=false rd.systemd.show_status=false vt.global_cursor_default=0{resume}\n")
+    with open(f"{TARGET}/boot/loader/entries/tacit-safe.conf", "w") as f:
+        f.write(f"title Tacit (safe start)\nlinux /vmlinuz-linux\ninitrd /initramfs-linux.img\noptions root=PARTUUID={partuuid} rw{resume}\n")
+
+
 def install(disk, place, keep, manual=None):
     efi_disk = disk
     if place == "manual":
@@ -584,11 +597,7 @@ def install(disk, place, keep, manual=None):
     for path in (f"{TARGET}{esp}/EFI/systemd/systemd-boot{suffix}.efi", f"{TARGET}{esp}/EFI/BOOT/BOOT{suffix.upper()}.EFI"):
         if not os.path.isfile(path) or os.path.getsize(path) == 0:
             raise Refused(f"bootctl did not install the UEFI loader at {path}")
-    partuuid = sh("blkid", "-s", "PARTUUID", "-o", "value", root).strip()
-    resume = f" resume=PARTUUID={partuuid} resume_offset={offset}" if offset is not None else ""
-    os.makedirs(f"{TARGET}/boot/loader/entries", exist_ok=True)
-    with open(f"{TARGET}/boot/loader/entries/tacit.conf", "w") as f:
-        f.write(f"title Tacit\nlinux /vmlinuz-linux\ninitrd /initramfs-linux.img\noptions root=PARTUUID={partuuid} rw quiet splash loglevel=1 rd.udev.log_level=0 udev.log_level=0 systemd.show_status=false rd.systemd.show_status=false vt.global_cursor_default=0{resume}\n")
+    boot_entries(sh("blkid", "-s", "PARTUUID", "-o", "value", root).strip(), offset)
     # next to another Linux: systemd-boot finds Windows by itself, not GRUB, so each other system's loader on the EFI
     # partition gets an entry (shown with Space, as Windows is)
     if place != "instead":
