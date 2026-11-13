@@ -142,8 +142,8 @@ Singleton {
             return hold.workspace;
         case "activity":
             return hold.activity;
-        case "activityDone":
-            return hold.activityDone;
+        case "activityDone":    // a line longer than "done" brings its own hold
+            return root.payload?.hold ?? hold.activityDone;
         case "activityFail":
             return hold.activityFail;
         case "track":
@@ -161,6 +161,7 @@ Singleton {
             return 120000;
         case "flowNote":    // what Flow could not do: a line to read, not a flash
         case "note":        // another program's line (island note): read, not flashed
+        case "cantDim":     // a brightness key's answer on a screen with no level: read, not flashed
             return 4000;
         case "disk":
         case "pr":
@@ -225,11 +226,11 @@ Singleton {
             }
             return;
         }
-        // A volume, brightness or mic key shows its meter over any state, and that state comes back first when the meter
-        // has gone: dropped behind a battery line, a timer, Flow or the not-answering prompt (an hour), the key showed
-        // nothing anywhere, as the on-screen meter stands down for the notch. An agent's ask, which waits for its
-        // answer, gives way so to a state of higher priority (Flow) too.
-        const key = name === "volume" || name === "brightness" || name === "mic";
+        // A volume, brightness or mic key shows its meter (or that the screen can't be dimmed) over any state, and that
+        // state comes back first when the meter has gone: dropped behind a battery line, a timer, Flow or the
+        // not-answering prompt (an hour), the key showed nothing anywhere, as the on-screen meter stands down for the
+        // notch. An agent's ask, which waits for its answer, gives way so to a state of higher priority (Flow) too.
+        const key = name === "volume" || name === "brightness" || name === "mic" || name === "cantDim";
         if (root.transientShowing && ((key && priority < root.transientPriority)
                 || (root.transientState === "claudeAsk" && (key || priority >= root.transientPriority)))) {
             root.queue = [{ "name": root.transientState, "data": root.payload, "priority": root.transientPriority }]
@@ -356,7 +357,7 @@ Singleton {
     // the wings land on it (Discord 2026-10-21: "AM" over the volume bar). A recording keeps room for the Stop its row
     // brings out under the hand - and the gap before it (IslandHeader's liveRow): 34 for the word, 8 for the spacing.
     // Only under the hand: at rest the notch is the clock's box again, so the recording's time keeps the middle.
-    readonly property real centreWidth: 116 + Math.max(0, root.clockWidth - Math.ceil(clock24.advanceWidth)) + (root.ambientGlyph !== "" ? 30 : 0) + (root.recording && root.notchHovered ? 42 : 0)
+    readonly property real centreWidth: 116 + Math.max(0, root.clockWidth - Math.ceil(clock24.advanceWidth)) + (root.ambientGlyph !== "" ? 30 : 0) + (root.coffeeAside ? 26 : 0) + (root.recording && root.notchHovered ? 42 : 0)
     // The clock's box (StripClock): the widest time the format shows, digits as 0 (tabular), so nothing moves as the
     // minutes change. 10:58 gives two hour digits in every format, and AM, the wider of AM and PM.
     readonly property string clockSample: Qt.locale().toString(new Date(2000, 0, 1, 10, 58), Config.options?.time.format ?? "hh:mm").replace(/[0-9]/g, "0")
@@ -433,6 +434,10 @@ Singleton {
         case "signedIn":
             return 160;
         }
+        // a sentence told as its point and the rest (payload.wide): as wide as an update's line, so the longer half
+        // ("can't be dimmed from here") fits beside the status marks
+        if (root.payload?.wide)
+            return 204;
         // battery, charger, timerDone, network, activityDone, activityFail ("Plugged in, not charging" whole)
         return 140;
     }
@@ -601,6 +606,9 @@ Singleton {
             }
         }
     }
+    // Caffeine holds off the lock, sleep and the night's update, and every other mark ranks above it: while one of them
+    // has the slot, the coffee stands beside it (IslandHeader), so Caffeine on always shows.
+    readonly property bool coffeeAside: Idle.inhibit && root.ambientGlyph !== "coffee"
     // A running timer is a status glyph; the hover strip carries its remaining time and controls.
     readonly property bool timerAmbient: TimerService.pomodoroRunning || TimerService.countdownRunning
     readonly property string ambientGlyph: {
@@ -1030,6 +1038,15 @@ Singleton {
                 "kind": "brightness"
             }, 76);
         }
+        // no level to show: the key is answered in words, as its meter would be
+        function onCantDim() {
+            root.request("cantDim", {
+                "icon": "brightness_6",
+                "text": Translation.tr("This screen"),
+                "value": Translation.tr("can't be dimmed from here"),
+                "wide": true
+            }, 76);
+        }
     }
 
     // Gamma (night light's dimming) is a brightness-family meter; the OSD used to show it.
@@ -1087,6 +1104,9 @@ Singleton {
 
     // ------------------------------------------------------------------ radios
     property bool lastWifiConnected: false
+    // until when the radio is being cycled after a wake (scripts/network/wifi-after-sleep.sh, `island wifiCycle`): the
+    // flap was not the person's doing, so its "Wi-Fi off." is not said
+    property real wifiCycleUntil: 0
 
     Connections {
         target: Network
@@ -1138,6 +1158,10 @@ Singleton {
             line = "Wired.";
             icon = "lan";
         } else if (!Network.wifiEnabled) {
+            if (Date.now() < root.wifiCycleUntil) {
+                root.lastWifiConnected = false;
+                return;
+            }
             line = "Wi-Fi off.";
         } else if (connected) {
             line = Network.active?.ssid || Network.networkName;
@@ -2497,6 +2521,11 @@ Singleton {
         // `island note <icon> "<text>"`: one line in the notch, for other programs
         function note(icon: string, text: string): void {
             root.request("note", { "icon": icon, "text": text }, 65);
+        }
+
+        // `island wifiCycle`: the radio goes off and on in a moment, after a wake with no network joined
+        function wifiCycle(): void {
+            root.wifiCycleUntil = Date.now() + 15000;
         }
 
         function notAnsweringGone(id: string): void {

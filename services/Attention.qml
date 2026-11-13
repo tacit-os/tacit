@@ -103,6 +103,8 @@ Singleton {
 
     // The folder a terminal window is in: its shell's cwd (the first child of the terminal's
     // pid), read from /proc. Asynchronous: a process, so never on a frame. cb("") when unknown.
+    // A terminal process with several shells (kitty's tabs, ghostty's and footclient's windows)
+    // does not say which one is in front, so none is guessed, as bin/focus-folder does.
     function cwdFor(address, cb) {
         const client = HyprlandData.windowByAddress[address];
         const pid = client?.pid ?? 0;
@@ -127,7 +129,7 @@ Singleton {
             id: proc
             property int pid: 0
             property var cb
-            command: ["bash", "-c", `c=$(pgrep -P ${proc.pid} | head -1); [ -n "$c" ] || c=${proc.pid}; d=$(pgrep -P "$c" | head -1); for p in "$d" "$c"; do [ -n "$p" ] && w=$(readlink /proc/$p/cwd 2>/dev/null) && [ -d "$w" ] && { printf '%s' "$w"; exit 0; }; done`]
+            command: ["bash", "-c", `[ "$(pgrep -c -P ${proc.pid})" -gt 1 ] && exit 0; c=$(pgrep -P ${proc.pid} | head -1); [ -n "$c" ] || c=${proc.pid}; d=$(pgrep -P "$c" | head -1); for p in "$d" "$c"; do [ -n "$p" ] && w=$(readlink /proc/$p/cwd 2>/dev/null) && [ -d "$w" ] && { printf '%s' "$w"; exit 0; }; done`]
             stdout: StdioCollector {
                 onStreamFinished: {
                     proc.cb(text.trim());

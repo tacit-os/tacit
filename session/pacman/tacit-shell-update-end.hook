@@ -1,0 +1,10 @@
+[Trigger]
+Type = Path
+Operation = Install
+Operation = Upgrade
+Target = usr/share/tacit/shell/*
+
+[Action]
+Description = Letting the desktop reload with the update...
+When = PostTransaction
+Exec = /usr/share/libalpm/scripts/tacit-shell-update end

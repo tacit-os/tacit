@@ -36,11 +36,14 @@ Singleton {
         roster: false
         onConnectedChanged: {
             if (!connected) {
-                // The session died with the host and no exit comes over a lost socket: the Live Activity
-                // would run on until its stall timer and end without a word.
+                // No exit comes over a lost socket: the Live Activity would run on until its stall timer and end
+                // without a word. Not a failure: a host restarted by an update leaves the turn to finish in the old
+                // process, so the pill says so in the plain tone, and a click opens the conversation to see.
                 if (root.activityId.length) {
+                    const id = root.activityId;
                     root.activityId = "";
-                    IslandController.endActivity("fail", "Claude stopped.");
+                    IslandController.endActivity("ok", "Lost touch with Praxis;", { icon: "link_off", value: "the work may still finish",
+                        wide: true, hold: Config.options.island.hold.activityFail, claudeId: id });
                 }
                 return;
             }

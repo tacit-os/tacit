@@ -1,5 +1,6 @@
 pragma ComponentBehavior: Bound
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.services
 import qs
@@ -43,19 +44,18 @@ MouseArea {
     // In a session of its own, holding none of the shell's pipes: Quickshell kills a Process's child when the Process
     // goes (a reload, as the update of the shell's own package brings, or the bar rebuilt), which took the terminal and
     // the update in it along. setsid -w waits for it and gives back its exit; only setsid is killed then.
+    // A terminal that is not there is said by bash's command_not_found_handle, as Settings > About says it: bash calls
+    // it only for a command it cannot find, while a terminal passes on its program's status, and pkexec's 127 for a
+    // password it could not get is not a missing command. The handler takes itself away first (a missing notify-send).
     Process {
         id: updateProc
-        command: ["bash", "-c", 'exec setsid -f -w bash -c "$1" </dev/null >/dev/null 2>&1', "_", Config.options.apps.update]
+        command: ["bash", "-c", 'exec setsid -f -w bash -c "$1" </dev/null >/dev/null 2>&1', "_",
+            `command_not_found_handle() { unset -f command_not_found_handle; notify-send '${StringUtils.shellSingleQuoteEscape(Translation.tr("Update didn't start"))}' '${StringUtils.shellSingleQuoteEscape(Translation.tr("Could not run the update command in the config file (apps.update)."))}' -a 'Shell'; return 127; }; ${Config.options.apps.update}`]
         onExited: (exitCode, exitStatus) => {
-            // 127: the command was not found, so nothing ran and there is no result to report
-            if (exitCode === 127) {
-                Quickshell.execDetached(["notify-send",
-                    Translation.tr("Update didn't start"),
-                    Translation.tr("Could not run the update command in the config file (apps.update)."),
-                    "-a", "Shell"
-                ])
+            // 127: nothing was installed, the command not being there (said above) or pkexec without its password (said
+            // in the terminal), so there is no count to report
+            if (exitCode === 127)
                 return
-            }
             Updates.refresh()
             notifyTimer.restart()
         }

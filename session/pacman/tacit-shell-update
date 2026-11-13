@@ -1,0 +1,18 @@
+#!/bin/sh
+# tacit-shell-update start|end: pacman's hooks around a transaction that changes the shell's own files
+# (/usr/share/tacit/shell; tacit-shell-update-start.hook, tacit-shell-update-end.hook). The running shell reloaded at
+# the first of them it saw change, halfway through the extraction, and loaded a tree half old and half new. It reads
+# this mark instead (services/ShellUpdate.qml): "installing" stops its watch on its files, "done" reloads it once with
+# every file in. A transaction that fails runs no end hook; the shell then takes pacman's lock going away for the end.
+mark=/run/tacit-shell-update
+case "$1" in
+start)
+	printf 'installing\n' > "$mark.new" && mv -f "$mark.new" "$mark"
+	# before the first file is replaced, the shell has heard it and stopped watching
+	sleep 2
+	;;
+end)
+	printf 'done\n' > "$mark.new" && mv -f "$mark.new" "$mark"
+	;;
+esac
+exit 0

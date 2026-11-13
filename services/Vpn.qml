@@ -141,7 +141,8 @@ Singleton {
         return /\.conf$/i.test(path + "");
     }
 
-    // ---- the rule: untrusted Wi-Fi -> auto VPN up; trusted or wired -> down
+    // ---- the rule: an untrusted network -> auto VPN up; a trusted one -> down. The network is the one the traffic goes
+    // over: a cable when one is up (trusted unless marked otherwise), else the Wi-Fi.
     property bool ruleSkipped: false
     function applyRule(): void {
         if (root.autoVpn.length === 0)
@@ -152,7 +153,7 @@ Singleton {
         }
         const wifi = Network.active;
         const wired = Network.ethernet;
-        const trusted = wired || (wifi && Network.isTrusted(wifi.ssid));
+        const trusted = wired ? Network.isWiredTrusted(Network.wiredName) : (wifi && Network.isTrusted(wifi.ssid));
         const online = wired || wifi !== null;
         const ours = root.active && root.active.name === root.autoVpn;
         if (online && !trusted && !root.active) {
@@ -166,6 +167,7 @@ Singleton {
         target: Network
         function onActiveChanged() { ruleLater.restart(); }
         function onEthernetChanged() { ruleLater.restart(); }
+        function onWiredNameChanged() { ruleLater.restart(); }
         function onChanged() { refreshLater.restart(); }
     }
     Timer {
@@ -213,8 +215,8 @@ Singleton {
         interval: 4000   // past ruleLater's 2.5 s
         onTriggered: {
             const wifi = Network.active;
-            const trusted = Network.ethernet || (wifi && Network.isTrusted(wifi.ssid));
-            if (root.autoVpn !== "" && !root.active && !root.busy && wifi !== null && !trusted && root.ruleTriedAt < root.droppedAt)
+            const trusted = Network.ethernet ? Network.isWiredTrusted(Network.wiredName) : (wifi && Network.isTrusted(wifi.ssid));
+            if (root.autoVpn !== "" && !root.active && !root.busy && (wifi !== null || Network.ethernet) && !trusted && root.ruleTriedAt < root.droppedAt)
                 root.failed(Translation.tr("it dropped"));
         }
     }

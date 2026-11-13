@@ -55,9 +55,21 @@ Singleton {
         importedPresetsFolderModel.folder = current
     }
 
+    // A save, an overwrite or an import that failed: presets.sh's own reason (it exits 1 with "Error: ..." on stderr),
+    // for the line under the preset rows; "" again once one goes through or another starts
+    property string error: ""
+    function report(code, said, fallback) {
+        const line = (said ?? "").trim().split("\n").filter(l => l.trim().length > 0).pop()?.trim().replace(/^Error:\s*/, "") ?? ""
+        root.error = code === 0 ? "" : line.length > 0 ? line.charAt(0).toUpperCase() + line.slice(1) : fallback
+    }
+
     Process {
         id: saveProc
-        onExited: root.refresh()
+        stderr: StdioCollector { id: saveSaid }
+        onExited: (code, status) => {
+            root.report(code, saveSaid.text, Translation.tr("The preset could not be saved"))
+            root.refresh()
+        }
     }
 
     Process {
@@ -77,7 +89,9 @@ Singleton {
 
     Process {
         id: overwriteProc
-        onExited: {
+        stderr: StdioCollector { id: overwriteSaid }
+        onExited: (code, status) => {
+            root.report(code, overwriteSaid.text, Translation.tr("The preset could not be saved"))
             root.refresh()
             root.refreshOnline()
             root.refreshImported()
@@ -90,7 +104,11 @@ Singleton {
 
     Process {
         id: importZipProc
-        onExited: root.refreshImported()
+        stderr: StdioCollector { id: importSaid }
+        onExited: (code, status) => {
+            root.report(code, importSaid.text, Translation.tr("The preset could not be imported"))
+            root.refreshImported()
+        }
     }
 
     function save(rawInput) {
@@ -110,6 +128,7 @@ Singleton {
         name = name.replace(/[\/\s]/g, "_").replace(/^\.+/, "")
         if (name.length === 0) return
 
+        root.error = ""
         saveProc.command = ["bash", Directories.presetsScriptPath, "--save", name, description]
         saveProc.running = true
     }
@@ -153,6 +172,7 @@ Singleton {
     // source: "" for a saved preset, "--online" or "--imported" for the card's own folder
     function overwrite(name, source = "") {
         // Overwrite with same name (presets.sh --save filters General+Services)
+        root.error = ""
         overwriteProc.command = ["bash", Directories.presetsScriptPath, "--save", name, ...(source ? [source] : [])]
         overwriteProc.running = true
     }
@@ -164,6 +184,7 @@ Singleton {
 
     function importZip(path) {
         const clean = String(path).replace(/^file:\/\//, "")
+        root.error = ""
         importZipProc.command = ["bash", Directories.presetsScriptPath, "--import-zip", clean]
         importZipProc.running = true
     }

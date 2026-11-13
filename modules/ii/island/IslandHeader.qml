@@ -254,6 +254,18 @@ Item {
         }
     }
 
+    // Caffeine beside a mark that ranks above it (IslandController.coffeeAside): passive, so still and in meta
+    MaterialSymbol {
+        id: coffeeMark
+        anchors.right: statusSlot.left
+        anchors.rightMargin: 8
+        anchors.verticalCenter: parent.verticalCenter
+        visible: IslandController.coffeeAside && statusSlot.visible
+        text: "coffee"
+        iconSize: 18
+        color: Tacit.inkMeta
+    }
+
     // a recording's stop: the whole notch at rest, the time and its Stop when a peek or the sheet has wings beside it.
     // Under the wings, so their own controls keep their clicks.
     MouseArea {
@@ -294,7 +306,7 @@ Item {
         anchors.left: centre.right
         anchors.leftMargin: 8
         anchors.right: parent.right
-        anchors.rightMargin: statusSlot.visible ? 12 + statusSlot.width + 8 : 10
+        anchors.rightMargin: statusSlot.visible ? 12 + statusSlot.width + 8 + (coffeeMark.visible ? coffeeMark.width + 8 : 0) : 10
         anchors.verticalCenter: parent.verticalCenter
         height: 24
         sourceComponent: root.rightFor(root.loadedState)
@@ -406,7 +418,7 @@ Item {
         case "update":
             return IslandController.payload?.restarting ? messageGlyphWing : updateAnswerWing;
         case "updated":
-            return IslandController.payload?.notes ? updatedNotesWing : messageGlyphWing;
+            return IslandController.payload?.notes ? updatedNotesWing : IslandController.payload?.retry ? updatedRetryWing : messageGlyphWing;
         case "claudeAsk":
             return IslandController.payload?.permission ? claudeAnswerWing : messageGlyphWing;
         case "flow":
@@ -652,6 +664,8 @@ Item {
                     return wingItem.p?.name ?? "";
                 if (state === "notification")
                     return wingItem.p?.summary ?? "";
+                if (wingItem.p?.wide)     // a sentence told as its point and the rest: here in one piece
+                    return `${wingItem.p?.text ?? ""} ${wingItem.p?.value ?? ""}`;
                 return wingItem.p?.text ?? "";
             }
             readonly property string icon: {
@@ -914,6 +928,20 @@ Item {
                 anchors.verticalCenter: parent.verticalCenter
                 text: "What's new"
                 action: () => { IslandController.dismiss(); Updates.openNotes(); }
+            }
+        }
+    }
+
+    // -- updated, but it stopped partway: nothing tries again by itself, so the card has the Restart that does
+    Component {
+        id: updatedRetryWing
+        Item {
+            StripPill {
+                anchors.right: parent.right
+                anchors.verticalCenter: parent.verticalCenter
+                text: "Restart"
+                ring: true
+                action: () => Updates.restartNow()
             }
         }
     }

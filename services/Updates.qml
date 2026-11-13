@@ -150,7 +150,7 @@ Singleton {
             unsavedProc.running = true;
     }
     // Settings' Restart read the IslandController of its own process, which that read made and which had looked at no
-    // folder yet, so the "Unsaved changes" step never came and the computer restarted at once. No answer from the shell
+    // folder yet, so the "Uncommitted work" step never came and the computer restarted at once. No answer from the shell
     // (none running, or none in 3 s) is no warning, as before. The notch's lines below are the shell's alone too: an
     // IslandController made in Settings has no notch, and starts a second copy of the notch's watchers (Jobs, Recents).
     property bool shellUnsaved: false
@@ -177,7 +177,7 @@ Singleton {
             if (!root.guarding)
                 return;
             root.guarding = false;
-            const warning = (root.says ? IslandController.workUnsaved : root.shellUnsaved) ? "Unsaved changes"
+            const warning = (root.says ? IslandController.workUnsaved : root.shellUnsaved) ? "Uncommitted work"
                 : SessionWarnings.agentWorking ? `${SessionWarnings.agentTitles.length > 1 ? "Agents are" : "An agent is"} still working: ${SessionWarnings.agentTitles.join(", ")}`
                 : SessionWarnings.packageManagerRunning ? "The package manager is running"
                 : SessionWarnings.downloadRunning ? "A download may be in progress" : "";
@@ -639,12 +639,15 @@ Singleton {
             // a failed one is offered again when it is downloaded again
             if (!r.ok)
                 announcedFile.setText("");
+            // nothing tries again by itself after one that stopped partway: its card has the Restart that does
             root.say("updated", {
                 "icon": r.ok ? "check" : "error",
                 "notes": r.ok,
+                "retry": !r.ok && !r.untouched,
+                "wide": !r.ok && !r.untouched,
                 "text": r.ok ? (r.version ? `Updated to Tacit ${r.version.split("-")[0]}` : "Updated")
                     : r.untouched ? "The update didn't install · nothing changed"
-                    : "The update stopped partway · it tries again"
+                    : "Didn't install. Restart to try again."
             }, () => seenFile.setText(`${r.at}`));
         }
     }

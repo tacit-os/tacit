@@ -224,8 +224,11 @@ Singleton {
         root.batches = root.batches.concat([paths]);
         root.checkNext();
     }
-    // only files can go: a folder or a missing path is left out before it becomes a row
+    // only files can go: a folder or a missing path is left out before it becomes a row; the folders of each batch are
+    // counted (batch -> how many) until its last file has gone, and said then with what went
     property var batches: []
+    property int batchCounter: 0
+    property var batchFolders: ({})
     function checkNext() {
         if (checkProc.running || root.batches.length === 0)
             return;
@@ -233,14 +236,23 @@ Singleton {
         root.batches = root.batches.slice(1);
         checkProc.running = true;
     }
-    function add(paths) {
+    // the checked paths: files, and folders with a "/" after them
+    function add(checked) {
+        const paths = checked.filter(p => !p.endsWith("/"));
+        const folders = checked.length - paths.length;
+        if (paths.length === 0) {
+            if (folders > 0)
+                IslandController.request("note", { "icon": "folder_off", "text": "Folders can't be sent" }, 65);
+            return;
+        }
+        root.batchCounter++;
+        if (folders > 0)
+            root.batchFolders = Object.assign({}, root.batchFolders, { [root.batchCounter]: folders });
         const rows = [];
         for (const p of paths) {
             root.counter++;
-            rows.push({ "n": root.counter, "path": p, "name": p.split("/").pop(), "state": root.paired ? "queued" : "waiting" });
+            rows.push({ "n": root.counter, "batch": root.batchCounter, "path": p, "name": p.split("/").pop(), "state": root.paired ? "queued" : "waiting" });
         }
-        if (rows.length === 0)
-            return;
         root.sends = rows.reverse().concat(root.sends).slice(0, 30);
         if (!root.paired)
             root.pageRequested();
@@ -288,10 +300,25 @@ Singleton {
             const s = root.sends.find(x => x.n === root.current);
             const ok = code === 0;
             root.patch(root.current, { "state": ok ? "sent" : "failed" });
-            if (ok)
+            // the last file of a batch that had folders: the line says what went and that the folders could not
+            const batch = s?.batch ?? 0;
+            const last = (root.batchFolders[batch] ?? 0) > 0 && !root.sends.some(x => x.batch === batch && ["waiting", "queued", "sending"].includes(x.state));
+            const went = root.sends.filter(x => x.batch === batch && x.state === "sent").length;
+            const folderLine = went > 0 ? `Sent ${went} ${went === 1 ? "file" : "files"} · folders can't be sent` : "Folders can't be sent";
+            if (last) {
+                const left = Object.assign({}, root.batchFolders);
+                delete left[batch];
+                root.batchFolders = left;
+            }
+            if (ok && last)
+                IslandController.endActivity("ok", folderLine, { "wide": true, "hold": Config.options.island.hold.activityFail });
+            else if (ok)
                 IslandController.endActivity("ok", `Sent to ${root.sentTo} · ${s?.name ?? ""}`);
             else
                 IslandController.endActivity("fail", `Not sent to ${root.sentTo}`);
+            // after a failure the failure is said first, and the folders after it
+            if (!ok && last)
+                IslandController.request("note", { "icon": "folder_off", "text": folderLine, "wide": went > 0 }, 65);
             root.pump();
         }
     }

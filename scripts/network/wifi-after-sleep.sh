@@ -22,6 +22,8 @@ for _ in $(seq "${TACIT_WIFI_WAIT:-25}"); do
     sleep 1
 done
 
+# the notch stays quiet for the flap, which was not the person's doing (a shell that does not answer says "Wi-Fi off.")
+[[ -n ${TACIT_SHELL:-} ]] && timeout 3 qs -p "$TACIT_SHELL" ipc call island wifiCycle > /dev/null 2>&1
 nmcli radio wifi off
 sleep 2
 nmcli radio wifi on

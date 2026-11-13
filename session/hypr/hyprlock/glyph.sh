@@ -10,5 +10,7 @@ for d in /sys/class/power_supply/book4-ec-battery /sys/class/power_supply/*; do
   [[ $(<"$d/status") == Charging ]] && { echo bolt; exit; }
   break
 done
-t=$(hyprctl hyprsunset temperature 2>/dev/null | head -1)
-[[ -n $t && $t != 6500 ]] && echo bedtime
+# a tint is on while hyprsunset's identity is off, as the desktop reads it (Hyprsunset.qml, hyprsunset 0.4): its
+# temperature stays where it was when the night light was turned off, so that read a night light turned off as on
+pidof hyprsunset >/dev/null || exit 0
+[[ $(hyprctl hyprsunset identity get 2>/dev/null | head -1) == false ]] && echo bedtime

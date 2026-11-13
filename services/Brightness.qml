@@ -28,11 +28,17 @@ Singleton {
         return monitors.find(m => m.screen === screen);
     }
 
+    // A key on a screen that was asked and has no way to be driven (no backlight, no DDC answer): the notch says so,
+    // as there is no level to show. Not while the screen is still being asked.
+    signal cantDim()
+
     function increaseBrightness(): void {
         const focusedName = Hyprland.focusedMonitor?.name;
         const monitor = monitors.find(m => focusedName === m.screen.name);
         if (monitor?.ready)
             monitor.setBrightness(monitor.brightness + 0.05);
+        else if (monitor?.settled)
+            root.cantDim();
     }
 
     function decreaseBrightness(): void {
@@ -40,6 +46,8 @@ Singleton {
         const monitor = monitors.find(m => focusedName === m.screen.name);
         if (monitor?.ready)
             monitor.setBrightness(monitor.brightness - 0.05);
+        else if (monitor?.settled)
+            root.cantDim();
     }
 
     reloadableId: "brightness"
@@ -149,6 +157,8 @@ Singleton {
         // built-in panel with a backlight. A screen with neither stays false, and the keys, the control panel's
         // slider and the OSD leave it alone.
         property bool ready: false
+        // Asking this screen is over, whatever came of it: false while ddcutil detect, a read or a retry is to come
+        property bool settled: false
         // A DDC monitor that did not answer is asked again a few times (it can be slow to wake after being plugged in)
         property int ddcTries: 0
         property bool retrying: false
@@ -184,6 +194,7 @@ Singleton {
 
         function initialize() {
             monitor.ready = false;
+            monitor.settled = false;
             monitor.ddcTries = 0;
             monitor.retrying = false;
             retryTimer.stop();
@@ -192,6 +203,7 @@ Singleton {
             busNum = match?.busNum ?? "";
             if (!isDdc && !monitor.isInternal) {
                 // The backlight is the laptop's own panel, not this screen: no control rather than one that dims the wrong screen
+                monitor.settled = true;
                 initializeMonitor(root.monitors.indexOf(monitor) + 1);
                 return;
             }
@@ -219,7 +231,8 @@ Singleton {
                 if (monitor.isDdc && !monitor.ready && monitor.ddcTries < 3) {
                     monitor.ddcTries += 1;
                     retryTimer.restart();
-                }
+                } else
+                    monitor.settled = true;
                 // A retry runs beside the others: the one-after-another read has gone on already
                 if (!wasRetry)
                     initializeMonitor(root.monitors.indexOf(monitor) + 1);

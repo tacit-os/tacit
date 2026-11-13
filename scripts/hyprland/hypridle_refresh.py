@@ -1,9 +1,10 @@
 #!/usr/bin/env python3
-# The person's hypridle.conf, when Settings made it, brought up to Tacit's at login, with their times kept. Settings >
-# Lock & sleep changes a time by copying the packaged file into ~/.config/hypr, which hypridle reads first, so a later fix
-# to the packaged file (the lock command, the Wi-Fi step after sleep) never reached anyone who had changed a time. A copy
-# Settings makes says so on its first line (MARK, tacit-settings.qml's idleMark); one made before it did is known by
-# being a packaged file but for its times. Any other file is the person's own and is left as it is.
+# The person's hypridle.conf, when Settings made it, brought up to Tacit's at login, with their times kept (and a
+# listener they turned off with Never kept off). Settings > Lock & sleep changes a time by copying the packaged file
+# into ~/.config/hypr, which hypridle reads first, so a later fix to the packaged file (the lock command, the Wi-Fi step
+# after sleep) never reached anyone who had changed a time. A copy Settings makes says so on its first line (MARK,
+# tacit-settings.qml's idleMark); one made before it did is known by being a packaged file but for its times. Any other
+# file is the person's own and is left as it is.
 #   hypridle_refresh.py [packaged] [theirs]   by default the hypridle.conf of $XDG_CONFIG_DIRS and of ~/.config/hypr
 import hashlib
 import os
@@ -12,6 +13,8 @@ import sys
 import tempfile
 
 MARK = "# Made by Settings > Lock & sleep from Tacit's hypridle.conf, with your times: the rest is Tacit's again at each login. Delete this line to keep edits of your own."
+# a listener Settings turned off (Never) has each of its lines behind this, which hypridle reads as a comment
+OFF = "#off "
 
 # session/xdg/hypr/hypridle.conf as Tacit shipped it before Settings marked its copies (322d244, 37b4ded, f169121), each
 # with its timeout lines blanked (masked)
@@ -31,12 +34,13 @@ def kind(run):
     return "sleep" if re.search(r"suspend|hibernate", run) else "screen" if "dpms" in run else "lock" if "lock" in run else ""
 
 
-# each listener as [timeout line index, kind]
+# each listener as [first line index, timeout line index, last line index, kind, turned off]
 def listeners(lines):
-    out, at, run, inside = [], -1, "", False
-    for i, line in enumerate(lines):
+    out, start, at, run, inside, off = [], -1, -1, "", False, False
+    for i, raw in enumerate(lines):
+        line = raw.removeprefix(OFF)
         if re.match(r"\s*listener\s*\{", line):
-            at, run, inside = -1, "", True
+            start, at, run, inside, off = i, -1, "", True, raw.startswith(OFF)
         elif inside and re.match(r"\s*timeout\s*=", line):
             at = i
         elif inside and re.match(r"\s*on-timeout\s*=", line):
@@ -44,22 +48,25 @@ def listeners(lines):
         elif inside and re.match(r"\s*\}", line):
             inside = False
             if at >= 0 and kind(run):
-                out.append((at, kind(run)))
+                out.append((start, at, i, kind(run), off))
     return out
 
 
 def refreshed(packaged, theirs):
     old = theirs.split("\n")
     times = {}
-    for at, k in listeners(old):
-        m = re.match(r"\s*timeout\s*=\s*(\d+)", old[at])
+    for _, at, _, k, off in listeners(old):
+        m = re.match(r"\s*timeout\s*=\s*(\d+)", old[at].removeprefix(OFF))
         if m and k not in times:
-            times[k] = m.group(1)
+            times[k] = (m.group(1), off)
     lines = packaged.split("\n")
-    for at, k in listeners(lines):
+    for start, at, end, k, _ in listeners(lines):
         m = re.match(r"(\s*)timeout\s*=\s*(\d+)", lines[at])
-        if k in times and m and m.group(2) != times[k]:
-            lines[at] = f"{m.group(1)}timeout = {times[k]}"
+        if k in times and m and m.group(2) != times[k][0]:
+            lines[at] = f"{m.group(1)}timeout = {times[k][0]}"
+        # turned off by Never: off again in Tacit's file
+        if k in times and times[k][1]:
+            lines[start:end + 1] = [OFF + line for line in lines[start:end + 1]]
     return MARK + "\n" + "\n".join(lines)
 
 

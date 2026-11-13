@@ -22,6 +22,9 @@ ShellRoot {
 
     ReloadPopup {}
 
+    // pacman changing the shell's own files: no reload at each one, one once they are all in (ShellUpdate)
+    Binding { target: Quickshell; property: "watchFiles"; value: !ShellUpdate.holding }
+
     // Tacit draws no tray, but Discord, Steam and the like register a tray icon only when some
     // process owns org.kde.StatusNotifierWatcher. Quickshell creates it in the process that first
     // uses SystemTray; a binding on the root is evaluated when the shell starts, so this

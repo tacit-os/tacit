@@ -3,7 +3,7 @@
 // then killed as ~Process kills it when the Process goes, on a reload or when the bar is rebuilt (QProcess::kill, a
 // SIGKILL to that one process). The pretend update is a command that takes a moment and then leaves a mark.
 import { spawn } from "child_process";
-import { existsSync, mkdtempSync, rmSync } from "fs";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { inScope, readExpression } from "./lib/qml.mjs";
@@ -12,19 +12,26 @@ import { check, done, read } from "./lib/check.mjs";
 console.log("== an update started from the bar when the shell reloads (UpdatesCount.qml)");
 const src = read("modules/ii/bar/UpdatesCount.qml");
 const at = src.indexOf("command:", src.indexOf("id: updateProc"));
-const command = update => inScope({ Config: { options: { apps: { update } } } }, "", `return (${readExpression(src, at + "command:".length).expr});`)();
+const esc = s => String(s).replace(/'/g, "'\\''");
+const command = update => inScope({ Config: { options: { apps: { update } } }, StringUtils: { shellSingleQuoteEscape: esc }, Translation: { tr: s => s } }, "",
+  `return (${readExpression(src, at + "command:".length).expr});`)();
+// a pretend notify-send first on PATH: the command's own notice must never reach a real desktop
+const tmp = mkdtempSync(join(tmpdir(), "tacit-update-"));
+const bin = join(tmp, "bin");
+mkdirSync(bin);
+writeFileSync(join(bin, "notify-send"), "#!/bin/sh\nexit 0\n");
+chmodSync(join(bin, "notify-send"), 0o755);
 const sleep = ms => new Promise(r => setTimeout(r, ms));
 // the command run as a QProcess runs it: { exit, killed } once it ends (killed after killAfter ms, as on a reload)
 function run(update, killAfter = null) {
   return new Promise(resolve => {
     const [cmd, ...args] = command(update);
-    const p = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"] });
+    const p = spawn(cmd, args, { stdio: ["pipe", "pipe", "pipe"], env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
     if (killAfter !== null) setTimeout(() => p.kill("SIGKILL"), killAfter);
     p.on("exit", (code, signal) => resolve({ exit: code, signal }));
   });
 }
 
-const tmp = mkdtempSync(join(tmpdir(), "tacit-update-"));
 try {
   const mark = join(tmp, "updated");
   await run(`sleep 0.6; touch '${mark}'`, 200);

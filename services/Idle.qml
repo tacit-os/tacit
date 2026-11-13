@@ -18,7 +18,7 @@ import Quickshell.Wayland
 Singleton {
     id: root
 
-    // The manual toggle, until it is turned off.
+    // The manual toggle, until it is turned off or the session ends.
     property bool inhibit: false
     // and as the night's update sees it (tacit-update night, as root): Caffeine on is someone at the computer, so no
     // restart; it could not see the shell's Wayland inhibitor
@@ -50,14 +50,21 @@ Singleton {
     // is a lazy singleton, and a Persistent that loaded before it would never signal again.
     Component.onCompleted: {
         if (Persistent.ready) {
-            root.inhibit = Persistent.states.idle.inhibit;
+            root.restore();
         }
     }
     Connections {
         target: Persistent
         function onReadyChanged() {
-            root.inhibit = Persistent.states.idle.inhibit;
+            root.restore();
         }
+    }
+    // Caffeine lasts the session: it comes back after a restart of the shell, not at the next sign-in (a new
+    // Hyprland), so one forgotten on Friday does not hold off every lock, sleep and night's update after it.
+    function restore() {
+        if (Persistent.isNewHyprlandInstance)
+            Persistent.states.idle.inhibit = false;
+        root.inhibit = Persistent.states.idle.inhibit;
     }
 
     // qs -c tacit ipc call idle toggle

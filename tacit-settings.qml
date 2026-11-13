@@ -619,11 +619,12 @@ ApplicationWindow {
     function durationText(secs) {
         return secs < 60 ? `${secs} s` : secs < 3600 ? `${Math.round(secs / 60)} min` : `${+(secs / 3600).toFixed(1)} h`;
     }
-    // the offered times, plus the current one when the file holds a value not among them
-    function idleOptions(kind, times) {
+    // the offered times, plus the current one when the file holds a value not among them; never: Never (0) after them,
+    // which turns the listener off (setIdleTime)
+    function idleOptions(kind, times, never = false) {
         const cur = root.idleTimes[kind];
-        const all = cur !== undefined && !times.includes(cur) ? [...times, cur].sort((a, b) => a - b) : times;
-        return all.map(t => ({ value: t, label: root.durationText(t) }));
+        const all = cur !== undefined && cur !== 0 && !times.includes(cur) ? [...times, cur].sort((a, b) => a - b) : times;
+        return all.map(t => ({ value: t, label: root.durationText(t) })).concat(never || cur === 0 ? [{ value: 0, label: "Never" }] : []);
     }
     function idleKind(run) {
         return /suspend|hibernate/.test(run) ? "sleep" : /dpms/.test(run) ? "screen" : /lock/.test(run) ? "lock" : "";
@@ -632,18 +633,21 @@ ApplicationWindow {
     // file, the times kept (scripts/hyprland/hypridle_refresh.py, its MARK), so a later fix to that file still reaches it
     readonly property string idleMark: "# Made by Settings > Lock & sleep from Tacit's hypridle.conf, with your times: the rest is Tacit's again at each login. Delete this line to keep edits of your own."
     // Rewrites one listener's timeout line and nothing else, comments and commands kept, then
-    // restarts hypridle, which reads its config only when it starts.
+    // restarts hypridle, which reads its config only when it starts. Never (0) turns the listener off instead: each of
+    // its lines behind "#off ", which hypridle reads as a comment and hypridle_refresh.py keeps so at login (its OFF);
+    // a time turns it on again.
     function setIdleTime(kind, secs) {
         // a fresh install has only the packaged file: the edited copy becomes the user's own, which hypridle reads first
         const own = idleFile.text() !== "";
         const lines = (own ? idleFile.text() : idlePackaged.text()).split("\n");
-        let inBlock = false, at = -1, run = "";
+        let inBlock = false, at = -1, run = "", start = -1;
         for (let i = 0; i < lines.length; i++) {
-            const l = lines[i];
+            const l = lines[i].replace(/^#off /, "");
             if (/^\s*listener\s*\{/.test(l)) {
                 inBlock = true;
                 at = -1;
                 run = "";
+                start = i;
                 continue;
             }
             if (!inBlock)
@@ -657,7 +661,10 @@ ApplicationWindow {
                 inBlock = false;
                 if (root.idleKind(run) !== kind || at < 0)
                     continue;
-                lines[at] = `${lines[at].match(/^\s*/)[0]}timeout = ${secs}`;
+                for (let j = start; j <= i; j++)
+                    lines[j] = (secs > 0 ? "" : "#off ") + lines[j].replace(/^#off /, "");
+                if (secs > 0)
+                    lines[at] = `${lines[at].match(/^\s*/)[0]}timeout = ${secs}`;
                 const restart = "if systemctl --user -q is-active hypridle; then systemctl --user restart hypridle; else pkill -x hypridle; hyprctl dispatch 'hl.dsp.exec_cmd(\"hypridle\")'; fi";
                 if (own) {
                     // the write is asynchronous: idleFile's onSaved restarts hypridle once the new timeout is in the file
@@ -671,13 +678,16 @@ ApplicationWindow {
             }
         }
     }
+    // each listener's time; 0 for one Never turned off (its lines behind "#off ")
     function parseIdle(text) {
         const t = {};
-        for (const block of text.split(/^\s*listener\s*\{/m).slice(1)) {
+        const parts = text.split(/^(#off )?\s*listener\s*\{/m);
+        for (let i = 1; i + 1 < parts.length; i += 2) {
+            const block = parts[i + 1].replace(/^#off /gm, "");
             const secs = parseInt((block.match(/^\s*timeout\s*=\s*(\d+)/m) ?? [])[1]);
             const run = (block.match(/^\s*on-timeout\s*=\s*(.*)$/m) ?? [])[1] ?? "";
             const kind = root.idleKind(run);
-            if (kind && !isNaN(secs) && !(kind in t)) t[kind] = secs;
+            if (kind && !isNaN(secs) && !(kind in t)) t[kind] = parts[i] !== undefined ? 0 : secs;
         }
         return t;
     }
@@ -1821,7 +1831,7 @@ ApplicationWindow {
                     label: "Reminders"
                     readonly property int watched: Config.options.island.unsavedRepos.length + Config.options.island.prRepos.length
                     value: watched > 0 ? `${watched} watched` : ""
-                    description: "Unsaved work in your folders, and pull requests"
+                    description: "Uncommitted work in your folders, and pull requests"
                     onActivated: nt.viewing = "reminders"
                 }
                 OpenRow {
@@ -1915,7 +1925,7 @@ ApplicationWindow {
                         clickable: false
                         glyph: "folder_managed"
                         label: modelData.split("/").pop()
-                        description: `Unsaved work in ${modelData.replace(Quickshell.env("HOME"), "~")}`
+                        description: `Uncommitted work in ${modelData.replace(Quickshell.env("HOME"), "~")}`
                         control: RowMenu {
                             items: [{ label: "Stop watching", run: () => Config.options.island.unsavedRepos = Config.options.island.unsavedRepos.filter((r, i) => i !== index) }]
                         }
@@ -1923,8 +1933,8 @@ ApplicationWindow {
                 }
                 SettingRow {
                     glyph: "create_new_folder"
-                    label: "Watch a folder for unsaved work"
-                    onActivated: root.pickFolder("A folder to watch for unsaved work", Quickshell.env("HOME"), path => {
+                    label: "Watch a folder for uncommitted work"
+                    onActivated: root.pickFolder("A folder to watch for uncommitted work", Quickshell.env("HOME"), path => {
                         if (!Config.options.island.unsavedRepos.includes(path))
                             Config.options.island.unsavedRepos = [...Config.options.island.unsavedRepos, path];
                     })
@@ -2612,12 +2622,20 @@ ApplicationWindow {
                     checked: Network.wifiEnabled && !netPage.noAdapter
                     onToggled: value => Network.enableWifi(value)
                 }
+                // a cable is trusted unless marked otherwise, with the same switch as a Wi-Fi network: off, the auto VPN
+                // goes up over it (a hotel's or an office's socket)
                 SettingRow {
                     visible: Network.ethernet
                     clickable: false
                     glyph: "lan"
                     label: "Wired"
-                    description: "Connected"
+                    description: ["Connected", Network.isWiredTrusted(Network.wiredName) ? "Trusted" : ""].filter(x => x).join(" · ")
+                    control: RowMenu {
+                        items: [
+                            { label: "Trusted: home or work", checked: Network.isWiredTrusted(Network.wiredName),
+                              run: () => { if (Network.wiredName.length > 0) Network.setWiredTrusted(Network.wiredName, !Network.isWiredTrusted(Network.wiredName)); } }
+                        ]
+                    }
                 }
                 // the network you are on, under the switch, with what you can do to it: before, it was
                 // a line of text here and its menu sat in Saved networks
@@ -4455,6 +4473,8 @@ ApplicationWindow {
             // IPC, so the slider holds one value with the keys and there is one night-light schedule.
             property real brightness: -1
             property real wantBrightness: -1
+            // the shell answered -1: no screen it found can be driven (no backlight, no DDC answer), so no slider
+            property bool cantDim: false
             property bool nightOn: false
             // hyprctl monitors: name, description, width, height, refreshRate, x, y, scale, transform
             property var screens: []
@@ -4594,8 +4614,10 @@ ApplicationWindow {
                 stdout: SplitParser {
                     onRead: data => {
                         const v = parseFloat(data);
-                        if (!isNaN(v))
+                        if (!isNaN(v)) {
                             dp.brightness = v;
+                            dp.cantDim = v < 0;
+                        }
                     }
                 }
             }
@@ -4701,7 +4723,8 @@ ApplicationWindow {
             Group {
                 title: "Screen"
                 note: dp.monitorsWriteFailed ? "The screen settings could not be saved."
-                    : dp.screens.length === 0 && dp.brightness < 0 ? "Tacit could not read your screens. Reopen Settings to try again." : ""
+                    : dp.screens.length === 0 && dp.brightness < 0 ? "Tacit could not read your screens. Reopen Settings to try again."
+                    : dp.cantDim && dp.brightness < 0 ? `${dp.screens.length > 1 ? "These screens" : "This screen"} can't be dimmed from here, so there is no slider. Use the monitor's own buttons, or turn on DDC/CI in its menu.` : ""
                 SettingRow {
                     visible: dp.brightness >= 0
                     clickable: false
@@ -4982,7 +5005,7 @@ ApplicationWindow {
                     visible: root.idleTimes.screen !== undefined
                     glyph: "monitor"
                     label: "Turn the screen off after"
-                    options: root.idleOptions("screen", [60, 120, 180, 300, 600, 900, 1800, 3600])
+                    options: root.idleOptions("screen", [60, 120, 180, 300, 600, 900, 1800, 3600], true)
                     current: root.idleTimes.screen ?? 0
                     onPicked: value => root.setIdleTime("screen", value)
                 }
@@ -4990,7 +5013,7 @@ ApplicationWindow {
                     visible: root.idleTimes.sleep !== undefined
                     glyph: "bedtime"
                     label: "Sleep after"
-                    options: root.idleOptions("sleep", [300, 600, 900, 1800, 3600, 7200])
+                    options: root.idleOptions("sleep", [300, 600, 900, 1800, 3600, 7200], true)
                     current: root.idleTimes.sleep ?? 0
                     onPicked: value => root.setIdleTime("sleep", value)
                 }

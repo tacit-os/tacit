@@ -1,7 +1,7 @@
 // Restart for an update with uncommitted work (services/Updates.qml, shell.qml): restartNow(), the shell's answer and
 // SessionWarnings' onChecked run under node as Settings' process and as the shell's. Settings' own IslandController has
 // looked at no folder when Restart is pressed there, so it asks the shell (`qs ipc call updates unsaved`, run here under
-// bash with a pretend qs) and warns "Unsaved changes" as the notch's Restart does; and outside the shell nothing is
+// bash with a pretend qs) and warns "Uncommitted work" as the notch's Restart does; and outside the shell nothing is
 // handed to an IslandController, which there has no notch and would start a second copy of the notch's watchers.
 import { spawnSync } from "child_process";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
@@ -47,7 +47,7 @@ const settings = press(false, "true\n", false);
 check("Settings' Restart asks the shell whether work is uncommitted",
   settings.asked.length === 1 && settings.asked[0].join(" ") === "timeout 3 qs -p /usr/share/tacit/shell/shell.qml ipc call updates unsaved", JSON.stringify(settings.asked));
 check("then reads the session's own warnings", settings.refreshed === 1, `${settings.refreshed} reads`);
-check("and stops at 'Unsaved changes' instead of restarting", settings.went === 0 && settings.warning === "Unsaved changes", `restarted ${settings.went}, warning "${settings.warning}"`);
+check("and stops at 'Uncommitted work' instead of restarting", settings.went === 0 && settings.warning === "Uncommitted work", `restarted ${settings.went}, warning "${settings.warning}"`);
 check("handing nothing to an IslandController of its own", settings.notch.length === 0, JSON.stringify(settings.notch));
 const clean = press(false, "false\n", false);
 check("with nothing uncommitted it restarts", clean.went === 1 && clean.warning === "", `restarted ${clean.went}, warning "${clean.warning}"`);
@@ -57,9 +57,9 @@ check("with no shell answering it restarts, as before", noShell.went === 1, `res
 
 // the shell: its own IslandController's look, and the notch says it
 const shell = press(true, "", true);
-check("the notch's Restart reads its own look and asks nobody", shell.asked.length === 0 && shell.refreshed === 1 && shell.warning === "Unsaved changes",
+check("the notch's Restart reads its own look and asks nobody", shell.asked.length === 0 && shell.refreshed === 1 && shell.warning === "Uncommitted work",
   `asked ${shell.asked.length}, warning "${shell.warning}"`);
-check("and the notch says it", shell.notch.join() === "Unsaved changes", JSON.stringify(shell.notch));
+check("and the notch says it", shell.notch.join() === "Uncommitted work", JSON.stringify(shell.notch));
 
 // the shell answers over IPC with its IslandController's look; the command run under bash with a pretend qs
 const shellSrc = read("shell.qml");

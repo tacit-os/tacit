@@ -67,6 +67,8 @@ Singleton {
     property string wifiStatus: "disconnected"
 
     property string networkName: ""
+    // the cable's own profile while one is up ("Wired connection 1"): what its trust is kept under
+    property string wiredName: ""
     property int networkStrength
     property string networkInterface: ""
     property string ipAddress: ""
@@ -419,6 +421,18 @@ Singleton {
         Persistent.states.network.trusted = list;
         Vpn.applyRule();
     }
+    // A cable is trusted, as it always was, until it is marked otherwise (a hotel's or an office's socket): kept by its
+    // profile's name, the one name a wired network has
+    function isWiredTrusted(name: string): bool {
+        return !(Persistent.states.network.untrustedWired ?? []).includes(name);
+    }
+    function setWiredTrusted(name: string, on: bool): void {
+        const list = (Persistent.states.network.untrustedWired ?? []).filter(s => s !== name);
+        if (!on)
+            list.push(name);
+        Persistent.states.network.untrustedWired = list;
+        Vpn.applyRule();
+    }
     // Before 1.2.15 the Trusted switch under Known networks saved the profile's name ("MyWifi 1"), which the VPN's rule,
     // asking by the network's name ("MyWifi"), never found. Once the profiles have been read, each such entry is moved
     // to its network's name, once: a name that is also a saved network's own (the switch above the list saved those)
@@ -747,8 +761,11 @@ Singleton {
             // Collected, not per line: with no link nmcli prints nothing at all, and a
             // parser that only fires on a line kept the last network's name for good.
             onStreamFinished: {
-                const link = text.split("\n").map(l => root.splitTerse(l)).find(f => /^(802-11-wireless|802-3-ethernet)$/.test(f[1] ?? ""));
+                const links = text.split("\n").map(l => root.splitTerse(l));
+                const link = links.find(f => /^(802-11-wireless|802-3-ethernet)$/.test(f[1] ?? ""));
                 root.networkName = link ? link[0].trim() : "";
+                const cable = links.find(f => f[1] === "802-3-ethernet");
+                root.wiredName = cable ? cable[0].trim() : "";
             }
         }
     }

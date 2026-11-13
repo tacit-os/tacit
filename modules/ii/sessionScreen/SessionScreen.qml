@@ -315,7 +315,7 @@ Scope {
                         }
                         Warning {
                             visible: IslandController.workUnsaved
-                            text: Translation.tr("Unsaved changes: %1").arg(IslandController.unsavedLine)
+                            text: Translation.tr("Uncommitted work: %1").arg(IslandController.unsavedLine)
                         }
                         Warning {
                             visible: SessionWarnings.agentWorking

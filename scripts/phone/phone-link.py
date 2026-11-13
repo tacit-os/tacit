@@ -8,7 +8,8 @@
   decline <id>           turn a pairing request down
   forget <id>            unpair
   send <id> <path>       hand one file to the daemon for that phone; exit 0 = the daemon took it
-  files <path>...        print the paths that are readable files (folders and missing paths are left out)
+  files <path>...        print the paths that are readable files, and each folder with a "/" after it, which can't be
+                         sent (missing paths are left out)
   qr <text>              the text as a QR code: one line per row of dots, 1 = dark (needs qrencode)
 
 Exit codes of send: 0 taken, 2 phone not reachable, 3 file missing or unreadable, 1 anything else (the reason is on
@@ -162,6 +163,8 @@ def main(argv):
             for f in rest:
                 if os.path.isfile(f) and os.access(f, os.R_OK):
                     print(f)
+                elif os.path.isdir(f):
+                    print(f.rstrip("/") + "/")
         elif cmd == "qr":
             return qr(rest[0])
         else:

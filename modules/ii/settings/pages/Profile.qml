@@ -581,6 +581,18 @@ ContentPage {
                     wrapMode: Text.Wrap
                 }
 
+                // a save, an overwrite or an import that failed, in the script's own words
+                StyledText {
+                    Layout.fillWidth: true
+                    Layout.leftMargin: 8
+                    Layout.rightMargin: 8
+                    visible: Presets.error.length > 0
+                    text: Presets.error
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    color: Appearance.colors.colError
+                    wrapMode: Text.Wrap
+                }
+
                 ConfigSwitch {
                     buttonIcon: "cloud_download"
                     text: Translation.tr("Show online presets")
