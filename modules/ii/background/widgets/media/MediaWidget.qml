@@ -128,10 +128,12 @@ AbstractBackgroundWidget {
         id: coverArtDownloader
         property string targetFile: root.artUrl
         property string artFilePath: root.artFilePath
-        // Download to a temp name and move it in, so a failed or cut-off download is never cached.
+        // Download to a temp name and move it in, so a failed or cut-off download is never cached. The name is
+        // this run's own: the bar, the media card, the desktop widget and the equalizer fetch the same cover at
+        // once, and a run that failed counts as done when another one put the cover there.
         // The address follows --, as metadata can give one that starts with a dash.
         command: ["bash", "-c",
-            `[ -f "$2" ] || { curl -fsSL --max-time 15 -o "$2.tmp" -- "$1" && mv "$2.tmp" "$2"; } || { rm -f "$2.tmp"; exit 1; }`,
+            `[ -f "$2" ] || { curl -fsSL --max-time 15 -o "$2.$$.tmp" -- "$1" && mv -f "$2.$$.tmp" "$2"; } || { rm -f "$2.$$.tmp"; [ -f "$2" ]; }`,
             "_", targetFile, artFilePath]
         onExited: (exitCode, exitStatus) => {
             if (targetFile !== root.artUrl) {
@@ -356,7 +358,7 @@ AbstractBackgroundWidget {
 
                         StyledText {
                             Layout.fillWidth: true
-                            text: root.currentPlayer?.trackArtist ?? "Play"
+                            text: root.currentPlayer?.trackArtist ?? Translation.tr("Play")
                             font.pixelSize: Appearance.font.pixelSize.small
                             font.weight: Font.DemiBold
                             color: Appearance.colors.colOnPrimaryContainer
@@ -495,7 +497,7 @@ AbstractBackgroundWidget {
 
                     StyledText {
                         Layout.fillWidth: true
-                        text: root.currentPlayer?.trackArtist ?? "Play"
+                        text: root.currentPlayer?.trackArtist ?? Translation.tr("Play")
                         font.pixelSize: Appearance.font.pixelSize.normal
                         font.weight: Font.DemiBold
                         color: Appearance.colors.colOnPrimaryContainer
@@ -649,7 +651,7 @@ AbstractBackgroundWidget {
 
                             StyledText {
                                 Layout.fillWidth: true
-                                text: root.currentPlayer?.trackArtist ?? "Play"
+                                text: root.currentPlayer?.trackArtist ?? Translation.tr("Play")
                                 font.pixelSize: Appearance.font.pixelSize.normal
                                 font.weight: Font.DemiBold
                                 color: Appearance.colors.colOnPrimaryContainer
@@ -863,7 +865,7 @@ AbstractBackgroundWidget {
                             }
                             StyledText {
                                 Layout.fillWidth: true
-                                text: root.currentPlayer?.trackArtist ?? "Play"
+                                text: root.currentPlayer?.trackArtist ?? Translation.tr("Play")
                                 font.pixelSize: Appearance.font.pixelSize.smaller
                                 color: Appearance.colors.colOnPrimaryContainer
                                 opacity: 0.65

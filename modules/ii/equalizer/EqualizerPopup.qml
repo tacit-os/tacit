@@ -48,8 +48,9 @@ Scope {
         return "center"
     }
 
-    // The notch sits at the top edge and reserves this much height.
-    readonly property real topReserved: Config.options.island.reservedHeight
+    // The notch sits its distance below the top edge (topMargin) and reserves this much height under it, which
+    // ends where its exclusive zone does (Island.qml).
+    readonly property real topReserved: Config.options.island.reservedHeight + Config.options.island.topMargin
 
     // Now-playing art, purely decorative here (same download-cache approach
     // Player.qml uses) - if nothing is playing this just stays blank and the
@@ -84,9 +85,11 @@ Scope {
         // This art is decoration inside the popup, so it is fetched only while the popup is up -
         // the media widget does the same download for the bar's own card.
         running: GlobalStates.equalizerOpen && !root.artDownloaded && (root.artUrl ?? "").length > 0
-        // Download to a temp name and move it in, so a failed or cut-off download is never cached.
+        // Download to a temp name and move it in, so a failed or cut-off download is never cached. The name is
+        // this run's own: the bar, the media card, the desktop widget and the equalizer fetch the same cover at
+        // once, and a run that failed counts as done when another one put the cover there.
         command: ["bash", "-c",
-            `[ -f "$2" ] || { curl -4 -fsSL --max-time 15 "$1" -o "$2.tmp" && mv "$2.tmp" "$2"; } || { rm -f "$2.tmp"; exit 1; }`,
+            `[ -f "$2" ] || { curl -4 -fsSL --max-time 15 "$1" -o "$2.$$.tmp" && mv -f "$2.$$.tmp" "$2"; } || { rm -f "$2.$$.tmp"; [ -f "$2" ]; }`,
             "_", targetFile, targetPath]
         onExited: (exitCode, exitStatus) => root.artDownloaded = exitCode === 0
     }

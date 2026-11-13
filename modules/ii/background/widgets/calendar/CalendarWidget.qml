@@ -504,7 +504,7 @@ AbstractBackgroundWidget {
                             Repeater {
                                 model: root.dayHeads
                                 delegate: StyledText {
-                                    Layout.preferredWidth: 24
+                                    Layout.preferredWidth: 28
                                     horizontalAlignment: Text.AlignHCenter
                                     fontSizeMode: Text.HorizontalFit
                                     minimumPixelSize: 9

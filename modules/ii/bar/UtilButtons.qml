@@ -228,9 +228,9 @@ Item {
                 iconText: Appearance.m3colors.darkmode ? "light_mode" : "dark_mode"
                 onClicked: (e) => {
                     if (Appearance.m3colors.darkmode)
-                        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`])
+                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "light", "--noswitch"])
                     else
-                        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`])
+                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "dark", "--noswitch"])
                 }
             }
         }
@@ -239,9 +239,9 @@ Item {
             CircleUtilButton {
                 onClicked: (e) => {
                     if (Appearance.m3colors.darkmode)
-                        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --mode light --noswitch`])
+                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "light", "--noswitch"])
                     else
-                        Quickshell.execDetached(["bash", "-c", `${Directories.wallpaperSwitchScriptPath} --mode dark --noswitch`])
+                        Quickshell.execDetached([Directories.wallpaperSwitchScriptPath, "--mode", "dark", "--noswitch"])
                 }
                 MaterialSymbol {
                     horizontalAlignment: Qt.AlignHCenter

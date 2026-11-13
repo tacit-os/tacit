@@ -110,7 +110,7 @@ AbstractBackgroundWidget {
                         font.pixelSize: Appearance.font.pixelSize.huge
                         font.weight: Font.Medium
                         color: Appearance.colors.colOnPrimaryContainer
-                        text: "Notes"
+                        text: Translation.tr("Notes")
                     }
                     Item { Layout.fillWidth: true }
 
@@ -245,7 +245,7 @@ AbstractBackgroundWidget {
                         anchors.margins: 8
                         text: root.editingText
                         wrapMode: TextArea.Wrap
-                        placeholderText: "Type your note..."
+                        placeholderText: Translation.tr("Type your note...")
                         color: Appearance.colors.colOnLayer0
                         background: null
                         onTextChanged: root.editingText = text

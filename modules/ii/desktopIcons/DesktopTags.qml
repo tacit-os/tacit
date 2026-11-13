@@ -108,8 +108,10 @@ Scope {
             // ---- the tag menu
             function openMenu(x, y) {
                 const one = DesktopIcons.selected.length === 1;
-                menu.items = one ? [{ "label": "Open" }, { "label": "Rename" }, { "label": "Move to the trash" }]
-                                 : [{ "label": "Open" }, { "label": "Move to the trash" }];
+                // the words are translated, so the pick goes by act
+                const open = { "label": Translation.tr("Open"), "act": "open" };
+                const trash = { "label": Translation.tr("Move to the trash"), "act": "trash" };
+                menu.items = one ? [open, { "label": Translation.tr("Rename"), "act": "rename" }, trash] : [open, trash];
                 menu.openAt(board, x, y);
                 // A right click while the menu is open only moves it: no size or visibility changes, so it is put
                 // back inside here as well.
@@ -129,9 +131,9 @@ Scope {
                 onWidthChanged: keepInside()
                 onHeightChanged: keepInside()
                 onPicked: i => {
-                    const w = menu.items[i].label;
-                    if (w === "Open") DesktopIcons.selected.forEach(n => DesktopIcons.open(n));
-                    else if (w === "Rename") DesktopIcons.editing = DesktopIcons.selected[0];
+                    const w = menu.items[i].act;
+                    if (w === "open") DesktopIcons.selected.forEach(n => DesktopIcons.open(n));
+                    else if (w === "rename") DesktopIcons.editing = DesktopIcons.selected[0];
                     else DesktopIcons.trash(DesktopIcons.selected);
                 }
                 onClosed: if (DesktopIcons.editing === "") board.forceActiveFocus()
@@ -217,7 +219,8 @@ Scope {
                     DesktopTag {
                         id: ghostTag
                         ghost: true
-                        name: `Put ${Voice.count(DesktopIcons.dropCount, "file")} on the Desktop`
+                        name: DesktopIcons.dropCount === 1 ? Translation.tr("Put 1 file on the Desktop")
+                            : Translation.tr("Put %1 files on the Desktop").arg(DesktopIcons.dropCount)
                     }
                 }
             }

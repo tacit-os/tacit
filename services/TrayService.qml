@@ -34,10 +34,10 @@ Singleton {
     function unpin(itemId) {
         Config.options.tray.pinnedItems = Config.options.tray.pinnedItems.filter(id => id !== itemId);
     }
-    // The same list togglePin acts on, not the inverted and status-filtered pinnedItems:
-    // the menu's label and its action have to agree.
+    // Whether the item sits in the bar (pinnedItems), as the menu's Pin/Unpin says: with invertPins, the default, the
+    // list names the ones kept out of it. togglePin moves the item to the other side either way, so they agree.
     function isPinned(itemId) {
-        return (Config.options.tray.pinnedItems ?? []).includes(itemId);
+        return (Config.options.tray.pinnedItems ?? []).includes(itemId) !== root.invertPins;
     }
 
     function togglePin(itemId) {

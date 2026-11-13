@@ -8,6 +8,13 @@ import QtQuick.Layouts
 StyledPopup {
     id: root
     property var today: new Date()
+    // The locale's short day names cut to two letters (Mo Tu We) where the seven cuts still differ, and whole where they
+    // do not: Portuguese, Indonesian, Hebrew and Vietnamese cut several days to the same two letters
+    readonly property var dayLabels: {
+        const names = [0, 1, 2, 3, 4, 5, 6].map(i => Qt.locale().dayName(i, Locale.ShortFormat))
+        const cut = names.map(n => n.slice(0, 2))
+        return new Set(cut).size === 7 ? cut : names
+    }
 
     function usageColor(value) {
         if (value > 0.9) return Appearance.colors.colError
@@ -66,7 +73,7 @@ StyledPopup {
 
                         StyledText {
                             Layout.alignment: Qt.AlignHCenter
-                            text: Qt.locale().toString(date, "ddd").slice(0, 2)
+                            text: root.dayLabels[date.getDay()]
                             font.pixelSize: Appearance.font.pixelSize.smaller
                             color: isToday
                                 ? Appearance.colors.colPrimary

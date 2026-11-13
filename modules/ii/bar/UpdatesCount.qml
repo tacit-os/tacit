@@ -40,9 +40,12 @@ MouseArea {
 
     // The owner's update command (Config apps.update), as Settings > About runs it: Tacit's packages
     // come from pacman, and the terminal and helper are the ones that file names, not a fixed one.
+    // In a session of its own, holding none of the shell's pipes: Quickshell kills a Process's child when the Process
+    // goes (a reload, as the update of the shell's own package brings, or the bar rebuilt), which took the terminal and
+    // the update in it along. setsid -w waits for it and gives back its exit; only setsid is killed then.
     Process {
         id: updateProc
-        command: ["bash", "-c", Config.options.apps.update]
+        command: ["bash", "-c", 'exec setsid -f -w bash -c "$1" </dev/null >/dev/null 2>&1', "_", Config.options.apps.update]
         onExited: (exitCode, exitStatus) => {
             // 127: the command was not found, so nothing ran and there is no result to report
             if (exitCode === 127) {

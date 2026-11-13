@@ -21,6 +21,9 @@ AbstractBackgroundWidget {
     property bool wallpaperSafetyTriggered: false
     readonly property bool lockedShown: GlobalStates.screenLocked && Config.options.lock.showLockedText
     readonly property string quoteText: Config.options.background.widgets.clock.quote.enable ? Config.options.background.widgets.clock.quote.text : ""
+    // The card is all there is of the clock: with nothing on it (only when locked, while unlocked) the widget goes too,
+    // or its empty place on the desktop kept taking right clicks, drags and the rubber band.
+    visible: opacity > 0 && (root.shouldShow || root.wallpaperSafetyTriggered || root.lockedShown)
     x: forceCenter ? ((root.screenWidth - root.width) / 2) : targetX
     y: forceCenter ? ((root.screenHeight - root.height) / 2) : targetY
     visibleWhenLocked: true
@@ -37,7 +40,6 @@ AbstractBackgroundWidget {
         glyph: "schedule"
         title: Translation.tr("Clock")
         closable: !GlobalStates.screenLocked
-        visible: root.shouldShow || root.wallpaperSafetyTriggered || root.lockedShown
 
         ColumnLayout {
             width: parent.width

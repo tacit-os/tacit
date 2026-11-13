@@ -39,8 +39,9 @@ Scope {
         return "center"
     }
 
-    // The notch sits at the top edge and reserves this much height.
-    readonly property real topReserved: Config.options.island.reservedHeight
+    // The notch sits its distance below the top edge (topMargin) and reserves this much height under it, which
+    // ends where its exclusive zone does (Island.qml).
+    readonly property real topReserved: Config.options.island.reservedHeight + Config.options.island.topMargin
 
     function filterDuplicatePlayers(players) {
         if (!Config.options.media.filterDuplicatePlayers)

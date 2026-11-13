@@ -4,6 +4,7 @@ import qs.services
 import qs.modules.common
 import QtQuick
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 
 /**
@@ -18,6 +19,17 @@ import Quickshell.Wayland
 Scope {
     id: root
 
+    // The monitor that takes the keys, fixed when the question comes, as the polkit and keyring sheets do: with every
+    // screen's sheet exclusive the compositor picked one, maybe on the screen nobody looks at, and the code typed went
+    // into a field nobody saw. A question that comes while the sheet folds back keeps its screen.
+    property string keyScreenName: ""
+    function pickKeyScreen(): void {
+        root.keyScreenName = WM.compositor === "niri"
+            ? (NiriBackend.focusedMonitor?.name ?? "")
+            : (Hyprland.focusedMonitor?.name ?? "");
+    }
+    Component.onCompleted: if (BluetoothAgent.asking) root.pickKeyScreen()
+
     // Up while asking and for 450 ms after, so the sheet can fold back. Set from the signal, not
     // bound, so the window cannot close ahead of the fold.
     property bool up: BluetoothAgent.asking
@@ -25,6 +37,7 @@ Scope {
         target: BluetoothAgent
         function onAskingChanged() {
             if (BluetoothAgent.asking) {
+                if (!linger.running) root.pickKeyScreen();
                 linger.stop();
                 root.up = true;
             } else {
@@ -57,8 +70,11 @@ Scope {
                 color: "transparent"
                 WlrLayershell.namespace: "quickshell:btpair"
                 // Exclusive while asking: with OnDemand the keys go to the focused window until the
-                // sheet is clicked.
-                WlrLayershell.keyboardFocus: BluetoothAgent.asking ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+                // sheet is clicked. Only on the screen picked above (the first screen if none matches).
+                readonly property bool takesKeys: Quickshell.screens.some(s => s.name === root.keyScreenName)
+                    ? panelWindow.screen?.name === root.keyScreenName
+                    : panelWindow.screen === Quickshell.screens[0]
+                WlrLayershell.keyboardFocus: BluetoothAgent.asking && panelWindow.takesKeys ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
                 WlrLayershell.layer: WlrLayer.Overlay
                 exclusionMode: ExclusionMode.Ignore
 

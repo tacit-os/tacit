@@ -323,6 +323,13 @@ Scope {
                 opacity: active ? 1.0 : 0.0
                 transformOrigin: Item.Center
 
+                // A press on the panel's heading, between its rows or on its padding is not a click away, as the
+                // card's own MouseArea makes it for the menu; the panel, loaded after it, lies over it.
+                MouseArea {
+                    anchors.fill: parent
+                    acceptedButtons: Qt.AllButtons
+                }
+
                 // Keys pressed inside the panel do not reach the card, which is its sibling.
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) {

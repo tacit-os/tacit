@@ -253,12 +253,13 @@ Item {
                     font.family: Appearance.font.family.numbers
                     font.pixelSize: Appearance.font.pixelSize.large
                     inputMethodHints: root.kind === "passkey" ? Qt.ImhDigitsOnly : Qt.ImhNone
-                    // the hint only shapes an on-screen keyboard; a passkey is a number up to six digits
+                    // the hint only shapes an on-screen keyboard; a passkey is a number up to six digits, and
+                    // digits only: an IntValidator takes the locale's group separator (123,456) and a sign, which
+                    // the agent's strtoull reads as a shorter number
                     validator: root.kind === "passkey" ? passkeyValidator : null
-                    IntValidator {
+                    RegularExpressionValidator {
                         id: passkeyValidator
-                        bottom: 0
-                        top: 999999
+                        regularExpression: /[0-9]{0,6}/
                     }
                     onAccepted: root.submit()
                     Keys.onPressed: event => {

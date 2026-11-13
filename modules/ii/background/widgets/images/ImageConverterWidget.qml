@@ -51,7 +51,7 @@ AbstractBackgroundWidget {
             root.queueDone++
             if (exitCode !== 0) {
                 root.dropStatus = "error"
-                root.statusMessage = "Failed: " + inputPath.replace(/.*\//, "")
+                root.statusMessage = Translation.tr("Failed: %1").arg(inputPath.replace(/.*\//, ""))
                 root.fileQueue = []
                 root.queueTotal = 0
                 root.queueDone = 0
@@ -59,13 +59,13 @@ AbstractBackgroundWidget {
                 return
             }
             if (root.fileQueue.length > 0) {
-                root.statusMessage = "Converting " + root.queueDone + " / " + root.queueTotal + "..."
+                root.statusMessage = Translation.tr("Converting %1 / %2...").arg(root.queueDone).arg(root.queueTotal)
                 processNext()
             } else {
                 root.dropStatus = "done"
                 root.statusMessage = root.queueTotal === 1
-                    ? "Saved: " + outputPath.replace(/.*\//, "")
-                    : root.queueTotal + " files converted"
+                    ? Translation.tr("Saved: %1").arg(outputPath.replace(/.*\//, ""))
+                    : Translation.tr("%1 files converted").arg(root.queueTotal)
                 root.queueTotal = 0
                 root.queueDone = 0
                 resetTimer.start()
@@ -80,11 +80,11 @@ AbstractBackgroundWidget {
             if (exitCode === 0) {
                 root.dropStatus = "done"
                 root.statusMessage = root.batchPaths.length === 1
-                    ? "Saved: " + outputPath.replace(/.*\//, "")
-                    : root.batchPaths.length + " pages → " + outputPath.replace(/.*\//, "")
+                    ? Translation.tr("Saved: %1").arg(outputPath.replace(/.*\//, ""))
+                    : Translation.tr("%1 pages → %2").arg(root.batchPaths.length).arg(outputPath.replace(/.*\//, ""))
             } else {
                 root.dropStatus = "error"
-                root.statusMessage = "PDF failed.\nIs ImageMagick installed?"
+                root.statusMessage = Translation.tr("PDF failed.\nIs ImageMagick installed?")
             }
             root.batchPaths = []
             resetTimer.start()
@@ -124,7 +124,7 @@ AbstractBackgroundWidget {
         }
         if (valid.length === 0) {
             root.dropStatus = "error"
-            root.statusMessage = "No supported files dropped."
+            root.statusMessage = Translation.tr("No supported files dropped.")
             resetTimer.start()
             return
         }
@@ -134,8 +134,8 @@ AbstractBackgroundWidget {
         if (root.selectedFormat === "pdf") {
             root.batchPaths = valid
             root.statusMessage = valid.length === 1
-                ? "Converting to PDF..."
-                : "Merging " + valid.length + " images into PDF..."
+                ? Translation.tr("Converting to PDF...")
+                : Translation.tr("Merging %1 images into PDF...").arg(valid.length)
             var outPdf = valid[0].replace(/\.[^/.]+$/, "") + (valid.length > 1 ? "_merged" : "_converted") + ".pdf"
             pdfMaker.outputPath = outPdf
             pdfMaker.command = ["convert"].concat(valid).concat([outPdf])
@@ -146,7 +146,7 @@ AbstractBackgroundWidget {
         root.fileQueue  = valid.slice(1)
         root.queueTotal = valid.length
         root.queueDone  = 0
-        root.statusMessage = valid.length > 1 ? "Converting 0 / " + valid.length + "..." : "Converting..."
+        root.statusMessage = valid.length > 1 ? Translation.tr("Converting %1 / %2...").arg(0).arg(valid.length) : Translation.tr("Converting...")
         converter.inputPath  = valid[0]
         converter.outputPath = valid[0].replace(/\.[^/.]+$/, "") + "_converted." + root.selectedFormat
         converter.running = true
@@ -217,8 +217,8 @@ AbstractBackgroundWidget {
                     color: root.dropStatus === "error" ? Appearance.colors.colError : Appearance.colors.colSubtext
                     text: {
                         switch (root.dropStatus) {
-                            case "idle":       return "Drop pictures here\nto convert to ." + root.selectedFormat.toUpperCase()
-                            case "hover":      return "Release to convert to ." + root.selectedFormat.toUpperCase()
+                            case "idle":       return Translation.tr("Drop pictures here\nto convert to .%1").arg(root.selectedFormat.toUpperCase())
+                            case "hover":      return Translation.tr("Release to convert to .%1").arg(root.selectedFormat.toUpperCase())
                             default:           return root.statusMessage
                         }
                     }
@@ -227,11 +227,11 @@ AbstractBackgroundWidget {
                 DropArea {
                     anchors.fill: parent
                     keys: ["text/uri-list"]
+                    // While busy a drag is still taken here, and its drop turned down: one refused on entering
+                    // goes on to the desktop underneath, which copies the pictures into the Desktop folder
                     onEntered: (drag) => {
-                        if (root.busy) {
-                            drag.accepted = false
+                        if (root.busy)
                             return
-                        }
                         drag.accept(Qt.CopyAction)
                         root.dropStatus = "hover"
                     }
@@ -240,11 +240,15 @@ AbstractBackgroundWidget {
                             root.dropStatus = "idle"
                     }
                     onDropped: (drop) => {
+                        if (root.busy) {
+                            drop.accepted = false
+                            return
+                        }
                         if (drop.hasUrls && drop.urls.length > 0) {
                             root.enqueueFiles(drop.urls)
                         } else {
                             root.dropStatus = "error"
-                            root.statusMessage = "Could not read file path."
+                            root.statusMessage = Translation.tr("Could not read file path.")
                             resetTimer.start()
                         }
                     }
@@ -252,7 +256,7 @@ AbstractBackgroundWidget {
             }
 
             StyledText {
-                text: "Convert to"
+                text: Translation.tr("Convert to")
                 font.pixelSize: 14
                 color: Appearance.colors.colSubtext
             }

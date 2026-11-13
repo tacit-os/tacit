@@ -76,9 +76,11 @@ Item {
         id: artDownloader
         property string targetFile:  root.artUrl
         property string artFilePath: root.artFilePath
-        // Download to a temp name and move it in, so a failed or cut-off download is never cached.
+        // Download to a temp name and move it in, so a failed or cut-off download is never cached. The name is
+        // this run's own: the bar, the media card, the desktop widget and the equalizer fetch the same cover at
+        // once, and a run that failed counts as done when another one put the cover there.
         command: ["bash", "-c",
-            `[ -f "$2" ] || { curl -fsSL --max-time 15 "$1" -o "$2.tmp" && mv "$2.tmp" "$2"; } || { rm -f "$2.tmp"; exit 1; }`,
+            `[ -f "$2" ] || { curl -fsSL --max-time 15 "$1" -o "$2.$$.tmp" && mv -f "$2.$$.tmp" "$2"; } || { rm -f "$2.$$.tmp"; [ -f "$2" ]; }`,
             "_", targetFile, artFilePath]
         onExited: (exitCode, exitStatus) => {
             if (artFilePath === root.artFilePath)

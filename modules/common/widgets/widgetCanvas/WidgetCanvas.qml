@@ -50,10 +50,12 @@ MouseArea {
             && a.y < b.y + b.height && a.y + a.height > b.y
     }
 
+    // a hidden widget is not picked up by the rubber band, or a group drag would move it unseen; nor one that takes
+    // no pointer (the visualizer), which a click could never pick either
     function selectWithinRect(rect) {
         for (const widget of root.registeredWidgets) {
             const widgetRect = Qt.rect(widget.x, widget.y, widget.width, widget.height)
-            widget.selected = root.rectsIntersect(rect, widgetRect)
+            widget.selected = widget.visible && widget.enabled && root.rectsIntersect(rect, widgetRect)
         }
     }
 

@@ -726,7 +726,7 @@ Variants {
                     model: widgetCanvas.registeredWidgets
                     Region {
                         required property var modelData
-                        item: modelData.visible ? modelData : null
+                        item: modelData.visible && modelData.enabled ? modelData : null
                     }
                 }
 
@@ -749,12 +749,17 @@ Variants {
                 onPositionChanged: mouse => widgetCanvas.updateSelection(mouse.x, mouse.y)
                 onReleased: widgetCanvas.selecting = false
                 onCanceled: widgetCanvas.selecting = false
+                // it takes the left button before desktopRightClickArea can, so it lets go of the desktop's files too
+                onClicked: DesktopIcons.clear()
             }
 
             WidgetCanvas {
                 id: widgetCanvas
                 parent: bgRoot.widgetsAboveVideo ? videoWidgets.contentItem : backgroundContent
                 anchors.fill: parent
+                // the canvas takes every left press on the empty desktop (the rubber band), above desktopRightClickArea,
+                // so a click there lets go of the desktop's files here
+                onClicked: DesktopIcons.clear()
 
                 transitions: Transition {
                     PropertyAnimation {

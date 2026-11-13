@@ -1,6 +1,7 @@
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Io
 import qs
 import qs.services
 import qs.modules.common
@@ -77,10 +78,22 @@ AbstractBackgroundWidget {
                     Layout.preferredWidth: 54
                     Layout.preferredHeight: 54
                     // Settings copies the picture to ~/.face and leaves avatarPicture empty
-                    source: Config.options.profile.avatarPicture !== ""
-                        ? "file://" + Config.options.profile.avatarPicture
-                        : "file://" + Directories.userAvatarPathRicersAndWeirdSystems
+                    readonly property string path: Config.options.profile.avatarPicture !== ""
+                        ? Config.options.profile.avatarPicture
+                        : Directories.userAvatarPathRicersAndWeirdSystems
+                    // and copies a new one over the same file from its own process: the file is watched, and the
+                    // query changes the url, so the new picture is read again rather than the one Image kept for it
+                    property int version: 0
+                    source: `file://${avatar.path}?${avatar.version}`
+                    cache: false
                     sourceSize: Qt.size(108, 108)
+                    FileView {
+                        path: avatar.path
+                        preload: false
+                        watchChanges: true
+                        printErrors: false
+                        onFileChanged: avatar.version++
+                    }
 
                     Rectangle {
                         anchors.fill: parent
@@ -100,7 +113,7 @@ AbstractBackgroundWidget {
                     spacing: 0
                     StyledText {
                         Layout.fillWidth: true
-                        text: "Hi, " + root.username
+                        text: Translation.tr("Hi, %1").arg(root.username)
                         font.pixelSize: 17
                         elide: Text.ElideRight
                         color: Appearance.colors.colOnLayer0
@@ -115,7 +128,7 @@ AbstractBackgroundWidget {
                         Layout.fillWidth: true
                         font.pixelSize: 13
                         elide: Text.ElideRight
-                        text: "Up " + DateTime.uptime
+                        text: Translation.tr("Up %1").arg(DateTime.uptime)
                     }
                 }
             }

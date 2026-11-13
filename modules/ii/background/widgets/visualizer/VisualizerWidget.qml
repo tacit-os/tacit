@@ -74,6 +74,9 @@ AbstractBackgroundWidget {
     x: 0
     y: screenHeight - implicitHeight
     draggable: false
+    // The whole width of the screen's bottom, drawn or not: it takes no pointer, so the desktop's right click and
+    // rubber band work over it, and it is out of the widgets' input mask and the rubber band's pick
+    enabled: false
 
     Row {
         anchors.bottom: parent.bottom

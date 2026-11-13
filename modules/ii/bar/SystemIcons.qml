@@ -49,7 +49,8 @@ Item {
         }
         Loader {
             source: "HyprlandXkbIndicator.qml"
-            onLoaded: item.color = root.isMaterial ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1
+            // a binding, so the layout's code follows the palette and the bar's style as the icons beside it do
+            onLoaded: item.color = Qt.binding(() => root.isMaterial ? Appearance.colors.colOnPrimary : Appearance.colors.colOnLayer1)
         }
         MaterialSymbol {
             text: Network.materialSymbol

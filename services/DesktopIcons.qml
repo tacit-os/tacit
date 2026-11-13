@@ -213,6 +213,7 @@ Singleton {
         const list = paths.filter(p => !(op === "move" && Files.parent(p) === root.dir));
         if (list.length === 0)
             return;
-        root.run(op, ["keep", root.dir].concat(list), `Put ${Voice.count(list.length, "file")} on the Desktop`);
+        root.run(op, ["keep", root.dir].concat(list), list.length === 1 ? Translation.tr("Put 1 file on the Desktop")
+            : Translation.tr("Put %1 files on the Desktop").arg(list.length));
     }
 }

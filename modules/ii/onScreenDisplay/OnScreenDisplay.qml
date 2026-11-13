@@ -145,13 +145,16 @@ Scope {
 
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
+            // under the notch's reserved band, which starts its distance below the top edge (Island.qml)
             margins {
-                top: Config.options.island.reservedHeight
+                top: Config.options.island.reservedHeight + Config.options.island.topMargin
                 bottom: Config.options.island.reservedHeight
             }
 
-            implicitWidth: columnLayout.implicitWidth
-            implicitHeight: columnLayout.implicitHeight
+            // One size while it is up, as a layer window keeps (Hyprland animates a resize): the pill's width, and room
+            // under it for the protection message whether that shows or not; the mask is what shows
+            implicitWidth: osdIndicatorLoader.implicitWidth
+            implicitHeight: osdIndicatorLoader.implicitHeight + protectionMessageWrapper.implicitHeight
             visible: osdLoader.active
 
             ColumnLayout {
@@ -165,10 +168,18 @@ Scope {
                     implicitWidth: contentColumnLayout.implicitWidth
                     clip: true
 
+                    // The pointer moving over it puts it away. Not its coming in: the window maps under a pointer
+                    // resting there, which Qt enters and gives a position at once, so the meter closed as it opened;
+                    // only a move from where the pointer came in counts
                     MouseArea {
                         anchors.fill: parent
                         hoverEnabled: true
-                        onEntered: GlobalStates.osdVolumeOpen = false
+                        property point entry
+                        onEntered: entry = Qt.point(mouseX, mouseY)
+                        onPositionChanged: mouse => {
+                            if (mouse.x !== entry.x || mouse.y !== entry.y)
+                                GlobalStates.osdVolumeOpen = false
+                        }
                     }
 
                     Column {
@@ -215,9 +226,12 @@ Scope {
                                     }
                                     StyledText {
                                         id: protectionMessageTextWidget
+                                        // one line, no wider than the pill, so the room kept for it is enough
+                                        Layout.maximumWidth: osdIndicatorLoader.implicitWidth - 2 * protectionMessageBackground.padding
+                                            - protectionMessageIcon.implicitWidth - protectionMessageRowLayout.spacing
                                         horizontalAlignment: Text.AlignHCenter
                                         color: Appearance.m3colors.m3onError
-                                        wrapMode: Text.Wrap
+                                        elide: Text.ElideRight
                                         text: root.protectionMessage
                                     }
                                 }
