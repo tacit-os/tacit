@@ -18,16 +18,22 @@ import shutil
 import subprocess
 import sys
 
+# "also": the other types Tacit gives that role's app (session/xdg/mimeapps.list), written with the role's own so that
+# the choice holds for them too (a phone's .mov stayed in Viewer after choosing a video player); only "mimes" picks the
+# apps offered.
 ROLES = {
     "browser": {"mimes": ["x-scheme-handler/http", "x-scheme-handler/https", "text/html"], "var": "browser"},
     "files": {"mimes": ["inode/directory"], "var": "fileManager"},
     "terminal": {"category": "TerminalEmulator", "var": "terminal"},
     "mail": {"mimes": ["x-scheme-handler/mailto"]},
-    "images": {"mimes": ["image/png", "image/jpeg", "image/webp", "image/gif"]},
-    "video": {"mimes": ["video/mp4", "video/x-matroska", "video/webm"]},
-    "music": {"mimes": ["audio/mpeg", "audio/flac", "audio/ogg"]},
+    "images": {"mimes": ["image/png", "image/jpeg", "image/webp", "image/gif"],
+               "also": ["image/bmp", "image/tiff", "image/svg+xml", "image/x-icon"]},
+    "video": {"mimes": ["video/mp4", "video/x-matroska", "video/webm"], "also": ["video/quicktime", "video/x-msvideo", "video/x-m4v"]},
+    "music": {"mimes": ["audio/mpeg", "audio/flac", "audio/ogg"],
+              "also": ["audio/x-flac", "audio/x-wav", "audio/wav", "audio/mp4", "audio/x-m4a", "audio/aac", "audio/opus"]},
     "pdf": {"mimes": ["application/pdf"]},
-    "text": {"mimes": ["text/plain"]},
+    "text": {"mimes": ["text/plain"], "also": ["text/markdown", "application/json", "text/x-python", "text/x-shellscript",
+                                               "text/x-qml", "application/javascript", "text/x-csrc"]},
 }
 
 HOME = os.path.expanduser("~")
@@ -171,7 +177,7 @@ def main():
             return 1
         spec = ROLES[role]
         if "mimes" in spec:
-            subprocess.run(["xdg-mime", "default", did, *spec["mimes"]], check=False)
+            subprocess.run(["xdg-mime", "default", did, *spec["mimes"], *spec.get("also", [])], check=False)
         if "var" in spec:
             # the terminal is given its plain command: the shell runs `<terminal> -e ...` with it
             value = plain_exec(entries[did]) if role == "terminal" else launcher(did, entries[did])

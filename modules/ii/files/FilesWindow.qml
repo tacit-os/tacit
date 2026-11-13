@@ -1468,7 +1468,7 @@ FloatingWindow {
                 for (const from of job.undo.to)   // where each came from -> where it went
                     Files.learnMove(from, job.dest);
             win.jobLine = Jobs.label(job);
-            win.undoJob = job.state === "done" && job.undo ? job.id : "";
+            win.undoJob = job.undo ? job.id : "";   // a stopped or failed copy carries the undo of what it finished
             jobLineTimer.restart();
             // a trash that failed for want of a trash: offer to delete for good
             if (job.state === "failed" && job.op === "trash" && (job.error + "").startsWith("no trash")) {

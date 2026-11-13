@@ -30,16 +30,20 @@ started=$(date +%s%3N); ended=null
 results=(); undo='null'
 
 # The freedesktop trash spec, by hand: find the record whose Path is $1 (URL-encoded), move the
-# file back, drop the record. Home trash only; other disks go through gio above.
-restore_from_home_trash() {
-    local want=$1 info name path line
-    local tdir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
-    for info in "$tdir"/info/*.trashinfo; do
+# file back, drop the record. The home trash, and the one gio trash makes on the file's own disk (a
+# stick's .Trash-UID), whose Paths start at the disk's top: gio's trash:/// needs GVfs, which a
+# fresh install does not have, so Undo of a trash on a stick said "Could not put it back".
+restore_from_trash() {
+    local want=$1 info name path line tdir top
+    top=$(stat -c %m -- "$(dirname -- "$want")" 2>/dev/null)
+    for info in "${XDG_DATA_HOME:-$HOME/.local/share}/Trash/info/"*.trashinfo "$top/.Trash-$UID/info/"*.trashinfo "$top/.Trash/$UID/info/"*.trashinfo; do
         [ -e "$info" ] || continue
+        tdir=${info%/info/*}
         path=""   # the first Path=, URL-decoded in bash: a process per record made a big undo take minutes
         while IFS= read -r line; do
             case $line in Path=*) path=${line#Path=}; path=${path//\\/\\\\}; printf -v path '%b' "${path//%/\\x}"; break ;; esac
         done < "$info"
+        case $path in /*) ;; ?*) path=${top%/}/$path ;; esac
         [ "$path" = "$want" ] || continue
         name=$(basename -- "$info" .trashinfo)
         [ -e "$tdir/files/$name" ] || continue   # an orphan record must not fail a valid restore
@@ -59,7 +63,7 @@ restore_by_name() {
     [ -e "$info" ] && [ -e "$tdir/files/$name" ] || return 2
     path=$(sed -n 's/^Path=//p' "$info" | head -1 | python3 -c 'import sys,urllib.parse; print(urllib.parse.unquote(sys.stdin.read().rstrip("\n")))')
     case $path in /*) ;; *) return 1 ;; esac
-    [ -e "$path" ] && return 3
+    [ -e "$path" ] && { taken=$path; return 3; }   # another one of that name is there now
     mkdir -p "$(dirname -- "$path")" && mv -- "$tdir/files/$name" "$path" && rm -f -- "$info" && return 0
     return 1
 }
@@ -142,8 +146,25 @@ copy|move)
     for s in "${srcs[@]}"; do b=$(du -sb -- "$s" 2>/dev/null | cut -f1); bytes=$((bytes + ${b:-0})); done
     write
     moved_from=(); made=(); backs=()
+    # Undo is of what was made, also when Stop or a failure ends the batch part way
+    finish_made() {
+        if [ ${#made[@]} -eq 0 ]; then :   # nothing made (all skipped, or the first one failed): nothing to undo
+        elif [ "$op" = move ]; then
+            undo=$(jq -nc --rawfile to <(printf '%s\n' "${made[@]}") --rawfile from <(printf '%s\n' "${moved_from[@]}") '{op:"move-back", from:($to | split("\n") | map(select(length > 0))), to:($from | split("\n") | map(select(length > 0)))}')
+        elif [ ${#backs[@]} -gt 0 ]; then
+            # a copy that replaced: Undo puts the old ones back too ("-": a new one that replaced nothing)
+            args=(); for t in "${made[@]}"; do
+                r=-; for ((i = 0; i < ${#backs[@]}; i += 3)); do [ "${backs[i]}" = "$t" ] && r=$i; done
+                if [ "$r" = - ]; then args+=("$t" - -); else args+=("$t" "${backs[r+1]}" "${backs[r+2]}"); fi
+            done
+            undo=$(jq -nc --rawfile args <(printf '%s\n' "${args[@]}") '{op:"unreplace", args:($args | split("\n") | map(select(length > 0)))}')
+        else
+            undo=$(jq -nc --rawfile paths <(printf '%s\n' "${made[@]}") '{op:"delete", paths:($paths | split("\n") | map(select(length > 0)))}')
+        fi
+        finish "$1"
+    }
     for s in "${srcs[@]}"; do
-        cancelled && finish cancelled
+        cancelled && finish_made cancelled
         name=$(basename -- "$s"); target="$dest/$name"; current=$name; old_back=""; write
         if [ -e "$target" ]; then
             case "$policy" in
@@ -153,25 +174,42 @@ copy|move)
                 # pasted onto itself: nothing to replace
                 if [ "$s" -ef "$target" ]; then done_=$((done_+1)); continue; fi
                 if [ -d "$target" ] || [ -d "$s" ]; then
-                    case "$target/" in "$s"/*) error="Could not replace $name: it holds the one being put there"; finish failed ;; esac
-                    case "$s/" in "$target"/*) error="Could not replace $name: it holds the one being put there"; finish failed ;; esac
+                    case "$target/" in "$s"/*) error="Could not replace $name: it holds the one being put there"; finish_made failed ;; esac
+                    case "$s/" in "$target"/*) error="Could not replace $name: it holds the one being put there"; finish_made failed ;; esac
                 fi
                 # the old one, file or folder, out of the way first, so it can come back
-                set_aside "$target" "$name" || finish failed ;;
+                set_aside "$target" "$name" || finish_made failed ;;
             esac
         fi
-        # progress: the target growing, sampled while the copy runs
-        if [ "$op" = copy ]; then cp -a -- "$s" "$target" 2>"$report.err" & else mv -f -- "$s" "$target" 2>"$report.err" & fi
-        pid=$!; before=$bytesDone
-        while kill -0 "$pid" 2>/dev/null; do
-            if cancelled; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; [ "$op" = copy ] && rm -rf -- "$target"; put_back "$target" "$old_back"; finish cancelled; fi
-            cur=$(du -sb -- "$target" 2>/dev/null | cut -f1); bytesDone=$((before + ${cur:-0})); write; sleep 0.3
-        done
-        if ! wait "$pid"; then
-            because "Could not ${op} $name" "$(cat "$report.err" 2>/dev/null)"; rm -f "$report.err"
-            # what was copied of the new one goes, and the old one comes back (a move's half is left: its source may be gone)
-            [ -n "$old_back" ] && [ "$op" = copy ] && rm -rf -- "$target"; put_back "$target" "$old_back"
-            finish failed
+        # A move within a disk is a rename, done at once. Across disks mv copies and then deletes the source, so Stop or a
+        # full disk left a half copy that looked whole beside the source: such a move is a copy here, and the source goes
+        # once the copy is whole. (LC_ALL=C: the reason is read.)
+        copying=1; before=$bytesDone
+        if [ "$op" = move ]; then
+            if LC_ALL=C mv --no-copy -f -- "$s" "$target" 2>"$report.err"; then copying=""
+            elif ! grep -q 'cross-device' "$report.err"; then
+                because "Could not move $name" "$(cat "$report.err")"; rm -f "$report.err"; put_back "$target" "$old_back"
+                finish_made failed
+            fi
+        fi
+        if [ -n "$copying" ]; then
+            # progress: the target growing, sampled while the copy runs
+            cp -a -- "$s" "$target" 2>"$report.err" &
+            pid=$!
+            while kill -0 "$pid" 2>/dev/null; do
+                if cancelled; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; rm -rf -- "$target"; put_back "$target" "$old_back"; finish_made cancelled; fi
+                cur=$(du -sb -- "$target" 2>/dev/null | cut -f1); bytesDone=$((before + ${cur:-0})); write; sleep 0.3
+            done
+            if ! wait "$pid"; then
+                because "Could not ${op} $name" "$(cat "$report.err" 2>/dev/null)"; rm -f "$report.err"
+                # what was copied goes (the source is whole), and an old one set aside comes back
+                rm -rf -- "$target"; put_back "$target" "$old_back"
+                finish_made failed
+            fi
+            # the copy is whole: a move's source goes now. If it cannot, the copy stays, as mv left it.
+            if [ "$op" = move ] && ! rm -rf -- "$s" 2>"$report.err"; then
+                because "Could not move $name" "$(cat "$report.err")"; rm -f "$report.err"; finish_made failed
+            fi
         fi
         rm -f "$report.err"
         # the old one set aside on a disk with no trash goes now that the new one is whole; one in the trash stays for Undo
@@ -180,20 +218,7 @@ copy|move)
         results+=("$target"); made+=("$target"); [ "$op" = move ] && moved_from+=("$s")
         done_=$((done_+1)); write
     done
-    if [ ${#made[@]} -eq 0 ]; then :   # everything was skipped: nothing to undo
-    elif [ "$op" = move ]; then
-        undo=$(jq -nc --rawfile to <(printf '%s\n' "${made[@]}") --rawfile from <(printf '%s\n' "${moved_from[@]}") '{op:"move-back", from:($to | split("\n") | map(select(length > 0))), to:($from | split("\n") | map(select(length > 0)))}')
-    elif [ ${#backs[@]} -gt 0 ]; then
-        # a copy that replaced: Undo puts the old ones back too ("-": a new one that replaced nothing)
-        args=(); for t in "${made[@]}"; do
-            r=-; for ((i = 0; i < ${#backs[@]}; i += 3)); do [ "${backs[i]}" = "$t" ] && r=$i; done
-            if [ "$r" = - ]; then args+=("$t" - -); else args+=("$t" "${backs[r+1]}" "${backs[r+2]}"); fi
-        done
-        undo=$(jq -nc --rawfile args <(printf '%s\n' "${args[@]}") '{op:"unreplace", args:($args | split("\n") | map(select(length > 0)))}')
-    else
-        undo=$(jq -nc --rawfile paths <(printf '%s\n' "${made[@]}") '{op:"delete", paths:($paths | split("\n") | map(select(length > 0)))}')
-    fi
-    finish done ;;
+    finish_made done ;;
 unreplace)   # triples: <path> <old file in the trash> <its record>, "-" "-" for none: the copy to the trash, the old one back
     total=$(( $# / 3 )); args=("$@"); write
     for ((i = 0; i + 2 < ${#args[@]}; i += 3)); do
@@ -223,8 +248,8 @@ restore-paths)
         item=$(gio list -a trash::orig-path trash:/// 2>/dev/null | awk -F'\t' -v want="$p" '{ n=$1; for (i=2;i<=NF;i++) if (index($i, "trash::orig-path=")==1 && substr($i, 18)==want) print n }' | head -1)
         if [ -z "$item" ] || ! gio trash --restore "trash:///$item" 2>/dev/null; then
             # gio's listing lags a fresh trash by seconds (its monitor has not caught up), and
-            # an undo comes right after the trash: read the home trash's own records instead.
-            if ! restore_from_home_trash "$p"; then error="Could not put $(basename -- "$p") back"; finish failed; fi
+            # an undo comes right after the trash: read the trashes' own records instead.
+            if ! restore_from_trash "$p"; then error="Could not put $(basename -- "$p") back"; finish failed; fi
         fi
         done_=$((done_+1)); write
     done
@@ -235,7 +260,7 @@ restore)
         current=$item; write
         restore_by_name "$item"; r=$?
         if [ $r = 2 ]; then gio trash --restore "trash:///$item" 2>/dev/null && r=0 || r=1; fi
-        if [ $r = 3 ]; then error="$item is already back where it came from"; finish failed; fi
+        if [ $r = 3 ]; then error="Another $(basename -- "$taken") is already where this one came from"; finish failed; fi
         if [ $r != 0 ]; then error="Could not put $item back"; finish failed; fi
         done_=$((done_+1)); write
     done

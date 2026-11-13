@@ -177,12 +177,13 @@ done
     tail -n 60 "$LOG" 2>/dev/null
 } > "$NOTE" 2>/dev/null
 
-# Hyprland's own notifier works without the shell's notification daemon.
+# Hyprland's own notifier works without the shell's notification daemon. The windows are still up under Hyprland, so
+# the way back that keeps them comes first: restarting the computer closes them all.
 hyprctl notify -1 15000 "rgb(ff5555)" \
-    "The desktop stopped and could not restart itself. Restart the computer." \
+    "The desktop stopped and could not restart itself. Your windows are still open: save your work, then press Ctrl+Super+R to try again, or restart the computer." \
     >/dev/null 2>&1 || true
 notify-send -u critical -a Tacit "The desktop stopped" \
-    "It could not restart itself. Restart the computer to get it back." >/dev/null 2>&1 || true
+    "Your windows are still open. Save your work, then press Ctrl+Super+R to try again, or restart the computer." >/dev/null 2>&1 || true
 
 rm -f "$PIDFILE"
 exit 1

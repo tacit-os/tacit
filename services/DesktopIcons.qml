@@ -149,11 +149,11 @@ Singleton {
                 return;
             const sentence = root.mine[job.id];
             delete root.mine[job.id];
-            if (job.state === "done" && job.undo)
+            if (job.undo)                                      // a stopped or failed copy: the undo of what it finished
                 root.undoJob = job.id;
             if (job.state === "done" && job.op === "rename" && job.undo)
                 return;                                        // the name changing in the tag is the answer
-            root.said(job.state === "done" && sentence.length > 0 ? sentence : Jobs.label(job), job.state === "done" && job.undo ? "Undo" : "");
+            root.said(job.state === "done" && sentence.length > 0 ? sentence : Jobs.label(job), job.undo ? "Undo" : "");
         }
     }
     Connections {

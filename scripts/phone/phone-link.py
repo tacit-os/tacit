@@ -21,6 +21,7 @@ import socket
 import subprocess
 import sys
 import time
+import urllib.parse
 
 NAME = "org.kde.kdeconnect"
 DAEMON = "/modules/kdeconnect"
@@ -113,7 +114,10 @@ def send(i, path):
         if not prop(dev_path(i), "isReachable"):
             print("phone not reachable", file=sys.stderr)
             return 2
-        bus("call", NAME, f"{dev_path(i)}/share", I_SHARE, "shareUrl", "s", "file://" + path)
+        # the daemon reads a URL: unencoded, a # or ? in the name began a fragment or a query and a %20 was decoded, so it
+        # was asked for another file and the row still said Sent
+        url = "file://" + urllib.parse.quote(os.fsencode(os.path.abspath(path)))
+        bus("call", NAME, f"{dev_path(i)}/share", I_SHARE, "shareUrl", "s", url)
     except Exception as e:
         print(e, file=sys.stderr)
         return 1
