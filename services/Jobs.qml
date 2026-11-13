@@ -206,12 +206,30 @@ Singleton {
     // while the shell was down. Reports older than a day are dropped. A report that says running
     // whose runner (the pid in it, a job.sh running that job) is gone - a power cut, a SIGKILL, a
     // logout - is turned into a failure.
+    // reap <report>: that turning. The report is read again once the runner is known gone, so one that wrote its end
+    // and exited in between keeps it.
+    readonly property string reapScript: `reap() { p=$(jq -r 'select(.state == "running") | .pid // empty' "$1" 2>/dev/null); [ -n "$p" ] || return 0; grep -qa 'job[.]sh' "/proc/$p/cmdline" 2>/dev/null && grep -qaF "$(basename "$1" .json)" "/proc/$p/cmdline" && return 0; jq -ce 'select(.state == "running") | .state = "failed" | .error = "Files stopped before it finished" | .current = "" | .ended = (now * 1000 | floor)' "$1" > "$1.tmp" && mv -f "$1.tmp" "$1" || rm -f "$1.tmp"; }; `
     Process {
         id: sweep
         running: true
-        command: ["bash", "-c", `d='${StringUtils.shellSingleQuoteEscape(root.jobsDir)}'; mkdir -p "$d"; find "$d" -name '*.json' -mtime +1 -delete; for f in "$d"/*.json; do [ -e "$f" ] || continue; p=$(jq -r 'select(.state == "running") | .pid // empty' "$f" 2>/dev/null); [ -n "$p" ] || continue; grep -qa 'job[.]sh' "/proc/$p/cmdline" 2>/dev/null && grep -qaF "$(basename "$f" .json)" "/proc/$p/cmdline" && continue; jq -c '.state = "failed" | .error = "Files stopped before it finished" | .current = "" | .ended = (now * 1000 | floor)' "$f" > "$f.tmp" && mv -f "$f.tmp" "$f"; done; find "$d" -name '*.cancel' -mmin +60 -delete; ls -t "$d" | grep '\\.json$' | head -30 | sed 's/\\.json$//'`]
+        command: ["bash", "-c", `d='${StringUtils.shellSingleQuoteEscape(root.jobsDir)}'; mkdir -p "$d"; find "$d" -name '*.json' -mtime +1 -delete; ${root.reapScript}for f in "$d"/*.json; do [ -e "$f" ] && reap "$f"; done; find "$d" -name '*.cancel' -mmin +60 -delete; ls -t "$d" | grep '\\.json$' | head -30 | sed 's/\\.json$//'`]
         stdout: SplitParser {
             onRead: line => { const id = line.trim(); if (id.length > 0) root.watch(id); }
+        }
+    }
+    // And while a job runs, every 5 s: one whose runner died meanwhile (the memory guard, a kill) kept "Copying 40 %" and
+    // a Stop that did nothing until the next start. Its report turned failed, the watcher says so as for any failure.
+    Process {
+        id: reaper
+    }
+    Timer {
+        interval: 5000
+        repeat: true
+        running: root.activeJobs.length > 0
+        onTriggered: {
+            reaper.command = ["bash", "-c", `d='${StringUtils.shellSingleQuoteEscape(root.jobsDir)}'; ${root.reapScript}for id in "$@"; do [ -e "$d/$id.json" ] && reap "$d/$id.json"; done`, "reap"]
+                .concat(root.activeJobs.map(j => j.id));
+            reaper.running = true;
         }
     }
 

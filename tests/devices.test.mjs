@@ -27,7 +27,7 @@ const cases = [
 ];
 let bad = 0;
 for (const [name, tree, rootDisk, want] of cases) {
-  const root = { rootDisk, list: [], first: true, added() {}, removed() {}, failed(w) { throw new Error(w); } };
+  const root = { rootDisk, list: [], first: true, leaving: {}, added() {}, removed() {}, failed(w) { throw new Error(w); } };
   absorb(root, { tr: s => s }, JSON.stringify({ blockdevices: tree }));
   const got = Object.fromEntries(root.list.map(d => [d.name, d.usb ? "eject" : "unmount"]));
   const ok = JSON.stringify(got) === JSON.stringify(want);

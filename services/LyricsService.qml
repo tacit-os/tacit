@@ -67,6 +67,10 @@ Singleton {
         repeat: true
         running: root.status === "ok" && root.lyricsLines.length > 0
         onTriggered: {
+            // MprisPlayer.position only refreshes when asked: read as it was, the line lagged by whatever else ticked
+            // it (3 s for the media card) and never moved on a desktop widget alone
+            if (root.activePlayer?.isPlaying)
+                root.activePlayer.positionChanged()
             const pos = root.activePlayer?.position ?? 0
             let idx = -1
             for (let i = 0; i < root.lyricsLines.length; i++) {

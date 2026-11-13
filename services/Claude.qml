@@ -381,6 +381,10 @@ Singleton {
                 const why = (stderr ?? []).map(l => String(l).trim()).filter(l => l.length).pop() ?? "";
                 root.error = why.length ? `Claude stopped: ${why}` : "Claude stopped before answering.";
                 root.pendingQ = "";
+            } else if (reason === "signedOut" || reason === "expired") {
+                // the host ends a session whose sign-in has gone; Praxis has the sign-in step
+                root.error = `${root.signInWords(reason)}. Open in app to sign in.`;
+                root.pendingQ = "";
             }
         }
     }
@@ -529,10 +533,16 @@ Singleton {
         const msg = withCtx ? `${question}\n\n<desktop-context>\n${ctx}\n</desktop-context>` : question;
         root.draftText = "";
         root.chips = root.chips.filter(c => c.kind === "context");
-        const q = { msg: msg, images: images, question: question, ctx: withCtx ? ctx : "" };
+        const q = { msg: msg, images: images, question: question, ctx: withCtx ? ctx : "", text: t, attached: attached };
         if (root.busy || root.starting) root.queue = root.queue.concat([q]);
         else root.dispatch(q);
         return true;
+    }
+    // nothing was sent: what was typed and what was attached go back into the draft, not the question made of them
+    // ("What is this?" for a picture alone, its files as @paths)
+    function giveBack(q) {
+        root.draftText = q.text;
+        root.chips = root.chips.concat(q.attached);
     }
     function dispatch(q) {
         root.error = "";
@@ -548,7 +558,7 @@ Singleton {
                 if (m.ev !== "started") {
                     root.error = m.message ?? "Could not start.";
                     root.pendingQ = "";
-                    root.draftText = q.question;   // nothing was sent: the question stays
+                    root.giveBack(q);   // nothing was sent: the question stays
                     return;
                 }
                 if (q.ctx.length) root.sentContext[m.id] = q.ctx;
@@ -569,9 +579,9 @@ Singleton {
             if (resume) root.starting = false;
             if (m.ev === "error") {
                 root.pendingQ = "";
-                if (m.disconnected) { root.error = m.message; root.draftText = q.question; return; }   // the socket, not the conversation
-                if (resume) { root.continuing = false; root.note = "Couldn't resume that conversation; this is a new chat."; root.draftText = q.question; }
-                else { root.error = m.message ?? "Could not send."; root.draftText = q.question; }
+                if (m.disconnected) { root.error = m.message; root.giveBack(q); return; }   // the socket, not the conversation
+                if (resume) { root.continuing = false; root.note = "Couldn't resume that conversation; this is a new chat."; root.giveBack(q); }
+                else { root.error = m.message ?? "Could not send."; root.giveBack(q); }
                 return;
             }
             if (q.ctx.length) root.sentContext[id] = q.ctx;
@@ -624,11 +634,15 @@ Singleton {
             if (reason === "crashed") {
                 const why = (stderr ?? []).map(l => String(l).trim()).filter(l => l.length).pop() ?? "";
                 IslandController.endActivity("fail", why.length ? `Claude stopped: ${why}`.substring(0, 60) : "Claude stopped.");
+            } else if (reason === "signedOut" || reason === "expired") {
+                IslandController.endActivity("fail", root.signInWords(reason));
             } else {
                 IslandController.endActivity("ok", "", { silent: true });
             }
         }
     }
+    // a session ended for want of a sign-in, said as Praxis says it (Composer, Conversation)
+    function signInWords(reason) { return reason === "expired" ? "Your Claude sign-in has expired" : "Claude isn't signed in"; }
     function review() {
         const live = host.live;
         const next = {};

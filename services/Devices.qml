@@ -120,7 +120,13 @@ Singleton {
         for (const b of before)
             if (!next.some(d => d.path === b.path))
                 root.removed(b);
+        for (const p of Object.keys(root.leaving))
+            if (!next.some(d => d.path === p && d.mountpoint !== ""))
+                delete root.leaving[p];
     }
+    // Drives an unmount or an Eject was asked for: one gone before a listing saw it unmounted (Eject powers it off
+    // straight after) was ejected, not pulled out. Kept until a listing shows it unmounted or gone, or the unmount fails.
+    property var leaving: ({})
 
     // udisks tells when a device comes or goes; a moment later lsblk says what is there.
     // The monitor dies with udisks2 (a package upgrade, a crash) and nothing used to respawn
@@ -163,6 +169,7 @@ Singleton {
     readonly property string ejectScript: 'udisksctl unmount -b "$1" || exit 1; disk=$(lsblk -no PKNAME "$1" 2>/dev/null | head -1); if [ -n "$disk" ] && [ "$(lsblk -nro MOUNTPOINT "/dev/$disk" | grep -c .)" -gt 0 ]; then echo "another partition of /dev/$disk is still mounted" >&2; exit 1; fi; udisksctl power-off -b "$1"'
 
     function unmount(dev) {
+        root.leaving[dev.path] = true;
         const cmd = dev.usb
             ? ["bash", "-c", root.ejectScript, "_", dev.path]
             : dev.loop ? ["bash", "-c", 'udisksctl unmount -b "$1"; udisksctl loop-delete -b "$1"', "_", dev.path]
@@ -186,6 +193,7 @@ Singleton {
                 if (code !== 0) {
                     const why = /target is busy/i.test(e) ? "still in use" : /not authorized/i.test(e) ? "not allowed" : (e.split("\n").pop() || "it refused");
                     root.failed(why);
+                    if (proc.dev) delete root.leaving[proc.dev.path];
                     if (proc.cb) proc.cb("");
                 } else if (proc.dev) {
                     root.unmounted(proc.dev);

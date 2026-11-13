@@ -204,9 +204,10 @@ Singleton {
         root.cursor = clean;
         root.run("rename", [e.path, clean]);
     }
-    // files dropped on the desktop: Files' own drag moves, others copy; Ctrl forces a copy, Shift a move
+    // files dropped on the desktop: Files' own drag moves, others copy; Ctrl forces a copy, Shift a move. A picture or a
+    // link dragged from a web page comes as its https address, not a file: there is nothing to copy (as on the drop shelf)
     function put(urls, modifiers, internal) {
-        const paths = urls.map(u => FileUtils.trimFileProtocol((() => { try { return decodeURIComponent(u.toString()); } catch (e) { return u.toString(); } })()))
+        const paths = urls.filter(u => u.toString().startsWith("file://")).map(u => FileUtils.trimFileProtocol((() => { try { return decodeURIComponent(u.toString()); } catch (e) { return u.toString(); } })()))
             .filter(p => p.length > 0 && p !== root.dir && !root.dir.startsWith(p + "/"));
         const op = (modifiers & Qt.ControlModifier) ? "copy" : (modifiers & Qt.ShiftModifier) ? "move" : (internal ? "move" : "copy");
         const list = paths.filter(p => !(op === "move" && Files.parent(p) === root.dir));

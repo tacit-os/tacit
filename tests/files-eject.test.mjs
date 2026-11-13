@@ -12,7 +12,7 @@ const bodyAfter = (src, marker, from = 0) => { const open = src.indexOf("{", src
 
 // Devices: unmount() makes a process; its onExited is run when udisksctl is done
 const procs = [];
-const devices = { ejectScript: "", said: [],
+const devices = { ejectScript: "", said: [], leaving: {},
   failed(what) { this.said.push(["failed", what]); for (const f of listeners) f.onFailed?.(what); },
   unmounted(d) { this.said.push(["unmounted", d.path]); for (const f of listeners) f.onUnmounted?.(d); } };
 const nameFor = qmlFunction(dev, "nameFor");

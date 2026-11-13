@@ -192,8 +192,9 @@ Singleton {
     /**
      * Ask the island to show a transient state. Incoming priority >= current preempts. Incoming
      * lower QUEUES (FIFO, oldest dropped) unless it is noise that is stale by the time its turn
-     * comes - a meter or a workspace numeral - which is dropped. A download or a battery warning
-     * arriving during a volume peek used to be lost entirely.
+     * comes - a workspace numeral - which is dropped. A download or a battery warning
+     * arriving during a volume peek used to be lost entirely. A key's meter (volume, brightness,
+     * the mic) shows over any state at once, and that state comes back first when it has gone.
      * Re-firing the state that is already showing restarts the hold without a morph.
      */
     function request(name, data, priority) {
@@ -223,20 +224,27 @@ Singleton {
             }
             return;
         }
-        // an agent's ask waits for its answer; a volume or brightness key, or a state of higher priority (Flow), still
-        // shows over it, and the ask comes back first when that has gone
-        if (root.transientShowing && root.transientState === "claudeAsk" && (name === "volume" || name === "brightness" || priority >= root.transientPriority)) {
-            root.queue = [{ "name": "claudeAsk", "data": root.payload, "priority": root.transientPriority }]
+        // A volume, brightness or mic key shows its meter over any state, and that state comes back first when the meter
+        // has gone: dropped behind a battery line, a timer, Flow or the not-answering prompt (an hour), the key showed
+        // nothing anywhere, as the on-screen meter stands down for the notch. An agent's ask, which waits for its
+        // answer, gives way so to a state of higher priority (Flow) too.
+        const key = name === "volume" || name === "brightness" || name === "mic";
+        if (root.transientShowing && ((key && priority < root.transientPriority)
+                || (root.transientState === "claudeAsk" && (key || priority >= root.transientPriority)))) {
+            root.queue = [{ "name": root.transientState, "data": root.payload, "priority": root.transientPriority }]
                 .concat(root.queue.filter(q => q.name !== "claudeAsk" || q.data?.request !== root.payload?.request));
             root.activate(name, data, priority);
             return;
         }
         if (root.transientShowing && priority < root.transientPriority) {
-            if (name === "volume" || name === "brightness" || name === "workspace")
+            if (name === "workspace")
                 return;
             root.enqueue(name, data, priority);
             return;
         }
+        // a copy of it waiting (put back behind a meter) is older news of the same thing
+        if (name !== "notification" && name !== "claudeAsk")
+            root.queue = root.queue.filter(q => q.name !== name);
         root.activate(name, data, priority);
     }
 
@@ -514,7 +522,7 @@ Singleton {
             GlobalStates.recordPick = "area";
             return;
         }
-        root.keyboardScreen = Hyprland.focusedMonitor?.name ?? "";
+        root.keyboardScreen = root.keyScreenName();
         root.keyboard = true;
         root.recordRequested();
     }
@@ -566,7 +574,7 @@ Singleton {
         // the saved card shows on the notch that has keyScreen: the screen it was stopped on, unless a
         // sheet holds the keyboard
         if (!root.keyboard)
-            root.keyboardScreen = Hyprland.focusedMonitor?.name ?? "";
+            root.keyboardScreen = root.keyScreenName();
         Quickshell.execDetached([Directories.recordScriptPath, "--stop"]);
     }
     onRecordingChanged: {
@@ -1213,7 +1221,13 @@ Singleton {
         name: "islandCollapse"
         description: "Folds the notch's hover strip and sheet back to the resting header"
 
-        onPressed: root.collapseExpansion()
+        onPressed: {
+            // the not-answering prompt takes no keys and no click beside its buttons: Esc is its way out, as Wait, which
+            // ends nothing (Hyprland asks again if the app stays stuck)
+            if (root.transientState === "notAnswering")
+                root.answerNotAnswering("wait");
+            root.collapseExpansion();
+        }
     }
 
     // ------------------------------------------------------------------ workspaces
@@ -1807,12 +1821,17 @@ Singleton {
     readonly property int originCount: Object.keys(Origins.index).length  // and the origin index (its IPC must exist before the first hook call)
     readonly property int jobCount: Jobs.running.length   // and the jobs (their IPC, and the sweep of what finished while the shell was down)
     readonly property int deviceCount: Devices.list.length   // and the disks (udisks monitor from the start)
-    // a stick that just appeared: a peek; pulled: one too, only if it had been mounted
+    // a stick that just appeared: a peek; pulled: one too, only if it had been mounted (and not ejected: Eject powers it
+    // off, so it goes from the list as well)
     Connections {
         target: Devices
         function onAdded(dev) {
             if (root.warmedUp)
                 root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} · ${dev.size}` }, 65);
+        }
+        function onRemoved(dev) {
+            if (root.warmedUp && (dev.mountpoint ?? "").length > 0 && !dev.loop && !Devices.leaving[dev.path])
+                root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} pulled out · without Eject` }, 70);
         }
         function onFailed(what) {
             root.request("copied", { "icon": "error", "text": Voice.cant(what) }, 70);
@@ -1944,7 +1963,7 @@ Singleton {
             return;
         const fresh = (chips?.length ?? 0) > 0 || (text ?? "").length > 0;
         Claude.invoke(origin, chips ?? [], text ?? "");
-        root.keyboardScreen = Hyprland.focusedMonitor?.name ?? "";
+        root.keyboardScreen = root.keyScreenName();
         root.keyboard = keys ?? true;
         root.askRequested(fresh);
     }
@@ -1961,6 +1980,16 @@ Singleton {
     // exclusive focus - otherwise the typing can land on a resting pill on the other monitor.
     // Empty (no focused monitor reported) means every screen, which is the single-screen case.
     property string keyboardScreen: ""
+    // The screen a key opens the sheet on: the focused one, or, with the notch on some screens only (Settings > Notch)
+    // and the focus on one without it, the first of those that is there; the notch there ignored a key meant for the
+    // focused screen, so Super+Space, Ask and Record did nothing while holding the keyboard.
+    function keyScreenName() {
+        const name = Hyprland.focusedMonitor?.name ?? "";
+        const list = Config.options.island.screenList;
+        if (!list || list.length === 0 || list.includes(name))
+            return name;
+        return list.find(n => Quickshell.screens.some(s => s.name === n)) ?? name;
+    }
 
     // ------------------------------------------------------------------ address (the browser's Ctrl+L)
     // `island address <socket> <monitor> <mode>`: the sheet opens as the browser's address
@@ -2386,7 +2415,7 @@ Singleton {
         function open(): void {
             if (!root.enabled || root.suppressed)
                 return;
-            root.keyboardScreen = Hyprland.focusedMonitor?.name ?? "";
+            root.keyboardScreen = root.keyScreenName();
             root.keyboard = true;
             root.openRequested();
         }

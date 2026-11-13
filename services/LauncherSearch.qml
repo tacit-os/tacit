@@ -59,6 +59,13 @@ Singleton {
         sortField: FolderListModel.Name
     }
 
+    // An API key handed to the keyring: saved, or held in memory until the keyring opens, as Settings > Accounts says of
+    // a locked one; a reload before then loses it, so it is not called saved
+    function keySaid(app, saved) {
+        Quickshell.execDetached(["notify-send", app, saved ? Translation.tr("API key saved!")
+            : Translation.tr("The keyring is locked; the key is saved once you unlock the screen with your password"), "-a", "Shell"]);
+    }
+
     property var searchActions: [
         {
             action: "accentcolor",
@@ -119,8 +126,7 @@ Singleton {
                     Quickshell.execDetached(["notify-send", "Unsplash", Translation.tr("Usage: /unsplash YOUR_API_KEY"), "-a", "Shell"]);
                     return;
                 }
-                KeyringStorage.setNestedField(["apiKeys", "unsplash"], args.trim());
-                Quickshell.execDetached(["notify-send", "Unsplash", Translation.tr("API key saved!"), "-a", "Shell"]);
+                KeyringStorage.setNestedField(["apiKeys", "unsplash"], args.trim(), saved => root.keySaid("Unsplash", saved));
             }
         },
         {
@@ -132,8 +138,7 @@ Singleton {
                     Quickshell.execDetached(["notify-send", "Wallhaven", Translation.tr("Usage: /wallhaven YOUR_API_KEY"), "-a", "Shell"]);
                     return;
                 }
-                KeyringStorage.setNestedField(["apiKeys", "wallhaven"], args.trim());
-                Quickshell.execDetached(["notify-send", "Wallhaven", Translation.tr("API key saved!"), "-a", "Shell"]);
+                KeyringStorage.setNestedField(["apiKeys", "wallhaven"], args.trim(), saved => root.keySaid("Wallhaven", saved));
             }
         },
         {
@@ -145,8 +150,7 @@ Singleton {
                     Quickshell.execDetached(["notify-send", "Pexels", Translation.tr("Usage: /pexels YOUR_API_KEY"), "-a", "Shell"]);
                     return;
                 }
-                KeyringStorage.setNestedField(["apiKeys", "pexels"], args.trim());
-                Quickshell.execDetached(["notify-send", "Pexels", Translation.tr("API key saved!"), "-a", "Shell"]);
+                KeyringStorage.setNestedField(["apiKeys", "pexels"], args.trim(), saved => root.keySaid("Pexels", saved));
             }
         },
     ]

@@ -80,6 +80,43 @@ Singleton {
         Audio.sink.audio.volume = Math.max(0, Math.min(root.keyMaxValue, Audio.sink.audio.volume - step));
     }
 
+    // A bar pressed far above the level (the control panel's): the protection below takes back any rise over "Largest
+    // jump allowed at once", every time, so the level is climbed to in steps under that instead, as a drag would and as
+    // Settings > Sound's bar does. Down, or with the protection off, it is one write.
+    property var climbAudio: null
+    property real climbTarget: 0
+    property real climbWrote: 0
+    function setVolume(value) {
+        if (!root.sink?.audio) return;
+        root.climbAudio = root.sink.audio;
+        root.climbTarget = value;
+        root.climbWrote = root.climbAudio.volume;
+        root.climbVolume();
+    }
+    function climbVolume() {
+        const audio = root.climbAudio;
+        // another output now, or the last step was taken back since: stop where it is
+        if (!audio || audio !== root.sink?.audio || audio.volume < root.climbWrote - 0.005) {
+            volumeClimb.stop();
+            return;
+        }
+        const p = Config.options.audio.protection;
+        // a little under the limit: the level is kept as a float, a hair off what was written
+        const step = p.enable ? p.maxAllowedIncrease / 100 * 0.9 : Infinity;
+        const was = audio.volume;
+        audio.volume = Math.min(root.climbTarget, was + step);
+        root.climbWrote = audio.volume;
+        // there, or taken back at once (over "Loudest allowed")
+        if (Math.abs(audio.volume - root.climbTarget) < 0.005 || audio.volume <= was) volumeClimb.stop();
+        else volumeClimb.start();
+    }
+    Timer {
+        id: volumeClimb
+        interval: 50
+        repeat: true
+        onTriggered: root.climbVolume()
+    }
+
     // The volume keys (keybinds.lua) go through these, so they stop where "Loudest allowed" says: they ran wpctl with
     // its own limit of 100% (-l 1.0), which stays only for when the shell is not there to answer.
     IpcHandler {
@@ -119,8 +156,11 @@ Singleton {
             Pipewire.preferredDefaultAudioSink = root.bluetoothSink;
         } else {
             // Release the pin even with nothing memorised: leaving it on a departed headset is
-            // what strands the default away from the tuned chain.
-            Pipewire.preferredDefaultAudioSink = root.sinkBeforeBluetooth;
+            // what strands the default away from the tuned chain. Only while the pin is still a
+            // headset's (null once its node has gone): an output chosen since stays.
+            const pin = Pipewire.preferredDefaultAudioSink;
+            if (!pin || (pin.name + "").startsWith("bluez_output."))
+                Pipewire.preferredDefaultAudioSink = root.sinkBeforeBluetooth;
             root.sinkBeforeBluetooth = null;
         }
     }

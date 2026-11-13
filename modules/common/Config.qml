@@ -137,6 +137,18 @@ Singleton {
                 "kb-layout", FileUtils.trimFileProtocol(`${Directories.config}/hypr/hyprland/shellOverrides/main.lua`), "/etc/vconsole.conf",
                 Quickshell.shellPath("scripts/hyprland/hyprconfigurator.py"), 'hl.config({ input = { kb_layout = "us" } })']);
         }
+        // v5 too: the palette's file search goes as deep and skips what PaletteFiles was written for (c961ce5: depth 8,
+        // 12 results, build and cache folders skipped), which this file never said, so every file held 6, 20 and three
+        // folders, and build, dist, target and venv trees crowded the documents out. Settings has no control for these:
+        // a value that is the old default is that default left as it was.
+        const files = root.options.commandPalette.files;
+        if (from < 5 && files.maxDepth === 6)
+            files.maxDepth = 8;
+        if (from < 5 && files.limit === 20)
+            files.limit = 12;
+        if (from < 5 && JSON.stringify(Array.from(files.excludeDirs ?? [])) === '[".git","node_modules",".cache"]')
+            files.excludeDirs = [".git", "node_modules", ".cache", "build", "dist", "target", ".gradle", "__pycache__", ".venv", "venv",
+                ".npm", ".cargo", ".rustup", ".m2", ".android", ".kotlin", ".pub-cache", "Trash", ".var", ".mozilla"];
         if (from === root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;
         root.writeNow();
@@ -736,9 +748,11 @@ Singleton {
                 property JsonObject files: JsonObject {
                     property bool enable: true
                     property string root: "" // Empty means $HOME
-                    property int maxDepth: 6
-                    property int limit: 20
-                    property list<string> excludeDirs: [".git", "node_modules", ".cache"]
+                    property int maxDepth: 8
+                    property int limit: 12
+                    // what nobody opens from a launcher: tools' output, caches, other machines' packages (PaletteFiles)
+                    property list<string> excludeDirs: [".git", "node_modules", ".cache", "build", "dist", "target", ".gradle", "__pycache__", ".venv", "venv",
+                        ".npm", ".cargo", ".rustup", ".m2", ".android", ".kotlin", ".pub-cache", "Trash", ".var", ".mozilla"]
                 }
                 // One switch per section id in PaletteSearch.sections; an undeclared key reads as
                 // on there, which is how six of these were permanently on with no way to stop them.

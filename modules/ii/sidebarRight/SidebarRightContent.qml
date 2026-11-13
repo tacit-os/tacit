@@ -741,7 +741,7 @@ Item {
                             enabled: Audio.sink?.audio != null   // no output: nothing to set
                             onMoved: v => {
                                 if (Audio.sink?.audio) {
-                                    Audio.sink.audio.volume = v;
+                                    Audio.setVolume(v);   // a press far up the bar climbs there, under the ear protection
                                     // dragging up from a muted sink brings the sound back, as the Viewer's volume does
                                     if (v > 0 && Audio.sink.audio.muted)
                                         Audio.sink.audio.muted = false;

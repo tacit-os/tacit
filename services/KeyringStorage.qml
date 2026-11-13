@@ -37,13 +37,15 @@ Singleton {
     function flushPendingWrites() {
         const writes = root.pendingWrites;
         root.pendingWrites = [];
-        writes.forEach(w => root.setNestedField(w.path, w.value));
+        writes.forEach(w => root.setNestedField(w.path, w.value, w.done));
     }
 
-    function setNestedField(path, value) {
+    // done(saved), when given: true once the value is written, false (once) when the keyring turns out locked and the
+    // value waits in memory until it opens, so the caller does not say "saved" of a key a reload would lose
+    function setNestedField(path, value, done) {
         if (!root.loaded) {
             // nothing else may have asked for the read yet, so this write asks for it
-            root.pendingWrites = root.pendingWrites.concat([{ path: path, value: value }]);
+            root.pendingWrites = root.pendingWrites.concat([{ path: path, value: value, done: done }]);
             root.fetchKeyringData();
             return;
         }
@@ -76,6 +78,7 @@ Singleton {
         root.keyringData = Object.assign({}, root.keyringData);
 
         saveKeyringData();
+        if (done) done(true);
     }
 
     function fetchKeyringData() {
@@ -148,7 +151,12 @@ Singleton {
                 saveKeyringData()
                 root.flushPendingWrites();
             } else if (!root.loaded) {
-                // Locked, failed or unreadable output: keep queued writes until a read succeeds.
+                // Locked, failed or unreadable output: keep queued writes until a read succeeds, and say so once to
+                // whoever waits on one.
+                for (const w of root.pendingWrites) {
+                    if (w.done) w.done(false);
+                    w.done = null;
+                }
                 retryLocked.restart();
             }
         }

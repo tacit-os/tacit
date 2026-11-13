@@ -619,7 +619,8 @@ Variants {
                 onEntered: (drag) => {
                     drag.accepted = drag.hasUrls
                     DesktopIcons.dropCount = drag.hasUrls ? drag.urls.length : 0
-                    const one = drag.hasUrls && drag.urls.length === 1
+                    // a picture on disk, not one dragged from a web page (an https address)
+                    const one = drag.hasUrls && drag.urls.length === 1 && drag.urls[0].toString().startsWith("file://")
                         ? CF.FileUtils.trimFileProtocol(decodeURIComponent(drag.urls[0].toString())) : ""
                     const oneExt = one.split(".").pop().toLowerCase()
                     wallpaperDropArea.picture = (one.length > 0 && Wallpapers.extensions.includes(oneExt)) ? one : ""
