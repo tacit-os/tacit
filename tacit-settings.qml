@@ -690,9 +690,9 @@ ApplicationWindow {
         }
     }
 
-    // The battery, read from UPower here rather than through the shell's Battery service: that one
-    // sends the low-battery notices and suspends, and a second copy in this process would do both
-    // again. Chosen the way that service chooses it (services/Battery.qml).
+    // The battery, read from UPower here for its level and health, chosen the way the shell's Battery
+    // service chooses it (services/Battery.qml). Its times are that service's: only the shell suspends
+    // with it (Battery.suspends), and its notices are the shell's IslandController's.
     readonly property var batteryDevice: UPower.devices.values.find(d => d.isLaptopBattery && (d.nativePath ?? "").includes("book4-ec")) ?? UPower.displayDevice
     readonly property bool hasBattery: root.batteryDevice?.isLaptopBattery ?? false
     function batteryTime(secs) {
@@ -737,7 +737,15 @@ ApplicationWindow {
     }
 
     // Dictation: Flow's words (~/.config/flow/words.txt, one per line, # for comments kept as they
-    // are) and the key bound to quickshell:flowHold in hypr/custom/keybinds.lua.
+    // are) and the key bound to quickshell:flowHold.
+    // Flow is not packaged (session/flow/README.md): without flowd's user service the Dictation group, a word list and a
+    // key for a dictation that is not there, is hidden. Unknown is installed, as Dictation.qml has it.
+    property bool flowInstalled: false
+    Process {
+        running: true
+        command: ["systemctl", "--user", "show", "-P", "LoadState", "flowd.service"]
+        stdout: StdioCollector { onStreamFinished: root.flowInstalled = text.trim() !== "not-found" }
+    }
     readonly property string flowWordsPath: FileUtils.trimFileProtocol(`${Directories.config}/flow/words.txt`)
     property var flowWords: []
     property string flowWordsHeader: ""
@@ -770,7 +778,13 @@ ApplicationWindow {
         flowDirMaker.running = false;
         flowDirMaker.running = true;
     }
-    property string flowKey: ""
+    // The key: Tacit's binds (session/hypr/tacit/keybinds.lua, in the flow submap too) are on TACIT_FLOW_KEY where
+    // Settings' block in custom/variables.lua sets it, else on the Copilot key. A copy appended to custom/keybinds.lua
+    // before they were packaged binds a key of its own, so where there is one it goes along to the same key.
+    readonly property string flowDefaultKey: "SUPER + SHIFT + F23"
+    property string flowKeyChosen: ""
+    property string flowKeyOld: ""
+    readonly property string flowKey: root.flowKeyChosen || root.flowKeyOld || root.flowDefaultKey
     readonly property var flowKeyOptions: {
         const known = [
             { value: "SUPER + SHIFT + F23", label: "Copilot key (tap)" },
@@ -790,14 +804,28 @@ ApplicationWindow {
         onSaved: Quickshell.execDetached(["hyprctl", "reload"])
         onLoaded: {
             const m = customKeybinds.text().match(/hl\.bind\("([^"]+)", hl\.dsp\.global\("quickshell:flowHold"\)/);
-            root.flowKey = m ? m[1] : "";
+            root.flowKeyOld = m ? m[1] : "";
         }
     }
+    FileView {
+        id: customVariables
+        path: FileUtils.trimFileProtocol(`${Directories.config}/hypr/custom/variables.lua`)
+        printErrors: false
+        watchChanges: true
+        onFileChanged: customVariables.reload()
+        onLoaded: root.flowKeyChosen = customVariables.text().match(/^TACIT_FLOW_KEY = "([^"]+)"$/m)?.[1] ?? ""
+        onLoadFailed: root.flowKeyChosen = ""
+    }
     function setFlowKey(key) {
-        const text = customKeybinds.text().split(`hl.bind("${root.flowKey}", hl.dsp.global("quickshell:flowHold")`)
-            .join(`hl.bind("${key}", hl.dsp.global("quickshell:flowHold")`);
-        customKeybinds.setText(text);
-        root.flowKey = key;
+        if (root.flowKeyOld.length > 0 && root.flowKeyOld !== key) {
+            customKeybinds.setText(customKeybinds.text().split(`hl.bind("${root.flowKeyOld}", hl.dsp.global("quickshell:flowHold")`)
+                .join(`hl.bind("${key}", hl.dsp.global("quickshell:flowHold")`));
+            root.flowKeyOld = key;
+        }
+        // the Copilot key is Tacit's own: no block
+        root.flowKeyChosen = key === root.flowDefaultKey ? "" : key;
+        Quickshell.execDetached(["bash", "-c", 'python3 "$@" && hyprctl reload >/dev/null', "_", `${Directories.scriptPath}/settings/managed_block.py`,
+            FileUtils.trimFileProtocol(`${Directories.config}/hypr/custom/variables.lua`), "flowkey"].concat(root.flowKeyChosen ? [`TACIT_FLOW_KEY = "${key}"`] : []));
     }
 
     // Files and folders are picked in Tacit's own Files (Pinax), the pick mode Praxis attaches
@@ -3231,10 +3259,11 @@ ApplicationWindow {
                     onVisibleChanged: if (visible) nowField.focusInput()
                     control: RowLayout {
                         spacing: 6
-                        LineField { id: nowField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "Now"; onAccepted: newField.focusInput() }
-                        LineField { id: newField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "New"; onAccepted: againField.focusInput() }
-                        LineField { id: againField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "Again"; onAccepted: passwordRow.submit() }
+                        LineField { id: nowField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "Now"; onAccepted: newField.focusInput(); onCancelled: passwordCancel.picked() }
+                        LineField { id: newField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "New"; onAccepted: againField.focusInput(); onCancelled: passwordCancel.picked() }
+                        LineField { id: againField; Layout.fillWidth: true; implicitWidth: 100; secret: true; placeholder: "Again"; onAccepted: passwordRow.submit(); onCancelled: passwordCancel.picked() }
                         Slab {
+                            id: passwordCancel
                             text: "Cancel"
                             onPicked: {
                                 nowField.text = newField.text = againField.text = "";
@@ -4108,7 +4137,7 @@ ApplicationWindow {
                                 id: nameField
                                 placeholder: "Work"
                                 onAccepted: ag.add()
-                                Keys.onEscapePressed: accPage.open = ""
+                                onCancelled: accPage.open = ""
                             }
                             TextButton {
                                 label: ag.addUse === "key" ? "Add" : "Sign in"
@@ -4169,6 +4198,7 @@ ApplicationWindow {
                                 secret: true
                                 placeholder: "Paste it here"
                                 onAccepted: connectPasted.picked()
+                                onCancelled: accPage.open = ""
                             }
                             Slab { text: "Cancel"; onPicked: accPage.open = "" }
                             Slab {
@@ -4310,13 +4340,25 @@ ApplicationWindow {
                 const all = fits.includes(m.scale) ? fits : [...fits, m.scale].sort((a, b) => a - b);
                 return all.map(s => ({ value: s, label: `${Math.round(s * 100)}%` }));
             }
+            // A monitor's line is for the monitor, not the port: "desc:" and what Hyprland calls it (make, model,
+            // serial), so one plugged into another dock port keeps its scale and place, and the next one on that port
+            // does not take them. Hyprland matches the start of a description: one that is not the only screen it
+            // starts (two alike with no serial), or that has none, goes by its connector as before. So does the
+            // laptop's own panel, which never changes port, and whose lines general.lua's lid adds to by connector.
+            function outputOf(m) {
+                const d = m.description ?? "";
+                return /^(eDP|LVDS|DSI)-/.test(m.name) || d.length === 0 || /["\\]/.test(d)
+                    || dp.screens.filter(o => (o.description ?? "").startsWith(d)).length > 1 ? m.name : `desc:${d}`;
+            }
             // Every screen keeps its present mode, position, scale, rotation and mirroring; only what
             // was asked for on the one screen changes.
             function monitorLine(m, o) {
                 const mode = o.mode ?? `${m.width}x${m.height}@${m.refreshRate.toFixed(3)}`;
                 const position = o.position ?? `${m.x}x${m.y}`;
-                const mirror = o.mirror !== undefined ? o.mirror : (m.mirrorOf && m.mirrorOf !== "none" ? m.mirrorOf : "");
-                return `hl.monitor({ output = "${m.name}", mode = "${mode}", position = "${position}", scale = ${o.scale ?? m.scale}${m.transform ? `, transform = ${m.transform}` : ""}${mirror ? `, mirror = "${mirror}"` : ""} })`;
+                const mirrorName = o.mirror !== undefined ? o.mirror : (m.mirrorOf && m.mirrorOf !== "none" ? m.mirrorOf : "");
+                const source = dp.screens.find(x => x.name === mirrorName);
+                const mirror = source ? dp.outputOf(source) : mirrorName;
+                return `hl.monitor({ output = "${dp.outputOf(m)}", mode = "${mode}", position = "${position}", scale = ${o.scale ?? m.scale}${m.transform ? `, transform = ${m.transform}` : ""}${mirror ? `, mirror = "${mirror}"` : ""} })`;
             }
             // Positions are in logical pixels, so a new scale or mode on one screen moves the screens
             // that sat beyond its far edge by the change in its logical size.
@@ -4332,14 +4374,26 @@ ApplicationWindow {
                 const y = m.y >= c.y + Math.round(c.height / c.scale) ? m.y + dh : m.y;
                 return `${x}x${y}`;
             }
+            // A change picked while the last one is still being written (hyprctl reload can take a second) waits for it
+            // and for the screens read after it, and is built on them: running = true on a running Process does
+            // nothing, so it was dropped without a word.
+            property bool settling: false
+            property var waitingChanges: []
             function setMonitor(name, change) {
+                if (dp.settling) {
+                    dp.waitingChanges = dp.waitingChanges.concat([{ name, change }]);
+                    return;
+                }
                 const lines = ["-- Written by Tacit Settings (Display & power). Delete it to go back to hyprland/general.lua."]
                     .concat(dp.screens.map(m => dp.monitorLine(m, m.name === name ? change : { position: dp.shiftedPosition(m, name, change) })));
                 // the file as it is now is put by for the Keep bar, unless an earlier change is still waiting on it
-                // the lines of screens that are not plugged in now stay as they were, for when they are back
-                writeMonitors.command = ["bash", "-c", 'mode=$1; shift; f="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"; ' + root.displayBackupBase
+                // the lines of screens that are not plugged in now stay as they were, for when they are back; a line for
+                // one that is, by its connector or its description, gives way to the new one (the last line that fits wins)
+                const drop = dp.screens.flatMap(m => [m.name, `desc:${m.description ?? ""}`]).join("\n");
+                writeMonitors.command = ["bash", "-c", 'mode=$1; drop=$2; shift 2; f="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"; ' + root.displayBackupBase
                     + 'if [ "$mode" = fresh ]; then rm -f "$b.previous" "$b.absent"; if [ -e "$f" ]; then cp -f "$f" "$b.previous"; else : > "$b.absent"; fi; fi; '
-                    + 'new=$(printf "%s\\n" "$@"); keep=$(grep -sE "^hl\\.monitor\\(" "$f" | while IFS= read -r l; do o=${l#*output = \\"}; o=${o%%\\"*}; printf "%s\\n" "$new" | grep -qF "output = \\"$o\\"" || printf "%s\\n" "$l"; done); { printf "%s\\n" "$new"; [ -z "$keep" ] || printf "%s\\n" "$keep"; } > "$f" && hyprctl reload >/dev/null', "_", root.displayKeepLeft > 0 ? "again" : "fresh"].concat(lines);
+                    + 'new=$(printf "%s\\n" "$@"); keep=$(grep -sE "^hl\\.monitor\\(" "$f" | while IFS= read -r l; do o=${l#*output = \\"}; o=${o%%\\"*}; printf "%s\\n" "$drop" | grep -qxF -- "$o" || printf "%s\\n" "$l"; done); { printf "%s\\n" "$new"; [ -z "$keep" ] || printf "%s\\n" "$keep"; } > "$f" && hyprctl reload >/dev/null', "_", root.displayKeepLeft > 0 ? "again" : "fresh", drop].concat(lines);
+                dp.settling = true;
                 writeMonitors.running = true;
             }
 
@@ -4432,6 +4486,14 @@ ApplicationWindow {
                             if (JSON.stringify(next) !== JSON.stringify(dp.screens))
                                 dp.screens = next;
                         } catch (e) {}
+                        // the read after a write: the next change that waited for it
+                        if (dp.settling && !writeMonitors.running) {
+                            dp.settling = false;
+                            const waited = dp.waitingChanges[0];
+                            dp.waitingChanges = dp.waitingChanges.slice(1);
+                            if (waited)
+                                dp.setMonitor(waited.name, waited.change);
+                        }
                     }
                 }
             }
@@ -4455,15 +4517,19 @@ ApplicationWindow {
                 visible: root.hasBattery
                 readonly property var b: root.batteryDevice
                 readonly property int pct: Math.round((b?.percentage ?? 0) * 100)
-                readonly property bool charging: b?.state === UPowerDeviceState.Charging
+                // plugged in while the pack drains (a capped charger) is not charging, as the notch says
+                readonly property bool charging: b?.state === UPowerDeviceState.Charging && !Battery.drainingOnAc
                 glyph: charging ? "battery_charging_full" : pct >= 95 ? "battery_full" : `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
                 eyebrow: "Battery"
                 title: `${pct}%`
-                // a trickle charge gives UPower estimates of a day or more; past 12 h it is "slowly"
-                subtitle: [charging ? ((b?.timeToFull ?? 0) > 43200 ? "Charging slowly"
-                            : (b?.timeToFull ?? 0) > 0 ? `Charging · full in ${root.batteryTime(b.timeToFull)}` : "Charging")
+                // The times are Battery's, from the pack's own energy over the last minutes, as the notch shows
+                // them: UPower's swung between 3, 4 and 9 h. One shows once there are four minutes of it. A trickle
+                // charge gives a day or more; past 12 h it is "slowly".
+                subtitle: [Battery.drainingOnAc ? "Plugged in, not charging"
+                        : charging ? (Battery.timeToFull > 43200 ? "Charging slowly"
+                            : Battery.timeToFull > 0 ? `Charging · full in ${root.batteryTime(Battery.timeToFull)}` : "Charging")
                         : !UPower.onBattery ? "Plugged in"
-                        : ((b?.timeToEmpty ?? 0) > 0 ? `${root.batteryTime(b.timeToEmpty)} left` : "On battery"),
+                        : (Battery.timeToEmpty > 0 ? `${root.batteryTime(Battery.timeToEmpty)} left` : "On battery"),
                     (b?.healthSupported ?? false) ? `health ${Math.round(b.healthPercentage)}%` : ""].filter(x => x.length > 0).join(" · ")
                 live: charging
             }
@@ -4555,11 +4621,19 @@ ApplicationWindow {
                         glyph: "aspect_ratio"
                         label: dp.screens.length > 1 ? `${modelData.description || modelData.name}: resolution` : "Resolution"
                         description: dp.monitorsFileOurs ? "" : "Set in ~/.config/hypr/monitors.lua, which another tool wrote"
-                        // "1920x1080@60.00Hz" as Hyprland lists it
-                        options: modelData.modes.map(md => {
-                            const m = md.match(/^(\d+)x(\d+)@([\d.]+)Hz$/);
-                            return m ? { value: `${m[1]}x${m[2]}@${m[3]}`, label: `${m[1]} × ${m[2]} · ${Math.round(+m[3])} Hz` } : { value: md, label: md };
-                        })
+                        // "1920x1080@60.00Hz" as Hyprland lists it; the rate in whole hertz, unless another rate of the
+                        // same size rounds the same (60.00 and 59.94 Hz both read "60 Hz"): those get the decimals that
+                        // tell them apart, "60 Hz" and "59.9 Hz"
+                        options: {
+                            const all = modelData.modes.filter((md, i, a) => a.indexOf(md) === i).map(md => ({ md, m: md.match(/^(\d+)x(\d+)@([\d.]+)Hz$/) }));
+                            return all.map(({ md, m }) => {
+                                if (!m)
+                                    return { value: md, label: md };
+                                const twins = all.filter(o => o.m && o.m[1] === m[1] && o.m[2] === m[2] && Math.round(+o.m[3]) === Math.round(+m[3]));
+                                const d = [0, 1, 2, 3].find(d => new Set(twins.map(o => (+o.m[3]).toFixed(d))).size === twins.length) ?? 3;
+                                return { value: `${m[1]}x${m[2]}@${m[3]}`, label: `${m[1]} × ${m[2]} · ${+(+m[3]).toFixed(d)} Hz` };
+                            });
+                        }
                         current: `${modelData.width}x${modelData.height}@${modelData.refreshRate.toFixed(2)}`
                         onPicked: value => dp.setMonitor(modelData.name, { mode: value })
                     }
@@ -5130,11 +5204,10 @@ ApplicationWindow {
 
             // Flow reads words.txt at the start of every dictation, so an edit counts from the next.
             Group {
-                visible: inputCol.viewing === ""
+                visible: inputCol.viewing === "" && root.flowInstalled
                 title: "Dictation"
                 note: "Words Flow always spells exactly as written here: names, products, places."
                 ChoiceRow {
-                    visible: root.flowKey.length > 0
                     glyph: "mic"
                     label: "Dictation key"
                     options: root.flowKeyOptions
@@ -5495,7 +5568,11 @@ ApplicationWindow {
                 // Restart gets the update ready first, then restarts (Updates.restartNow, the notch's too); when a step fails
                 // nothing restarts, and the row says which: "" for neither, "prepare" or "reboot"
                 readonly property bool tonight: Updates.tonightSet
-                readonly property string restartFailed: Updates.restartFailed
+                // a download for the restart that failed is over once a later look finds it all here (the shell's own
+                // download, online again, finished it): the row said "Couldn't finish the download" over Tonight and
+                // Restart until one of them was pressed
+                readonly property string restartFailed: Updates.restartFailed === "prepare" && updatesGroup.state.ready === true
+                    && (updatesGroup.state.checked ?? 0) > Updates.restartFailedAt ? "" : Updates.restartFailed
                 readonly property bool restarting: Updates.restarting
                 readonly property bool busy: Updates.phase !== ""
                 readonly property bool ready: !busy && updatesGroup.state.ready === true
@@ -5521,12 +5598,18 @@ ApplicationWindow {
                     if (!t)
                         return "";
                     const m = Math.round((updatesGroup.now - t) / 60000);
+                    // a check from another day says which: the background one skips a metered link or a low battery
+                    // without a word, and a bare time days old read as today
+                    const days = Voice.daysAgo(t, updatesGroup.now), at = Qt.formatTime(new Date(t), "hh:mm");
                     return m < 1 ? "Checked just now" : m < 60 ? `Checked ${m} min ago`
-                        : `Checked at ${Qt.formatTime(new Date(t), "hh:mm")}`;
+                        : days <= 0 ? `Checked at ${at}` : days === 1 ? `Checked yesterday at ${at}`
+                        : days < 7 ? `Checked ${Voice.weekdays[new Date(t).getDay()]} at ${at}` : `Checked on ${Voice.when(t, updatesGroup.now)}`;
                 }
-                // the notes shown: the waiting release's while one waits, else this one's
-                readonly property var shownNotes: updatesGroup.ready && Updates.nextNotes.length > 0 ? Updates.nextNotes
-                    : Updates.notes.filter(r => r.version === Updates.currentVersion)
+                // the notes shown: the waiting releases' while they wait, else those this computer got with its last
+                // update; "What's new" only over the waiting ones (with only other parts waiting, the installed
+                // release's were titled as if they were coming)
+                readonly property bool notesWaiting: updatesGroup.ready && Updates.nextNotes.length > 0
+                readonly property var shownNotes: updatesGroup.notesWaiting ? Updates.nextNotes : Updates.installedNotes
                 FileView {
                     path: `${Directories.userStateDir}/updates.json`
                     watchChanges: true
@@ -5560,6 +5643,8 @@ ApplicationWindow {
                         : updatesGroup.restartFailed === "battery" ? `Plug in to restart: the battery is at ${Updates.restartBattery}%`
                         : updatesGroup.restartFailed === "prepare" ? `Couldn't finish the download · ${updatesGroup.causeLine(Updates.restartCause).replace(/^./, c => c.toLowerCase())}`
                         : updatesGroup.restartFailed === "reboot" ? "Couldn't restart · someone else may be signed in on this computer"
+                        : Updates.tonightFailed === "set" ? "Couldn't set the update for tonight"
+                        : Updates.tonightFailed === "cancel" ? "Couldn't cancel tonight's update"
                         : updatesGroup.tonight ? (Updates.nightSkipped.length > 0 ? `Didn't install last night: ${Updates.nightSkipped}`
                             : "Tonight at 03:00 if it's left on, plugged in and locked, with Caffeine off")
                         : updatesGroup.ready ? `${updatesGroup.waiting} ${updatesGroup.waiting === 1 ? "update" : "updates"} · they install while the computer restarts`
@@ -5639,7 +5724,7 @@ ApplicationWindow {
                             width: parent.width - 52 - 20
                             spacing: 6
                             StyledText {
-                                text: updatesGroup.ready ? `What's new in Tacit ${modelData.version}` : `New in Tacit ${modelData.version}`
+                                text: updatesGroup.notesWaiting ? `What's new in Tacit ${modelData.version}` : `New in Tacit ${modelData.version}`
                                 font.pixelSize: 15
                                 font.weight: Font.Medium
                                 color: Tacit.inkMain
@@ -5823,8 +5908,8 @@ ApplicationWindow {
             onVisibleChanged: if (visible) (jr.enterprise ? identityField : passwordField).focusInput()
             control: RowLayout {
                 spacing: 6
-                LineField { id: identityField; visible: jr.enterprise; placeholder: "User name"; onAccepted: passwordField.focusInput() }
-                LineField { id: passwordField; secret: true; placeholder: "Password"; onAccepted: jr.submit() }
+                LineField { id: identityField; visible: jr.enterprise; placeholder: "User name"; onAccepted: passwordField.focusInput(); onCancelled: jr.modelData.askingPassword = false }
+                LineField { id: passwordField; secret: true; placeholder: "Password"; onAccepted: jr.submit(); onCancelled: jr.modelData.askingPassword = false }
                 Slab { text: "Cancel"; onPicked: jr.modelData.askingPassword = false }
                 Slab { text: "Join"; key: "↵"; tone: "default"; onPicked: jr.submit() }
             }
@@ -5942,7 +6027,7 @@ ApplicationWindow {
                 LineField {
                     id: renameField
                     onAccepted: ab.rename()
-                    Keys.onEscapePressed: ab.page.open = ""
+                    onCancelled: ab.page.open = ""
                 }
                 TextButton {
                     label: "Rename"
@@ -6194,7 +6279,7 @@ ApplicationWindow {
                     implicitWidth: 250
                     placeholder: "Paste the code the page shows"
                     onAccepted: sl.sendCode()
-                    Keys.onEscapePressed: if (sl.page.open === `code:${sl.account?.id}`) sl.page.open = ""
+                    onCancelled: if (sl.page.open === `code:${sl.account?.id}`) sl.page.open = ""
                 }
                 Slab {
                     text: "Finish"
@@ -6311,10 +6396,7 @@ ApplicationWindow {
                     secret: true
                     placeholder: "Paste the key"
                     onAccepted: kb.save()
-                    Keys.onEscapePressed: {
-                        keyField.text = "";
-                        kb.page.open = "";
-                    }
+                    onCancelled: kb.page.open = ""
                 }
                 Slab {
                     text: "Save"
@@ -6374,6 +6456,9 @@ ApplicationWindow {
         property string placeholder: ""
         property bool secret: false
         signal accepted()
+        // Esc empties the box and leaves it, and a row with a Cancel closes its line on it: Esc went on to the page,
+        // which closed Settings with what was typed
+        signal cancelled()
         implicitWidth: 180
         implicitHeight: 32
         radius: Appearance.rounding.small
@@ -6396,6 +6481,11 @@ ApplicationWindow {
             clip: true
             activeFocusOnTab: true
             onAccepted: lf.accepted()
+            Keys.onEscapePressed: {
+                lfInput.text = "";
+                lfInput.focus = false;
+                lf.cancelled();
+            }
         }
         StyledText {
             anchors.left: parent.left

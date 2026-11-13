@@ -84,12 +84,21 @@ Singleton {
     // After 30 s unanswered the knock is every 30 s: a computer without flowd (every install but the
     // owner's) logged a failed connect every 2 s for good, into the shell's log in memory. A press
     // of the key knocks fast again.
+    // Flow is not packaged (session/flow/README.md): without flowd's user service nothing is knocked on or started, and the
+    // key says dictation isn't set up instead of "Flow isn't running", as if it could be started. Unknown is installed.
+    property bool installed: true
+    Process {
+        id: installedProc
+        running: true
+        command: ["systemctl", "--user", "show", "-P", "LoadState", "flowd.service"]
+        stdout: StdioCollector { onStreamFinished: root.installed = text.trim() !== "not-found" }
+    }
     Timer {
         id: retry
         property int tries: 0
         interval: retry.tries < 15 ? 2000 : 30000
         repeat: true
-        running: !root.connected
+        running: !root.connected && root.installed
         onTriggered: {
             if (retry.tries % 15 === 0)
                 Quickshell.execDetached(["systemctl", "--user", "start", "flowd.service"]);
@@ -185,8 +194,11 @@ Singleton {
         // mic with no indicator and type its text into the password field
         if (GlobalStates.screenLocked) return;
         if (!root.connected) {
-            IslandController.request("flowNote", { icon: "hearing_disabled", text: Voice.cant("Flow isn't running"), tone: "error" }, 90);
+            IslandController.request("flowNote", { icon: "hearing_disabled", text: Voice.cant(root.installed ? "Flow isn't running" : "dictation isn't set up on this computer"), tone: "error" }, 90);
             retry.tries = 0;
+            // set up since: the next press finds it
+            if (!root.installed)
+                installedProc.running = true;
             return;
         }
         root.pressAt = Date.now();

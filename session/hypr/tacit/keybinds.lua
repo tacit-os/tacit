@@ -86,8 +86,10 @@ hl.bind("SUPER + Space", hl.dsp.exec_cmd("qs -p $TACIT_SHELL ipc call island tog
 hl.bind("SUPER + SHIFT + Space", hl.dsp.global("quickshell:islandAsk"), { description = "Shell: Ask Claude in the notch" })
 
 -- Flow: hold to dictate anywhere, tap twice for hands-free (services/Dictation.qml, ~/.local/bin/flowd).
--- The Copilot key sends Super+Shift+F23.
-hl.bind("SUPER + SHIFT + F23", hl.dsp.global("quickshell:flowHold"), { description = "Flow: hold to dictate" })
+-- The Copilot key sends Super+Shift+F23. Settings > Keyboard & touchpad > Dictation key puts it on another key:
+-- TACIT_FLOW_KEY, in a block of its own in custom/variables.lua (read before this file), here and in the flow submap.
+local FLOW_KEY = type(TACIT_FLOW_KEY) == "string" and TACIT_FLOW_KEY ~= "" and TACIT_FLOW_KEY or "SUPER + SHIFT + F23"
+hl.bind(FLOW_KEY, hl.dsp.global("quickshell:flowHold"), { description = "Flow: hold to dictate" })
 
 -- While Flow listens or writes, the shell enters this submap: Esc cancels and goes no further (a
 -- plain Esc would also reach the app, and in Claude Code it stops a running turn). The shell
@@ -98,7 +100,7 @@ hl.define_submap("flow", function()
         hl.dispatch(hl.dsp.global("quickshell:flowCancel"))
         hl.dispatch(hl.dsp.submap("reset"))
     end, { description = "Flow: cancel" })
-    hl.bind("SUPER + SHIFT + F23", hl.dsp.global("quickshell:flowHold"), { description = "Flow: hold to dictate" }) -- # [hidden] (the same key inside the flow submap)
+    hl.bind(FLOW_KEY, hl.dsp.global("quickshell:flowHold"), { description = "Flow: hold to dictate" }) -- # [hidden] (the same key inside the flow submap)
 end)
 
 -- Alt + Tab -> the window switcher: the workspace overview with a ring on the window you were in before; Tab and

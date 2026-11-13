@@ -158,7 +158,7 @@ const looked = { titles: "" };
 // the update's Restart (the notch and Settings): it stops at the warning instead of restarting
 {
   let went = 0, peek = "";
-  const root = { guarding: true, restartWarning: "", go: () => went++ };
+  const root = { guarding: true, restartWarning: "", go: () => went++, says: true };
   const scope = { root, SessionWarnings: { agentWorking: true, agentTitles: ["Fix the login bug"], packageManagerRunning: false, downloadRunning: false },
     IslandController: { workUnsaved: false, request: (n, d) => { peek = d.text; } }, disarmTimer: { restart() {} } };
   const f = qmlFunction(updates, "onChecked");

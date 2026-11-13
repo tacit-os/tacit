@@ -139,7 +139,7 @@ esac
   // the notch's note when the download before a restart fails
   const ex = readExpression(src, after("restartProc", "onExited").at).expr;
   const notes = [];
-  const exited = inScope({ root: { failureCause: cause }, restartOut: { text: PACMAN.conflict },
+  const exited = inScope({ root: { failureCause: cause, says: true }, restartOut: { text: PACMAN.conflict },
     IslandController: { request: (k, d) => notes.push(d.text) } }, "", `return (${ex});`)();
   exited(1, 0);
   check("the notch says it too", notes[0] === "Couldn't download the update · a conflicting update", JSON.stringify(notes));
@@ -200,7 +200,7 @@ esac
   let said = null;
   const f = src.match(/\n    function go\(\) \{/);
   const at = f ? f.index + f[0].length - 1 : -1;
-  const scope = { root: { restartWarning: "x" }, disarmTimer: { stop() {} }, restartProc: { running: false },
+  const scope = { root: { restartWarning: "x", says: true }, disarmTimer: { stop() {} }, restartProc: { running: false },
     IslandController: { request: (name, p) => { said = p; } } };
   if (at >= 0) inScope(scope, "", src.slice(at + 1, matchBrace(src, at)))();
   check("the notch says from the press that the restart takes a few minutes, while it gets ready",
@@ -250,7 +250,7 @@ esac
 {
   let said = null;
   const e = readExpression(src, after("tonightProc", "onExited").at).expr;
-  const scope = { root: {}, IslandController: { request: (name, p) => { said = { name, ...p }; } } };
+  const scope = { root: { says: true }, IslandController: { request: (name, p) => { said = { name, ...p }; } } };
   inScope(scope, "", `return (${e});`)()(0, 0);
   const settings = read("tacit-settings.qml");
   const wing = qmlFunction(read("services/IslandController.qml"), "wingFor");

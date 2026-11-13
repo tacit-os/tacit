@@ -54,6 +54,11 @@ Singleton {
     property string currentVersion: ""
     property var notes: []          // [{ version, date, changes: [..] }], newest first, installed
     property var nextNotes: []      // the same for the releases waiting, newer than this one
+    // the Tacit this computer ran before this one (updates-version), and what changed since: every release it got with
+    // the last update, not only the newest (from 1.2.9 to 1.2.14, the five)
+    property string versionBefore: ""
+    readonly property var installedNotes: root.notes.filter(r => r.version === root.currentVersion
+        || (root.versionBefore.length > 0 && root.newer(r.version, root.versionBefore) && !root.newer(r.version, root.currentVersion)))
     // turned on in Settings: look now, not at the next half hour
     readonly property bool enabled: Config.options.updates.enableCheck
     onEnabledChanged: if (root.enabled) root.refresh()
@@ -94,6 +99,7 @@ Singleton {
     // restarts, and the notch and Settings' row say so. "" for neither, "prepare", "reboot", or "battery": tacit-update
     // refuses on a battery under 20 % that is not charging, and restartBattery is what it read.
     property string restartFailed: ""
+    property double restartFailedAt: 0  // when: a look after it that finds the update here leaves it behind (Settings)
     property int restartBattery: 0
     readonly property bool restarting: restartProc.running
     // What a restart would cut off (the session screen's warnings): said once, and the next Restart goes through, as
@@ -103,6 +109,9 @@ Singleton {
     property bool guarding: false       // the warnings are being read
     // Tonight was chosen: the night's timer is waiting (read with the list, and set at once when chosen)
     property bool tonightSet: false
+    // Tonight or Cancel tonight that systemctl refused (no rights, no timer): "set" or "cancel", for Settings' row, which
+    // the notch's note does not reach from Settings' own process
+    property string tonightFailed: ""
     // Why the last night did not install while Tonight stays set: Settings said "Tonight, on the charger" every morning
     // after nights that skipped without a word. "" when no night has come since it was chosen, or it went ahead.
     property string nightSkipped: ""
@@ -127,18 +136,39 @@ Singleton {
         if (root.restarting || root.guarding)
             return;
         root.restartFailed = "";
+        root.tonightFailed = "";
         if (root.restartWarning.length > 0) {
             root.go();
             return;
         }
         root.guarding = true;
-        SessionWarnings.refresh();
+        // uncommitted work is the shell's to know (its IslandController looks every five minutes): outside the shell
+        // it is asked of the shell first, then the session's own warnings
+        if (root.says)
+            SessionWarnings.refresh();
+        else
+            unsavedProc.running = true;
+    }
+    // Settings' Restart read the IslandController of its own process, which that read made and which had looked at no
+    // folder yet, so the "Unsaved changes" step never came and the computer restarted at once. No answer from the shell
+    // (none running, or none in 3 s) is no warning, as before. The notch's lines below are the shell's alone too: an
+    // IslandController made in Settings has no notch, and starts a second copy of the notch's watchers (Jobs, Recents).
+    property bool shellUnsaved: false
+    Process {
+        id: unsavedProc
+        command: ["timeout", "3", "qs", "-p", Directories.shellFile, "ipc", "call", "updates", "unsaved"]
+        stdout: StdioCollector { id: unsavedOut }
+        onExited: (code, status) => {
+            root.shellUnsaved = code === 0 && unsavedOut.text.trim() === "true";
+            SessionWarnings.refresh();
+        }
     }
     function go() {
         root.restartWarning = "";
         disarmTimer.stop();
         // from the first press the notch says so: the download can take minutes, and the install at the start minutes more
-        IslandController.request("update", { "icon": "system_update", "text": "Getting ready to restart · this takes a few minutes", "restarting": true }, 60);
+        if (root.says)
+            IslandController.request("update", { "icon": "system_update", "text": "Getting ready to restart · this takes a few minutes", "restarting": true }, 60);
         restartProc.running = true;
     }
     Connections {
@@ -147,7 +177,7 @@ Singleton {
             if (!root.guarding)
                 return;
             root.guarding = false;
-            const warning = IslandController.workUnsaved ? "Unsaved changes"
+            const warning = (root.says ? IslandController.workUnsaved : root.shellUnsaved) ? "Unsaved changes"
                 : SessionWarnings.agentWorking ? `${SessionWarnings.agentTitles.length > 1 ? "Agents are" : "An agent is"} still working: ${SessionWarnings.agentTitles.join(", ")}`
                 : SessionWarnings.packageManagerRunning ? "The package manager is running"
                 : SessionWarnings.downloadRunning ? "A download may be in progress" : "";
@@ -157,7 +187,8 @@ Singleton {
             }
             root.restartWarning = warning;
             disarmTimer.restart();
-            IslandController.request("update", { "icon": "warning", "text": warning, "warning": true }, 60);
+            if (root.says)
+                IslandController.request("update", { "icon": "warning", "text": warning, "warning": true }, 60);
         }
     }
     // plugged in, the refusal no longer holds: the row goes back to offering Restart
@@ -180,17 +211,20 @@ Singleton {
         stdout: StdioCollector { id: restartOut }
         onExited: (code, status) => {
             if (code !== 0) {
+                root.restartFailedAt = Date.now();
                 root.restartCause = code === 3 ? "" : root.failureCause(restartOut.text);
                 if (root.restartCause === "battery") {
                     root.restartBattery = parseInt(restartOut.text.match(/^tacit: battery (\d+)/m)?.[1]) || 0;
                     root.restartFailed = "battery";
-                    IslandController.request("note", { "icon": "battery_alert", "text": `Plug in to restart: the battery is at ${root.restartBattery}%` }, 65);
+                    if (root.says)
+                        IslandController.request("note", { "icon": "battery_alert", "text": `Plug in to restart: the battery is at ${root.restartBattery}%` }, 65);
                     return;
                 }
                 root.restartFailed = code === 3 ? "reboot" : "prepare";
                 const why = ({ "busy": "the package manager is busy", "conflict": "a conflicting update", "live": "on the live USB",
                                "offline": "check the connection" })[root.restartCause];
-                IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update" }, 65);
+                if (root.says)
+                    IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update" }, 65);
             }
         }
     }
@@ -200,6 +234,7 @@ Singleton {
     }
     // said only once systemctl has taken it: a start that failed (no rights) set nothing for the night
     function tonight() {
+        root.tonightFailed = "";
         if (!tonightProc.running)
             tonightProc.running = true;
     }
@@ -208,8 +243,11 @@ Singleton {
         command: ["systemctl", "start", "tacit-update@tonight.service"]
         onExited: (code, status) => {
             root.tonightSet = code === 0;
+            root.tonightFailed = code === 0 ? "" : "set";
             // the time and what it needs, read rather than flashed: "Tonight, on the charger" left out the lock, and a
             // computer switched off or on Caffeine skipped the night without a word
+            if (!root.says)
+                return;
             if (code === 0)
                 IslandController.request("updated", { "icon": "schedule", "text": "Tonight at 03:00 if left on · plugged in, locked, Caffeine off", "wide": true }, 65);
             else
@@ -219,6 +257,7 @@ Singleton {
     // Settings' Cancel beside Tonight: the timer off again (tacit-update cancel-tonight). There was no way back but
     // Restart, or a screen left unlocked at three.
     function cancelTonight() {
+        root.tonightFailed = "";
         if (!cancelTonightProc.running)
             cancelTonightProc.running = true;
     }
@@ -226,9 +265,10 @@ Singleton {
         id: cancelTonightProc
         command: ["systemctl", "start", "tacit-update@cancel-tonight.service"]
         onExited: (code, status) => {
+            root.tonightFailed = code === 0 ? "" : "cancel";
             if (code === 0)
                 root.tonightSet = false;
-            else
+            else if (root.says)
                 IslandController.request("copied", { "icon": "error", "text": "Couldn't cancel tonight's update" }, 65);
         }
     }
@@ -456,7 +496,26 @@ Singleton {
         onLoaded: {
             const m = text().match(/^VERSION="?([^"\n]+)"?/m);
             root.currentVersion = m ? m[1] : "";
+            // a version not seen before: the one seen last is the one before it
+            let seen = null;
+            try {
+                seen = JSON.parse(versionFile.text());
+            } catch (e) {}
+            if (root.currentVersion.length === 0)
+                return;
+            if (seen?.version === root.currentVersion) {
+                root.versionBefore = seen.before ?? "";
+                return;
+            }
+            root.versionBefore = seen?.version ?? "";
+            versionFile.setText(JSON.stringify({ "version": root.currentVersion, "before": root.versionBefore }));
         }
+    }
+    FileView {
+        id: versionFile
+        blockLoading: true
+        path: `${Directories.userStateDir}/updates-version`
+        printErrors: false
     }
     FileView {
         path: "/usr/share/tacit/notes.json"

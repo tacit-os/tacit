@@ -75,7 +75,7 @@ try {
   const exited = readExpression(proc, proc.indexOf("onExited:") + "onExited:".length).expr;
   const cause = qmlFunction(src, "failureCause");
   const outcome = (code, text) => {
-    const root = { restartFailed: "", restartCause: "", restartBattery: 0 }, said = [];
+    const root = { restartFailed: "", restartCause: "", restartBattery: 0, says: true }, said = [];
     root.failureCause = inScope({ root }, cause.params.replace(/:\s*\w+/g, ""), cause.body);
     inScope({ root, restartOut: { text }, IslandController: { request: (n, d) => said.push(d.text) } }, "", `return (${exited});`)()(code, 0);
     return { ...root, said };

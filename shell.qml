@@ -91,6 +91,15 @@ ShellRoot {
         }
     }
 
+    // Settings' Restart asks the shell whether work is uncommitted (Updates.restartNow): the shell's IslandController
+    // looks every five minutes, a copy made in Settings had looked at nothing
+    IpcHandler {
+        target: "updates"
+        function unsaved(): bool {
+            return IslandController.workUnsaved
+        }
+    }
+
     PanelFamilyLoader {
         identifier: "ii"
         component: IllogicalImpulseFamily {}

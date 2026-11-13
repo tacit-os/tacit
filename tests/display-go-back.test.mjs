@@ -25,7 +25,7 @@ function displayPage() {
   const proc = () => ({ running: false, command: null });
   const dp = { screens: [], monitorsFileOurs: true };
   const scope = { dp, root: { displayKeepLeft: 0, displayBackupBase: "" }, readScreens: proc(), readMonitorsFile: proc(), writeMonitors: proc() };
-  for (const name of ["monitorLine", "shiftedPosition", "setMonitor"]) { const f = qmlFunction(page, name); dp[name] = inScope(scope, f.params, f.body); }
+  for (const name of ["outputOf", "monitorLine", "shiftedPosition", "setMonitor"]) { const f = qmlFunction(page, name); if (f) dp[name] = inScope(scope, f.params, f.body); }
   const raw = qmlFunction(page.slice(page.indexOf("target: Hyprland")), "onRawEvent");
   const event = inScope(scope, raw.params, raw.body);
   const readDone = inScope(scope, "text", block("id: readScreens", "onStreamFinished:"));

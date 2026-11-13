@@ -66,7 +66,7 @@ try {
   if (f && proc) {
     const exited = readExpression(proc, proc.indexOf("onExited:") + "onExited:".length).expr;
     const outcome = code => {
-      const root = { tonightSet: true }, said = [];
+      const root = { tonightSet: true, says: true }, said = [];
       const proc = { running: false };
       const scope = { root, cancelTonightProc: proc, IslandController: { request: (n, d) => said.push(d.text) } };
       inScope(scope, f.params, f.body)();
