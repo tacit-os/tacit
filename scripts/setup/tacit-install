@@ -501,7 +501,8 @@ def install(disk, place, keep, manual=None):
     # a new machine id at the first start
     with open(f"{TARGET}/etc/machine-id", "w") as f:
         f.write("uninitialized\n")
-    # NVIDIA's driver only where there is an NVIDIA display card (PCI vendor 0x10de, class 03xx)
+    # NVIDIA's driver only where there is an NVIDIA display card it drives (PCI vendor 0x10de, class 03xx, Turing and
+    # newer); an older card is left to nouveau, which nvidia-utils blacklists
     if not nvidia_present() and subprocess.run(["arch-chroot", TARGET, "pacman", "-Q", "nvidia-open"], capture_output=True).returncode == 0:
         chroot("pacman", "-Rns", "--noconfirm", "nvidia-open", "nvidia-utils")
     elif nvidia_present() and os.path.exists(f"{TARGET}/usr/lib/systemd/system/nvidia-suspend.service"):
@@ -614,11 +615,14 @@ def make_default(place, disk, esp, efi, suffix):
 
 
 def nvidia_present():
+    # Turing and newer are PCI devices 0x1e00 on (the TITAN RTX, 0x1e02, is the first nvidia-open takes; Volta's last is
+    # 0x1df6): kept with a GTX 1060 alone, the pair left it with no driver at all
     for d in glob.glob("/sys/bus/pci/devices/*"):
         try:
-            if open(f"{d}/vendor").read().strip() == "0x10de" and open(f"{d}/class").read().strip().startswith("0x03"):
+            if open(f"{d}/vendor").read().strip() == "0x10de" and open(f"{d}/class").read().strip().startswith("0x03") \
+                    and int(open(f"{d}/device").read(), 16) >= 0x1e00:
                 return True
-        except OSError:
+        except (OSError, ValueError):
             pass
     return False
 
