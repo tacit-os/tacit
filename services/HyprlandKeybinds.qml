@@ -39,10 +39,10 @@ Singleton {
     function withShortcuts(section, moved) {
         return {
             "name": section.name,
-            "keybinds": (section.keybinds ?? []).flatMap(b => {
+            "keybinds": [].concat(...(section.keybinds ?? []).map(b => {
                 const to = moved[Shortcuts.norm([...b.mods, b.key].join("+"))];
                 return to === undefined ? [b] : to === "" ? [] : [Object.assign({}, b, root.asBind(to, b.comment))];
-            }),
+            })),
             "children": (section.children ?? []).map(c => root.withShortcuts(c, moved))
         };
     }

@@ -51,7 +51,7 @@ PanelPage {
     readonly property string cur: rp.entry.f.cursor ?? ""
     function fkey(f) { return `f:${f.sources?.[0]?.source ?? ""}|${f.title}`; }
     function runKey(x) { return x.run ? `run:${x.run.run}` : `agent:${x.agent.agent}`; }
-    function failedSources() { return (rp.r?.failures ?? []).flatMap(x => x.sources ?? []); }
+    function failedSources() { return [].concat(...(rp.r?.failures ?? []).map(x => x.sources ?? [])); }
     readonly property var navList: {
         const out = [], f = rp.entry.f;
         const unread = (rp.r?.unread?.count ?? 0) > 0 && (rp.r?.reading ?? 0) === 0;

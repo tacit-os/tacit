@@ -306,7 +306,7 @@ FocusScope {
         if (!e) return;
         const f = { agent: null, mode: null };
         const run = Object.keys(e.run ?? {});
-        if (run.length) f.run = Object.fromEntries(run.map(a => [a, null]));
+        if (run.length) f.run = run.reduce((o, a) => { o[a] = null; return o; }, {});
         sheet.write(path, f);
         if (sheet.openKey === path) sheet.openKey = "";
         if (sheet.chScope === path) sheet.closeChooser();

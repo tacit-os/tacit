@@ -4541,7 +4541,7 @@ ApplicationWindow {
                 // the file as it is now is put by for the Keep bar, unless an earlier change is still waiting on it
                 // the lines of screens that are not plugged in now stay as they were, for when they are back; a line for
                 // one that is, by its connector or its description, gives way to the new one (the last line that fits wins)
-                const drop = dp.screens.flatMap(m => [m.name, `desc:${m.description ?? ""}`]).join("\n");
+                const drop = dp.screens.map(m => `${m.name}\ndesc:${m.description ?? ""}`).join("\n");
                 writeMonitors.command = ["bash", "-c", 'mode=$1; drop=$2; shift 2; f="${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"; ' + root.displayBackupBase
                     + 'if [ "$mode" = fresh ]; then rm -f "$b.previous" "$b.absent"; if [ -e "$f" ]; then cp -f "$f" "$b.previous"; else : > "$b.absent"; fi; fi; '
                     + 'new=$(printf "%s\\n" "$@"); keep=$(grep -sE "^hl\\.monitor\\(" "$f" | while IFS= read -r l; do o=${l#*output = \\"}; o=${o%%\\"*}; printf "%s\\n" "$drop" | grep -qxF -- "$o" || printf "%s\\n" "$l"; done); { printf "%s\\n" "$new"; [ -z "$keep" ] || printf "%s\\n" "$keep"; } > "$f" && hyprctl reload >/dev/null', "_", root.displayKeepLeft > 0 ? "again" : "fresh", drop].concat(lines);

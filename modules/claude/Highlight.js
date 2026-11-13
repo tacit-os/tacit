@@ -41,7 +41,7 @@ function html(line, path, pal) {
         if (t.startsWith("//") || t.startsWith("/*") || (h && t.startsWith("#")) || (lua && t.startsWith("--")) || t.startsWith("<!--")) out += span(t, pal.com, "font-style:italic");
         else if (t[0] === "\"" || t[0] === "'" || t[0] === "`") {
             // a JSON key reads as a name, not a string
-            const isKey = json && line.substring(last).trimStart().startsWith(":");
+            const isKey = json && /^\s*:/.test(line.substring(last));
             out += span(t, isKey ? pal.kw : pal.str);
         }
         else if (/^\d/.test(t)) out += span(t, pal.num);
