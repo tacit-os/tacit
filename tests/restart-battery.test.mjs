@@ -60,8 +60,20 @@ try {
     const r = now(supplies);
     check(`${name} it goes ahead`, r.code === 0 && r.linked && r.calls.some(c => c.startsWith("pacman -Suw")), line(r));
   }
-  const two = now({ BAT0: bat(60), BAT1: bat(15), AC: ac(0) });
-  check("with two batteries the lower one counts, as tacit-fetch-updates reads it", two.code === 1 && /battery 15/.test(two.said), line(two));
+  // two batteries count together, each by the energy it holds when full (µWh): a ThinkPad runs its external one down
+  // first, and at 10 % of that one with the internal one at 90 % it was refused as "at 10%"
+  const wh = (capacity, full) => ({ ...bat(capacity), energy_full: full * 1e6, energy_now: capacity * full * 1e4 });
+  const thinkpad = now({ BAT0: wh(90, 24), BAT1: wh(10, 72), AC: ac(0) });
+  check("a ThinkPad at 90 % of its 24 Wh battery and 10 % of its 72 Wh one (30 % together) goes ahead",
+    thinkpad.code === 0 && thinkpad.linked, line(thinkpad));
+  const both = now({ BAT0: wh(10, 24), BAT1: wh(15, 72), AC: ac(0) });
+  check("with both low (14 % together) it is refused, and says 14", both.code === 1 && /^tacit: battery 14$/m.test(both.said), line(both));
+  const plain = now({ BAT0: bat(60), BAT1: bat(15), AC: ac(0) });
+  const low2 = now({ BAT0: bat(10), BAT1: bat(20), AC: ac(0) });
+  check("batteries that give no energy count by their mean: 60 % and 15 % go ahead, 10 % and 20 % are refused as 15",
+    plain.code === 0 && low2.code === 1 && /^tacit: battery 15$/m.test(low2.said), `${line(plain)}; ${line(low2)}`);
+  const one = now({ BAT0: wh(19, 50), AC: ac(0) });
+  check("one battery is its own level, as before", one.code === 1 && /^tacit: battery 19$/m.test(one.said), line(one));
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }

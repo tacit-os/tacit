@@ -3,7 +3,7 @@
 // and the bindings of its glyph and words, runs under node: clicks, keys, the pointer leaving and its timer. And with
 // Tonight chosen the row still offers Restart, which session/updates/tacit-update now turns into a restart instead.
 import { execFileSync } from "child_process";
-import { chmodSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
 import { inScope, matchBrace, qmlFunction, readExpression } from "./lib/qml.mjs";
@@ -109,11 +109,16 @@ for (const [what, undo] of [["Esc", a => a.esc()], ["the pointer leaving", a => 
   check("with Tonight chosen, the row still offers Restart, and not Tonight again", offered.includes("Restart") && !offered.includes("Tonight"),
     offered.length ? `it offers ${offered.join(", ")}` : "it offers nothing");
 
-  // what that Restart starts (tacit-update@now), run by bash with its system paths in a folder of its own
+  // what that Restart starts (tacit-update@now), run by bash with its system paths in a folder of its own, on a pretend
+  // charger: the computer's own battery under 20 % made it refuse
   const dir = mkdtempSync(join(tmpdir(), "tacit-restart-"));
   try {
     const script = read("session/updates/tacit-update").replaceAll("/var/lib/tacit", join(dir, "state"))
-      .replaceAll("/var/lib/pacman/db.lck", join(dir, "db.lck")).replaceAll("/system-update", join(dir, "system-update"));
+      .replaceAll("/var/lib/pacman/db.lck", join(dir, "db.lck")).replaceAll("/system-update", join(dir, "system-update"))
+      .replaceAll("/sys/class/power_supply", join(dir, "power"));
+    mkdirSync(join(dir, "power", "AC"), { recursive: true });
+    writeFileSync(join(dir, "power", "AC", "type"), "Mains\n");
+    writeFileSync(join(dir, "power", "AC", "online"), "1\n");
     writeFileSync(join(dir, "tacit-update"), script);
     for (const t of ["systemctl", "pacman"]) { writeFileSync(join(dir, t), `#!/bin/bash\necho "${t} $*" >> "${join(dir, "calls")}"\n`); chmodSync(join(dir, t), 0o755); }
     execFileSync("bash", [join(dir, "tacit-update"), "now"], { env: { ...process.env, PATH: `${dir}:${process.env.PATH}` } });

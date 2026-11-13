@@ -36,8 +36,16 @@ try {
 esac`);
   tool("pgrep", `case "$*" in *hyprlock*) [ "$HYPRLOCK" = 1 ] ;; *bootlock*) [ "$BOOTLOCK" = 1 ] ;; *) exit 1 ;; esac`);
   tool("systemctl", `echo "systemctl $*" >> "${log}"\n[ "$*" = "-q is-active tacit-update-night.timer" ] && { [ "$TIMER" = active ]; exit; }\nexit 0`);
-  // -Qu lists what is waiting, one update unless the case says otherwise ("" for nothing)
-  tool("pacman", `echo "pacman $*" >> "${log}"\n[ "$1" = -Qu ] && { [ -n "$WAITING" ] && printf '%s\\n' "$WAITING"; exit; }\n[ "$1" = -Suw ] && [ "$OFFLINE" = 1 ] && exit 1\nexit 0`);
+  // -Qu lists what is waiting, one update unless the case says otherwise ("" for nothing), in the system's language as
+  // systemd gives it to the unit unless LC_ALL=C: a held package's " [ignored]" is " [Ignoriert]" in German
+  tool("pacman", `echo "pacman $*" >> "${log}"
+if [ "$1" = -Qu ]; then
+  [ -n "$WAITING" ] || exit 0
+  if [ "\${LC_ALL:-}" != C ] && [[ \${LANG:-} == de* ]]; then printf '%s\\n' "$WAITING" | sed 's/ \\[ignored\\]$/ [Ignoriert]/'; else printf '%s\\n' "$WAITING"; fi
+  exit 0
+fi
+[ "$1" = -Suw ] && [ "$OFFLINE" = 1 ] && exit 1
+exit 0`);
 
   const at = (h, m, day = 14) => String(Date.UTC(2026, 10, day, h, m, 20) / 1000);
   const plug = on => {
@@ -58,7 +66,8 @@ esac`);
   }
   const env = c => ({ ...process.env, TZ: "UTC", PATH: `${bin}:${process.env.PATH}`,
     NOW: c.now ?? at(3, 0), LOCKED: c.locked ?? "yes", HYPRLOCK: c.hyprlock ? "1" : "0", BOOTLOCK: c.bootlock ? "1" : "0",
-    TIMER: c.timer ?? "active", OFFLINE: c.offline ? "1" : "0", WAITING: c.waiting ?? "tacit 1.2.15-1 -> 1.2.16-1" });
+    TIMER: c.timer ?? "active", OFFLINE: c.offline ? "1" : "0", WAITING: c.waiting ?? "tacit 1.2.15-1 -> 1.2.16-1",
+    ...(c.lang ? { LANG: c.lang, LC_ALL: "", LC_MESSAGES: "" } : {}) });
   function result(code) {
     const f = join(state, "night");
     return { code, calls: readFileSync(log, "utf8").trim().split("\n").filter(Boolean),
@@ -137,8 +146,9 @@ esac`);
       && !r.calls.some(l => l.includes("disable")), line(r));
   }
   // the updates put in meanwhile (Apps, a terminal): no restart into an empty install, and Tonight is over
-  for (const [name, waiting] of [["with nothing waiting any more", ""], ["with only a held package (IgnorePkg) waiting", "qt6-base 6.10.1-1 -> 6.10.2-1 [ignored]"]]) {
-    const r = night({ waiting });
+  for (const [name, waiting, lang] of [["with nothing waiting any more", ""], ["with only a held package (IgnorePkg) waiting", "qt6-base 6.10.1-1 -> 6.10.2-1 [ignored]"],
+    ["on a German computer with only a held package waiting", "qt6-base 6.10.1-1 -> 6.10.2-1 [ignored]", "de_DE.UTF-8"]]) {
+    const r = night({ waiting, lang });
     check(`${name}: no restart, no download, and the timer is turned off`, r.code === 0 && !restarted(r) && !r.calls.some(l => l.startsWith("pacman -Suw"))
       && r.calls.includes("systemctl disable --now tacit-update-night.timer"), line(r));
   }

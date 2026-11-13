@@ -459,7 +459,7 @@ ApplicationWindow {
                             : parent.c === "linux" ? `This computer has Linux on its ${parent.size} disk.${parent.noNext}`
                             : parent.c === "empty" && root.windowsElsewhere ? `This ${parent.size} disk is empty. Windows, on the other disk, stays as it is.`
                             : parent.c === "empty" ? `This computer's ${parent.size} disk is empty.`
-                            : parent.c === "small" ? `Tacit needs a disk of 32 GB or more, and this one is ${parent.size}.${backend.disks.length > 1 ? " Choose another disk." : ""}`
+                            : parent.c === "small" ? `Tacit needs a disk of 32 GB or more, and this one is ${Math.floor((backend.disk.size ?? 0) / 1e9)} GB.${backend.disks.length > 1 ? " Choose another disk." : ""}`
                             : parent.c === "none" ? "On computers set to Intel RST or RAID, the disk mode has to be AHCI in the firmware settings; prepare Windows for that first."
                             : `This computer's disk is ${parent.size}.${parent.noNext}`
                     }

@@ -58,8 +58,10 @@ if [ "${1:-}" != now ] && nmcli -t -g GENERAL.METERED dev show 2>/dev/null | gre
     exit 0
 fi
 
-# -Syuw: refresh the list and download what the next update needs; nothing is installed or removed
-LC_ALL=C pacman -Syuw --noconfirm --noprogressbar 2>&1 | tee -a "$log"
+# -Syuw: refresh the list and download what the next update needs; nothing is installed or removed. tee ignores the
+# unit's SIGINT (-i) and reads until pacman is done: killed with it, it left pacman writing its last words into a closed
+# pipe, and SIGPIPE ended pacman before it let go of its lock
+LC_ALL=C pacman -Syuw --noconfirm --noprogressbar 2>&1 | tee -ia "$log"
 rc=${PIPESTATUS[0]}
 [ "$rc" = 0 ] || exit "$rc"
 # when the last look worked, whether or not anything had changed: pacman leaves a list it finds current untouched, and

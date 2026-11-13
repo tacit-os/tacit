@@ -30,16 +30,22 @@ charger() {
 	[ "$mains" = 1 ] || [ "$battery" = 0 ]
 }
 
-# the computer's battery in %, its lowest one as tacit-fetch-updates reads it; nothing without one
+# the computer's battery in %, all its batteries together, each counted by the energy it holds when full (their mean where
+# one does not say); nothing without one. The lowest alone refused a ThinkPad, which runs its second battery down first,
+# at 10 % with half its charge left
 level() {
-	local d c low=""
+	local d c f n=0 sum=0 wsum=0 full=0 weighed=1
 	for d in /sys/class/power_supply/*; do
 		[ "$(cat "$d/scope" 2>/dev/null)" = Device ] && continue
 		[ "$(cat "$d/type" 2>/dev/null)" = Battery ] || continue
 		c=$(cat "$d/capacity" 2>/dev/null)
-		[[ $c =~ ^[0-9]+$ ]] && { [ -z "$low" ] || [ "$c" -lt "$low" ]; } && low=$c
+		[[ $c =~ ^[0-9]+$ ]] || continue
+		n=$((n + 1)) sum=$((sum + c))
+		f=$(cat "$d/energy_full" 2>/dev/null)
+		if [[ $f =~ ^[1-9][0-9]*$ ]]; then wsum=$((wsum + c * f)) full=$((full + f)); else weighed=0; fi
 	done
-	echo "$low"
+	[ "$n" = 0 ] && return
+	if [ "$weighed" = 1 ]; then echo $(((wsum + full / 2) / full)); else echo $(((sum + n / 2) / n)); fi
 }
 
 # an agent-host session mid-turn (working, or waiting on a permission), from the hello the host sends every client on
@@ -111,8 +117,9 @@ cancel-tonight)
 night)
 	# nothing waiting any more (put in meanwhile by Apps' "Update everything" or pacman in a terminal), counted as the
 	# shell counts it, without what IgnorePkg holds: no restart, and Tonight is over. The night restarted into an empty
-	# install, which restarted again, closing every app for nothing.
-	if ! pacman -Qu 2>/dev/null | grep -v ' \[ignored\]$' | grep -q ' -> '; then
+	# install, which restarted again, closing every app for nothing. In English, as the shell reads it: the unit has the
+	# system's language, and " [ignored]" is " [Ignoriert]" in German
+	if ! LC_ALL=C pacman -Qu 2>/dev/null | grep -v ' \[ignored\]$' | grep -q ' -> '; then
 		systemctl disable --now tacit-update-night.timer
 		exit 0
 	fi

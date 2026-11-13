@@ -324,6 +324,8 @@ def make_room(disk, keep):
     if (last - first + 1) * ss < MIN_TACIT:
         raise Refused("there is not enough room for Tacit")
     if shrink:
+        # Windows's clock setting is read first, for windows_clock(): ntfsresize marks the volume it shrinks for a check
+        state["utc"] = windows_utc()
         shrink_windows(disk, *shrink, ss)
         t = table(disk)
         first, last = max(gaps(t), key=lambda g: g[1] - g[0])
@@ -369,17 +371,22 @@ def image():
     return found[0]
 
 
+def windows_utc():
+    """Whether Windows keeps the clock in UTC, as windows-utc reads it from each Windows partition."""
+    try:
+        return subprocess.run(["python3", "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "windows-utc")],
+                              capture_output=True, timeout=300).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        return False
+
+
 def windows_clock():
     """Windows keeps the computer's clock in local time and Linux in UTC, so after Tacit Windows showed the time hours off
     (VIProto, 2026-10-26). With Windows on the computer Tacit keeps it in local time too, as Ubuntu's installer does, unless
-    Windows was set to keep it in UTC (RealTimeIsUniversal in its registry, which windows-utc reads from its partition):
-    then in UTC, as both had it. This is the file timedatectl set-local-rtc writes, which does not work inside the
-    install's chroot."""
-    try:
-        utc = subprocess.run(["python3", "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "windows-utc")],
-                             capture_output=True, timeout=300).returncode == 0
-    except (OSError, subprocess.SubprocessError):
-        utc = False
+    Windows was set to keep it in UTC (RealTimeIsUniversal in its registry, which windows-utc reads from its partition,
+    before make_room() shrinks it when it does): then in UTC, as both had it. This is the file timedatectl set-local-rtc
+    writes, which does not work inside the install's chroot."""
+    utc = state["utc"] if "utc" in state else windows_utc()
     with open(f"{TARGET}/etc/adjtime", "w") as f:
         f.write("0.0 0 0\n0\n" + ("UTC" if utc else "LOCAL") + "\n")
 

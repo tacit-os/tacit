@@ -1,7 +1,8 @@
 """windows-utc and tacit-install's windows_clock() on made-up Windows partitions: python3 windows_utc.py <scripts/setup>.
 Each partition is a folder with a registry hive written here (regf: the base block, one hive bin of key, list and value
 cells), read through a pretend ntfscat and lsblk that are the only commands on PATH; no disk is read and nothing is
-mounted. windows_clock() writes /etc/adjtime into a throwaway root."""
+mounted. Like ntfs-3g's, the pretend ntfscat refuses a volume marked for a check (ntfsprogs/utils.c utils_mount_volume)
+unless given -f. windows_clock() writes /etc/adjtime into a throwaway root."""
 import importlib.machinery, importlib.util, os, shutil, subprocess, sys, tempfile
 setup = sys.argv[1]
 bad = 0
@@ -71,18 +72,25 @@ ON = (DWORD, (1).to_bytes(4, "little"))
 work = tempfile.mkdtemp()
 try:
     def computer(parts, tools=("ntfscat", "lsblk")):
-        """parts: {"nvme0n1p3": ("ntfs", hive or None, path)}; a fresh pretend computer, its PATH returned."""
+        """parts: {"nvme0n1p3": ("ntfs", hive or None, path[, "check"])}, "check" for a volume marked for a check (as
+        ntfsresize leaves it); a fresh pretend computer, its PATH returned. Each read is noted in calls beside it."""
         d = tempfile.mkdtemp(dir=work)
         bin_ = os.path.join(d, "bin")
         os.makedirs(bin_)
         lines = []
-        for dev, (fs, hive, path) in parts.items():
+        for dev, (fs, hive, path, *marked) in parts.items():
             lines.append(f"/dev/{dev} {fs}")
             if hive is not None:
                 f = os.path.join(d, dev, path)
                 os.makedirs(os.path.dirname(f))
                 open(f, "wb").write(hive)
-        scripts = {"ntfscat": f'f="{d}/${{1##*/}}/$2"\n[ -f "$f" ] || {{ echo "ntfscat: $2 not found" >&2; exit 1; }}\nexec {shutil.which("cat")} "$f"\n',
+            if marked:
+                os.makedirs(os.path.join(d, dev), exist_ok=True)
+                open(os.path.join(d, dev, ".check"), "w").close()
+        scripts = {"ntfscat": f'force=\n[ "$1" = -f ] && {{ force=1; shift; }}\n'
+                              f'[ -e "{d}/${{1##*/}}/.check" ] && [ -z "$force" ] && {{ echo "Volume is scheduled for check." >&2; exit 1; }}\n'
+                              f'f="{d}/${{1##*/}}/$2"\n[ -f "$f" ] || {{ echo "ntfscat: $2 not found" >&2; exit 1; }}\n'
+                              f'echo "read $1" >> "{d}/calls"\nexec {shutil.which("cat")} "$f"\n',
                    "lsblk": f'[ "$*" = "-nrpo NAME,FSTYPE" ] || exit 1\nprintf "%s\\n" {" ".join(repr(l) for l in lines)}\n'}
         for t in tools:
             open(os.path.join(bin_, t), "w").write("#!/bin/bash\n" + scripts[t])
@@ -114,6 +122,7 @@ try:
         ("a BitLocker Windows (not NTFS to lsblk), nothing read: local time", {"nvme0n1p3": ("BitLocker", system(ON), HIVE)}, 1),
         ("a damaged hive: not read, local time", {"nvme0n1p3": ("ntfs", system(ON)[:4200], HIVE)}, 1),
         ("no Windows at all: local time", {"sda1": ("ext4", None, HIVE)}, 1),
+        ("Windows set to UTC, marked for a check as ntfsresize leaves it: UTC", {"nvme0n1p3": ("ntfs", system(ON), HIVE, "check")}, 0),
     ]:
         got = utc(parts)
         check(name, got == want, f"exit {got}, wanted {want}")
@@ -121,6 +130,10 @@ try:
     check("only the partitions given are read", got == 0, f"exit {got}")
     got = utc({"nvme0n1p3": ("ntfs", system(ON), HIVE)}, tools=("lsblk",))
     check("no ntfscat: cannot look (2)", got == 2, f"exit {got}")
+    bin_ = computer({"nvme0n1p3": ("ntfs", system(ON), HIVE, "check")})
+    r = subprocess.run([os.path.join(bin_, "ntfscat"), "/dev/nvme0n1p3", HIVE], capture_output=True)
+    check("the pretend ntfscat refuses a volume marked for a check without -f, as ntfs-3g's does", r.returncode == 1 and not r.stdout,
+          f"exit {r.returncode}")
 
     # tacit-install's windows_clock(), with windows-utc beside it as on the stick
     loader = importlib.machinery.SourceFileLoader("tacit_install", os.path.join(setup, "tacit-install"))
@@ -132,6 +145,8 @@ try:
         ("an install next to a Windows set to UTC keeps the clock in UTC", {"nvme0n1p3": ("ntfs", system(ON), HIVE)}, "UTC"),
         ("an install next to Windows as it comes keeps it in local time", {"nvme0n1p3": ("ntfs", system(), HIVE)}, "LOCAL"),
         ("Windows not readable: local time, Windows's default", {"nvme0n1p3": ("BitLocker", None, HIVE)}, "LOCAL"),
+        ("Try again after an install that shrank a Windows set to UTC, still marked for a check: UTC",
+         {"nvme0n1p3": ("ntfs", system(ON), HIVE, "check")}, "UTC"),
     ]:
         m.TARGET = tempfile.mkdtemp(dir=work)
         os.makedirs(f"{m.TARGET}/etc")
@@ -139,6 +154,29 @@ try:
         clock()
         got = open(f"{m.TARGET}/etc/adjtime").read()
         check(name, got == f"0.0 0 0\n0\n{want}\n", repr(got))
+
+    # make_room() next to a Windows set to UTC that it shrinks, the disk's tools pretend: shrink_windows() marks the
+    # volume for a check, as ntfsresize does. The clock is read before that, and windows_clock() keeps the answer.
+    bin_ = computer({"nvme0n1p3": ("ntfs", system(ON), HIVE)})
+    d = os.path.dirname(bin_)
+    os.environ["PATH"] = bin_ + ":" + os.path.dirname(sys.executable)
+    win = {"node": "/dev/nvme0n1p3", "type": m.WINDOWS_DATA, "start": 1050624, "size": 400_000_000}
+    t = {"label": "gpt", "sectorsize": 512, "partitions": [{"node": "/dev/nvme0n1p1", "type": m.ESP, "start": 2048, "size": 1048576}, win]}
+
+    def shrunk(disk, w, sectors, ss):
+        open(os.path.join(d, "nvme0n1p3", ".check"), "w").close()
+        open(os.path.join(d, "calls"), "a").write("shrink\n")
+    m.table, m.fstype, m.sh = (lambda disk: t), (lambda dev: "ntfs" if dev == win["node"] else "vfat"), (lambda *cmd, inp=None: "")
+    m.windows_shrink, m.shrink_windows = (lambda t, keep: (win, 200_000_000)), shrunk
+    m.gaps = lambda t: [(201_050_624, 400_000_000)]
+    m.make_room("/dev/nvme0n1", 200_000_000 * 512)
+    m.TARGET = tempfile.mkdtemp(dir=work)
+    os.makedirs(f"{m.TARGET}/etc")
+    clock()
+    got = open(f"{m.TARGET}/etc/adjtime").read()
+    calls = open(os.path.join(d, "calls")).read().split("\n")[:-1] if os.path.exists(os.path.join(d, "calls")) else []
+    check("an install that shrinks a Windows set to UTC keeps the clock in UTC, read before the shrink",
+          got == "0.0 0 0\n0\nUTC\n" and calls == ["read /dev/nvme0n1p3", "shrink"], f"{got!r}, {calls}")
 finally:
     shutil.rmtree(work, ignore_errors=True)
 sys.exit(1 if bad else 0)

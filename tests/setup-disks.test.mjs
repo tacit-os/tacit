@@ -4,7 +4,8 @@
 import { spawnSync } from "child_process";
 import { join, dirname } from "path";
 import { fileURLToPath } from "url";
-import { inScope, qmlFunction, qmlProperty } from "./lib/qml.mjs";
+import { inScope, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
+import { objectWith } from "./lib/qtscene.mjs";
 import { check, done, read, tree } from "./lib/check.mjs";
 
 console.log("== Setup's disks (scripts/setup/setupd.py, setup.qml)");
@@ -41,6 +42,22 @@ check("one of several disks: the button says Choose a disk and goes to the list"
   beside.text === "Choose a disk" && JSON.stringify(beside.pages) === '["disks"]' && beside.sent.length === 0,
   `"${beside.text}", sent ${JSON.stringify(beside.sent)}, went to ${JSON.stringify(beside.pages)}`);
 check("the page offers no erase for it", /"nouefi", "empty", "small"\]\.includes\(parent\.parent\.c\)/.test(src));
+// its sentence, with the page's own size: setupd refuses under 32e9 bytes, so a disk of 31.8 GB rounded to the nearest
+// read "Tacit needs a disk of 32 GB or more, and this one is 32 GB."
+{
+  const binding = (block, name) => readExpression(block, block.indexOf(`${name}:`) + name.length + 1).expr;
+  const sentence = binding(objectWith(src, "id: whereSentence"), "text");
+  const size = binding(objectWith(src, "id: wherePage"), "readonly property string size");
+  const say = bytes => {
+    const backend = { disk: { name: "/dev/mmcblk0", case: "small", size: bytes }, disks: [] };
+    const parent = { c: "small", size: inScope({ backend }, "", `return (${size});`)(), noNext: "", room: false };
+    return inScope({ parent, backend, root: { windowsElsewhere: false } }, "", `return (${sentence});`)();
+  };
+  for (const [bytes, gb] of [[31.8e9, 31], [29e9, 29]]) {
+    const said = say(bytes);
+    check(`a disk of ${bytes / 1e9} GB is said to be ${gb} GB`, said === `Tacit needs a disk of 32 GB or more, and this one is ${gb} GB.`, said);
+  }
+}
 
 // the disks as last read, for a disk chosen from the list and for Install; Try again waits for them to be read again
 check("setupd reads the disks for the list only, not again for a choice or Install", cases("reuse"));

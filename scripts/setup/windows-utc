@@ -81,8 +81,12 @@ def main():
     read = []
     for part in parts:
         for path in SYSTEM_HIVE:
+            # -f: a volume marked for a check is read too. ntfsresize marks the one Setup shrank until Windows has checked
+            # it, and ntfscat refused it ("Volume is scheduled for check"), so Try again after a failed install, or the
+            # update step before Windows next started, read it as local time. ntfscat opens the volume read-only either
+            # way; the force skips only that refusal and the one for a mounted volume, and the mark stays for Windows
             try:
-                r = subprocess.run(["ntfscat", part, path], capture_output=True, timeout=60)
+                r = subprocess.run(["ntfscat", "-f", part, path], capture_output=True, timeout=60)
             except (OSError, subprocess.SubprocessError):
                 break
             if r.returncode == 0 and r.stdout[:4] == b"regf":
