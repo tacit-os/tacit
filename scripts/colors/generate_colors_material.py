@@ -149,9 +149,6 @@ if args.termscheme is not None:
 
     primary_color_argb = hex_to_argb(material_colors['primary_paletteKeyColor'])
     for color, val in term_source_colors.items():
-        if(args.scheme == 'scheme-monochrome') :
-            term_colors[color] = val
-            continue
         if args.blend_bg_fg and color == "term0":
             harmonized = boost_chroma_tone(hex_to_argb(material_colors['surfaceContainerLow']), 1.2, 0.95)
         elif args.blend_bg_fg and color == "term15":
@@ -159,6 +156,10 @@ if args.termscheme is not None:
         else:
             harmonized = harmonize(hex_to_argb(val), primary_color_argb, args.harmonize_threshold, args.harmony)
             harmonized = boost_chroma_tone(harmonized, 1, 1 + (args.term_fg_boost * (1 if darkmode else -1)))
+        if args.scheme == 'scheme-monochrome':
+            # grey, at the tone worked out above: copied from the base scheme as they were, the terminal got Gruvbox's
+            # warm ground and saturated red and green, and tripling the grey text's near-zero chroma tints it blue
+            harmonized = boost_chroma_tone(harmonized, 0, 1)
         term_colors[color] = argb_to_hex(harmonized)
 
 if args.debug == False:

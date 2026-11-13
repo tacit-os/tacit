@@ -92,10 +92,17 @@ if [ "$action" = "--import-zip" ]; then
     # Copy assets to cache (plug-and-play like online presets)
     find "$json_dir" -maxdepth 1 -type f ! -name "*.json" ! -name "meta.json" -exec cp -L {} "$asset_cache/" \; 2>/dev/null || true
     # Rewrite json paths to point to cached assets (reuse online jqFilter Profile.qml:250)
-    jq --arg dir "$asset_cache" --argjson files "$asset_files" '
+    # Written beside the preset and moved over it only when both steps read the file: a broken or empty json in the zip
+    # left an empty preset and still said "Imported"
+    if ! (set -o pipefail; jq --arg dir "$asset_cache" --argjson files "$asset_files" '
       $files as $files | walk(if type == "string" then ((split("/") | last) as $base | if ($files | index($base)) then ($dir + "/" + $base) else . end) else . end)
       | del(._presetMeta) | ._presetMeta.source = "imported"
-    ' "$json_file" | jq "$BLACKLIST_FILTER" > "$IMPORTED_PRESETS_DIR/${base}.json"
+    ' "$json_file" | jq -e "$BLACKLIST_FILTER" > "$IMPORTED_PRESETS_DIR/${base}.json.tmp"); then
+        rm -f "$IMPORTED_PRESETS_DIR/${base}.json.tmp"
+        echo "Error: the preset in the zip is not valid JSON: $(basename "$json_file")" >&2
+        exit 1
+    fi
+    mv "$IMPORTED_PRESETS_DIR/${base}.json.tmp" "$IMPORTED_PRESETS_DIR/${base}.json"
     echo "Imported $base to $IMPORTED_PRESETS_DIR/${base}.json with assets in $asset_cache"
     trap - EXIT
     rm -rf "$tmpdir"
@@ -121,7 +128,14 @@ case "$action" in
         if [ -z "$description" ] && [ -f "$PRESETS_DIR/${name}.json" ]; then
             description=$(jq -r '._presetMeta.description // empty' "$PRESETS_DIR/${name}.json")
         fi
-        jq "$BLACKLIST_FILTER" "$CONFIG_FILE" > "$PRESETS_DIR/${name}.json"
+        # beside the preset, moved over it only when the config was read: a config that is not valid JSON (or not
+        # there, or empty) wrote nothing over the person's preset, which was left empty
+        if ! jq -e "$BLACKLIST_FILTER" "$CONFIG_FILE" > "$PRESETS_DIR/${name}.json.tmp"; then
+            rm -f "$PRESETS_DIR/${name}.json.tmp"
+            echo "Error: could not read $CONFIG_FILE" >&2
+            exit 1
+        fi
+        mv "$PRESETS_DIR/${name}.json.tmp" "$PRESETS_DIR/${name}.json"
         if [ -n "$description" ]; then
             jq --arg desc "$description" '._presetMeta = {"description": $desc}' \
                 "$PRESETS_DIR/${name}.json" > "$PRESETS_DIR/${name}.json.tmp" \

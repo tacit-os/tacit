@@ -7,7 +7,10 @@
 # and says it all, so this script only speaks when something fails.
 CONFIG_FILE="${XDG_CONFIG_HOME:-$HOME/.config}/illogical-impulse/config.json"
 CUSTOM_PATH=$(jq -r '.screenRecord.savePath // empty' "$CONFIG_FILE" 2>/dev/null)
-RECORDING_DIR="${CUSTOM_PATH:-$HOME/Videos}"
+# with no path set, the account's Videos folder by its own name (xdg-user-dirs names it in the account's language:
+# ~/Vidéos), the one the recorder's folder button opens; a made-up ~/Videos beside it hid every recording
+VIDEOS=$(xdg-user-dir VIDEOS 2>/dev/null); [[ -z "$VIDEOS" || "$VIDEOS" == "$HOME" ]] && VIDEOS=$HOME/Videos
+RECORDING_DIR="${CUSTOM_PATH:-$VIDEOS}"
 STATE_FILE="${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/states.json"
 THUMB_DIR="${XDG_CACHE_HOME:-$HOME/.cache}/quickshell/recordings"
 LOCK_FILE="${XDG_RUNTIME_DIR:-/tmp}/tacit-record.lock"

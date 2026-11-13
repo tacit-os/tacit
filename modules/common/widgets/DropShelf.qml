@@ -167,9 +167,10 @@ Singleton {
         id: copyProc
         property string words: ""
         onExited: code => {
-            // viewer-copy answers 3 when only the picture's file went (no PNG could be made from it)
-            if (code === 0 || code === 3)
-                root.copied(code === 3 ? "Copied the file, not the picture" : copyProc.words)
+            // viewer-copy answers 3 when only the picture's file went (no PNG could be made from it), 4 when only the
+            // picture did (no viewer-clip to offer both)
+            if (code === 0 || code === 3 || code === 4)
+                root.copied(code === 3 ? "Copied the file, not the picture" : code === 4 ? "Copied the picture, not the file" : copyProc.words)
             else
                 root.copyFailed()
         }

@@ -78,8 +78,12 @@ def main():
     if sys.argv[1] == "--all":
         out = []
         for p in records():
-            n = props(p)
-            out.append(dict(described(n, sys.argv[2]), app=n.get("appName") or "", title=n.get("title") or "", text=n.get("text") or ""))
+            # one record that cannot be read (an icon file cut short, an answer that times out) is left out, not the list
+            try:
+                n = props(p)
+                out.append(dict(described(n, sys.argv[2]), app=n.get("appName") or "", title=n.get("title") or "", text=n.get("text") or ""))
+            except Exception:
+                continue
         print(json.dumps(out))
         return
     app, summary, body, cache = sys.argv[1:5]
@@ -101,4 +105,4 @@ if __name__ == "__main__":
     try:
         main()
     except Exception:
-        print("{}")
+        print("[]" if sys.argv[1:2] == ["--all"] else "{}")   # --all is read as a list

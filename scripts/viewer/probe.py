@@ -18,7 +18,11 @@ def key(path):
 
 
 def run(cmd, **kw):
-    return subprocess.run(cmd, capture_output=True, text=kw.pop("text", True), timeout=kw.pop("timeout", 60), **kw)
+    # a byte that is not UTF-8 (exiv2 prints a camera's Latin-1 Copyright "\xa9 2020" as it is) is replaced: strict
+    # decoding raised, and the picture lost its size, date and camera with it
+    text = kw.pop("text", True)
+    return subprocess.run(cmd, capture_output=True, text=text, errors="replace" if text else None,
+                          timeout=kw.pop("timeout", 60), **kw)
 
 
 def facts(path):

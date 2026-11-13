@@ -225,7 +225,8 @@ def battery():
             "light": light, "ac": ac}
 
 # ------------------------------------------------------------------ disk (slow; its own thread, cached)
-disk_state = {"busy": False}
+disk_state = {"busy": False, "again": False}
+disk_lock = threading.Lock()
 
 def du(path):
     try:
@@ -275,9 +276,13 @@ def old_downloads():
     return out
 
 def disk_scan():
-    if disk_state["busy"]:
-        return
-    disk_state["busy"] = True
+    # one scan at a time; one asked for meanwhile (a Clear or Move to the trash that just ended) runs after it, as the
+    # running one may have measured the files before they went
+    with disk_lock:
+        if disk_state["busy"]:
+            disk_state["again"] = True
+            return
+        disk_state["busy"] = True
     try:
         sv = os.statvfs("/")
         total = sv.f_blocks * sv.f_frsize; free = sv.f_bavail * sv.f_frsize
@@ -306,7 +311,11 @@ def disk_scan():
         os.replace(DISK_FILE + ".tmp", DISK_FILE)
         emit({"ev": "disk", "disk": res})
     finally:
-        disk_state["busy"] = False
+        with disk_lock:
+            disk_state["busy"] = False
+            again, disk_state["again"] = disk_state["again"], False
+    if again:
+        disk_scan()
 
 def disk_start(force=False):
     try:
@@ -356,7 +365,7 @@ def hypr_clients():
 # Tray icons and the processes that show them: an icon's own id often names no app (Electron's is chrome_status_icon_1),
 # so Activity finds an app's icon by process. D-Bus says which process owns each icon registered with the shell's
 # watcher; a service already asked keeps its answer while it stays registered.
-tray_seen = {}   # service -> (pid, icon id)
+tray_seen = {}   # service -> (pid, icon id, when to ask again if it gave no id)
 def tray_owners():
     def bus(*args):
         r = subprocess.run(["busctl", "--user", "-j", *args], capture_output=True, text=True, timeout=2)
@@ -369,18 +378,23 @@ def tray_owners():
     out = {}
     for it in items:
         svc, _, path = it.partition("/")
-        if svc not in tray_seen:
+        if svc not in tray_seen or tray_seen[svc][1] is None and time.monotonic() >= tray_seen[svc][2]:
             try:
                 pid = bus("call", "org.freedesktop.DBus", "/org/freedesktop/DBus", "org.freedesktop.DBus",
                           "GetConnectionUnixProcessID", "s", svc)[0]
-                tid = bus("get-property", svc, "/" + (path or "StatusNotifierItem"), "org.kde.StatusNotifierItem", "Id")
             except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError):
                 continue
-            tray_seen[svc] = (pid, tid)
+            # a hung app answers its icon's Id only by the 2 s timeout: asked again in a minute, not at every sample,
+            # which held up the list and Quit while the app was frozen
+            try:
+                tid = bus("get-property", svc, "/" + (path or "StatusNotifierItem"), "org.kde.StatusNotifierItem", "Id")
+            except (OSError, subprocess.SubprocessError, ValueError, KeyError, IndexError):
+                tid = None
+            tray_seen[svc] = (pid, tid, time.monotonic() + 60)
         out[svc] = tray_seen[svc]
     for svc in [k for k in tray_seen if k not in out]:
         del tray_seen[svc]
-    return {pid: tid for pid, tid in out.values()}
+    return {pid: tid for pid, tid, _ in out.values() if tid is not None}
 
 def sample():
     now = time.monotonic()

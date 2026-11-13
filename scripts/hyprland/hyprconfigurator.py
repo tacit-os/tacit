@@ -53,7 +53,7 @@ def device_key(key):
 def to_lua_line(key, value):
     dev = device_key(key)
     if dev:
-        return f'hl.device({{ name = "{dev[0]}", {dev[1]} = {to_lua_value(dev[1], value)} }})\n'
+        return f'hl.device({{ name = {lua_string(dev[0])}, {dev[1]} = {to_lua_value(dev[1], value)} }})\n'
     parts = key.replace(":", ".").split(".")
     val = to_lua_value(key, value)
     inner = f"{{ {parts[-1]} = {val} }}"
@@ -62,10 +62,12 @@ def to_lua_line(key, value):
     return f"hl.config({inner})\n"
 
 
+# what a line setting the key holds; for a device also its name as written before it was escaped, so the broken line an
+# older version wrote for a name with a quote or backslash is replaced rather than left to fail the file
 def make_marker(key):
     dev = device_key(key)
     if dev:
-        return f'hl.device({{ name = "{dev[0]}", {dev[1]} ='
+        return {f'hl.device({{ name = {lua_string(dev[0])}, {dev[1]} =', f'hl.device({{ name = "{dev[0]}", {dev[1]} ='}
     parts = key.replace(":", ".").split(".")
 
     fragment = " = { ".join(parts[:-1])
@@ -73,7 +75,7 @@ def make_marker(key):
         fragment += " = { " + parts[-1] + " ="
     else:
         fragment = parts[-1] + " ="
-    return fragment
+    return {fragment}
 
 
 def write_atomic(path, content):
@@ -164,7 +166,7 @@ def edit_lua(file_path, set_pairs, reset_keys):
     for line in lines:
         matched = None
         for k in all_keys:
-            if markers[k] in line:
+            if any(m in line for m in markers[k]):
                 matched = k
                 break
         if matched is None:

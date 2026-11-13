@@ -415,7 +415,7 @@ Item {
     // viewer-clip and wl-copy put themselves in the background once the clipboard is set, so the exit is the answer
     Process {
         id: copyProc
-        onExited: code => toast(code === 0 ? "Copied" : code === 3 ? "Copied the file, not the picture" : "Couldn't copy")
+        onExited: code => toast(code === 0 ? "Copied" : code === 3 ? "Copied the file, not the picture" : code === 4 ? "Copied the picture, not the file" : "Couldn't copy")
     }
     readonly property string copyScript: FileUtils.trimFileProtocol(Qt.resolvedUrl("../../scripts/viewer/viewer-copy"))
     function copyPath() {
