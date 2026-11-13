@@ -40,7 +40,7 @@ Item {
     property bool checkingCode: false
 
     // signedOut, noProvider, starting, signingIn, code, device, busy, expired, noKey, keyRefused,
-    // locked, notInstalled, installing, needsNode, failed, done, checking, ready or ""
+    // locked, noKeyring, notInstalled, installing, needsNode, failed, done, checking, ready or ""
     readonly property string shown: {
         if (steps.finishing) return "done";
         const f = steps.flow?.step ?? "";
@@ -241,12 +241,16 @@ Item {
             const label = steps.acct?.label ?? "";
             return { line: steps.shown === "keyRefused" ? `The ${m.providerName(p)} key for ${label} was refused`
                                                         : `There is no ${m.providerName(p)} key for ${label}`,
-                     actions: [{ word: "Replace in Settings", out: true, run: () => steps.settingsRequested(steps.keyAnchor(p)) }] };
+                     // a refusal can be one provider hiccup: the host's look asks the provider about the key again
+                     actions: [{ word: "Replace in Settings", out: true, run: () => steps.settingsRequested(steps.keyAnchor(p)) }, checkAgain] };
         }
         case "locked":
             // the host reads the keyring again only when asked (or every ten minutes)
             return { line: "The keyring is locked", sub: "It opens when you unlock the screen with your password",
                      actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
+        case "noKeyring":
+            // no Secret Service answered: a key account has nowhere to read its key from until one does
+            return { line: "The keyring isn't running", actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
         case "notInstalled":
             return { line: "Not installed", sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
                      actions: [{ word: "Install", run: () => steps.install(false) }, checkAgain] };

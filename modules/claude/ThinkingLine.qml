@@ -73,6 +73,8 @@ Item {
             anchors { left: name.right; leftMargin: 8; right: parent.right; verticalCenter: parent.verticalCenter }
             visible: !think.open
             text: think.text.replace(/\s+/g, " ").trim()
+            // a thought that starts with a tag is still words: as rich text the tag went and the rest was drawn as markup
+            textFormat: Text.PlainText
             elide: think.live ? Text.ElideLeft : Text.ElideRight
             font.pixelSize: 15
             color: Appearance.colors.colInkMeta
@@ -112,6 +114,7 @@ Item {
                     id: bodyText
                     width: parent.width
                     text: think.shown ? think.text : ""
+                    textFormat: Text.PlainText
                     wrapMode: Text.Wrap
                     font.pixelSize: 16
                     lineHeight: 1.5

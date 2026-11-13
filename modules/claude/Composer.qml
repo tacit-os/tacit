@@ -162,8 +162,9 @@ Item {
         const s = composer.accounts.stepOf(composer.agent, composer.acctId);
         return s === "signedOut" && (composer.agent === "pi" || composer.agent === "opencode") ? "noProvider" : s;
     }
-    // a started session's process may already hold the key, so a locked keyring only stops a fresh one
-    readonly property bool needsStep: composer.hasAccounts && (composer.accounts.stepWord(composer.step) !== "" || (composer.step === "locked" && composer.fresh))
+    // a started session's process may already hold the key, so a locked or absent keyring only stops a fresh one
+    readonly property bool needsStep: composer.hasAccounts && (composer.accounts.stepWord(composer.step) !== ""
+        || ((composer.step === "locked" || composer.step === "noKeyring") && composer.fresh))
     // said in the chip row for a fresh session; a started one says it when a send needs it, or
     // when its process ends for want of a sign-in (Conversation)
     readonly property bool showStep: composer.needsStep && composer.fresh
@@ -176,6 +177,7 @@ Item {
         case "notInstalled": return `${n} isn't installed`;
         case "needsNode": return `${n} needs one more install first`;
         case "locked": return "The keyring is locked";
+        case "noKeyring": return "The keyring isn't running";
         case "noKey": return `${n} has no key`;
         case "keyRefused": return `${n}'s key was refused`;
         }
@@ -489,11 +491,12 @@ Item {
 
     // Ctrl+V with an image on the clipboard saves it and attaches it; anything else pastes as text. The first of the
     // types an agent takes (png, jpeg, webp, gif) is saved under its own extension; a clipboard with only others pastes as text.
+    // A pasted screenshot can show anything: its folder and file are yours alone (the default umask left them readable by others).
     Process {
         id: pasteImage
         // a picture is attached only when there is no text beside it: office apps copy cells as both
         // text and a picture of them, and the table should paste as text
-        command: ["bash", "-c", "t=$(wl-paste --list-types 2>/dev/null); if ! printf '%s\\n' \"$t\" | grep -q '^text/plain'; then for ty in image/png image/jpeg image/webp image/gif; do if printf '%s\\n' \"$t\" | grep -qx \"$ty\"; then d=\"$HOME/.cache/agent-host/paste\"; mkdir -p \"$d\"; f=\"$d/$(date +%s%N).${ty#image/}\"; if wl-paste --type \"$ty\" > \"$f\"; then echo \"$f\"; else rm -f \"$f\"; fi; break; fi; done; fi"]
+        command: ["bash", "-c", "t=$(wl-paste --list-types 2>/dev/null); if ! printf '%s\\n' \"$t\" | grep -q '^text/plain'; then for ty in image/png image/jpeg image/webp image/gif; do if printf '%s\\n' \"$t\" | grep -qx \"$ty\"; then d=\"$HOME/.cache/agent-host/paste\"; umask 077; mkdir -p \"$d\"; chmod 700 \"$d\"; f=\"$d/$(date +%s%N).${ty#image/}\"; if wl-paste --type \"$ty\" > \"$f\"; then echo \"$f\"; else rm -f \"$f\"; fi; break; fi; done; fi"]
         stdout: StdioCollector {
             onStreamFinished: {
                 const p = this.text.trim();
@@ -557,53 +560,62 @@ Item {
                 }
             }
         }
-        Row {
-            id: tray
+        // more than fit scroll sideways, inside the box: the row ran on past its edge, the later chips' remove out of reach
+        Flickable {
             visible: trayArea.height > 0.5
             opacity: Math.min(1, trayArea.height / 48)
-            anchors { left: parent.left; top: trayArea.top; leftMargin: 12; topMargin: 4 }
-            spacing: Appearance.spacing.small
+            anchors { left: parent.left; right: parent.right; top: trayArea.top; leftMargin: 12; rightMargin: 12; topMargin: 4 }
             height: 56
-            Repeater {
-                model: composer.attachments
-                delegate: Rectangle {
-                    id: att
-                    required property string modelData
-                    required property int index
-                    readonly property bool picture: composer.isImage(att.modelData)
-                    width: att.picture ? 56 : Math.min(220, fileRow.implicitWidth + 40)
-                    height: 56
-                    radius: Appearance.rounding.chip
-                    clip: true
-                    color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.92)
-                    Image { visible: att.picture; anchors.fill: parent; source: att.picture ? FileUtils.fileUrl(att.modelData) : ""; fillMode: Image.PreserveAspectCrop; sourceSize.height: 112; asynchronous: true }
-                    // any other file: what kind, and its name
-                    Row {
-                        id: fileRow
-                        visible: !att.picture
-                        anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
-                        spacing: Appearance.spacing.small
-                        MaterialSymbol {
-                            anchors.verticalCenter: parent.verticalCenter
-                            text: /\.pdf$/i.test(att.modelData) ? "picture_as_pdf" : "description"
-                            iconSize: 22
-                            color: Appearance.colors.colInkSecondary
+            contentWidth: tray.width
+            contentHeight: 56
+            flickableDirection: Flickable.HorizontalFlick
+            boundsBehavior: Flickable.StopAtBounds
+            clip: true
+            Row {
+                id: tray
+                spacing: Appearance.spacing.small
+                height: 56
+                Repeater {
+                    model: composer.attachments
+                    delegate: Rectangle {
+                        id: att
+                        required property string modelData
+                        required property int index
+                        readonly property bool picture: composer.isImage(att.modelData)
+                        width: att.picture ? 56 : Math.min(220, fileRow.implicitWidth + 40)
+                        height: 56
+                        radius: Appearance.rounding.chip
+                        clip: true
+                        color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.92)
+                        Image { visible: att.picture; anchors.fill: parent; source: att.picture ? FileUtils.fileUrl(att.modelData) : ""; fillMode: Image.PreserveAspectCrop; sourceSize.height: 112; asynchronous: true }
+                        // any other file: what kind, and its name
+                        Row {
+                            id: fileRow
+                            visible: !att.picture
+                            anchors { left: parent.left; leftMargin: 12; verticalCenter: parent.verticalCenter }
+                            spacing: Appearance.spacing.small
+                            MaterialSymbol {
+                                anchors.verticalCenter: parent.verticalCenter
+                                text: /\.pdf$/i.test(att.modelData) ? "picture_as_pdf" : "description"
+                                iconSize: 22
+                                color: Appearance.colors.colInkSecondary
+                            }
+                            StyledText {
+                                anchors.verticalCenter: parent.verticalCenter
+                                width: Math.min(implicitWidth, 150)
+                                text: att.modelData.split("/").pop()
+                                elide: Text.ElideMiddle
+                                font.pixelSize: Appearance.font.pixelSize.smallie
+                                color: Appearance.colors.colInkMain
+                            }
                         }
-                        StyledText {
-                            anchors.verticalCenter: parent.verticalCenter
-                            width: Math.min(implicitWidth, 150)
-                            text: att.modelData.split("/").pop()
-                            elide: Text.ElideMiddle
-                            font.pixelSize: Appearance.font.pixelSize.smallie
-                            color: Appearance.colors.colInkMain
+                        Rectangle {
+                            anchors { right: parent.right; top: parent.top; margins: 3 }
+                            width: 18; height: 18; radius: 9
+                            color: ColorUtils.transparentize("black", 0.4)
+                            MaterialSymbol { anchors.centerIn: parent; text: "close"; iconSize: Appearance.icon.tiny; color: "white" }
+                            MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: composer.attachments = composer.attachments.filter((_, j) => j !== index) }
                         }
-                    }
-                    Rectangle {
-                        anchors { right: parent.right; top: parent.top; margins: 3 }
-                        width: 18; height: 18; radius: 9
-                        color: ColorUtils.transparentize("black", 0.4)
-                        MaterialSymbol { anchors.centerIn: parent; text: "close"; iconSize: Appearance.icon.tiny; color: "white" }
-                        MouseArea { anchors.fill: parent; cursorShape: Qt.PointingHandCursor; onClicked: composer.attachments = composer.attachments.filter((_, j) => j !== index) }
                     }
                 }
             }

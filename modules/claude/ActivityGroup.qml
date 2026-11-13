@@ -122,6 +122,8 @@ Item {
                         elide: Text.ElideRight
                         text: lineCol.now.kind === "thinking" ? (parent.thought ? (lineCol.now.text ?? "").replace(/\s+/g, " ").trim() : "")
                             : (lineCol.now.desc ?? lineCol.now.summary ?? "")
+                        // a command or a thought, never markup: as rich text a "<h1>" in a grep spilled over the rows around (as ToolLine)
+                        textFormat: Text.PlainText
                         font.pixelSize: 14
                         color: parent.thought ? Appearance.colors.colInkMeta : Appearance.colors.colInkSecondary
                     }

@@ -264,10 +264,10 @@ FocusScope {
                         expired: `${name}'s sign-in has expired`, noProvider: `${name} has no provider`,
                         notInstalled: `${name} isn't installed`, needsNode: `${name} needs one more install first`,
                         noKey: `${name} has no key`, keyRefused: `${name}'s key was refused`,
-                        locked: "The keyring is locked" })[n.step] ?? "";
+                        locked: "The keyring is locked", noKeyring: "The keyring isn't running" })[n.step] ?? "";
         return what + (sheet.needs.length > 1 ? ` and ${sheet.needs.length - 1} more` : "");
     }
-    readonly property string needAnchor: sheet.needs[0] && sheet.needs[0].step !== "locked" ? sheet.needs[0].agent : ""
+    readonly property string needAnchor: sheet.needs[0] && !["locked", "noKeyring"].includes(sheet.needs[0].step) ? sheet.needs[0].agent : ""
 
     // ── writing: every value goes to agent-host ─────────────────────────────
     function write(scope, fields) { sheet.accounts.setDefaults(scope, fields); }

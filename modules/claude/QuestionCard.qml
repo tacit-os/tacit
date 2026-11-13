@@ -25,6 +25,17 @@ Rectangle {
 
     readonly property var questions: card.pending.input?.questions ?? []
     property int step: 0
+    // Half an answer, kept by the conversation while another session is open (the card is made anew on the way back,
+    // and its picks, words and question went): `half` is what to keep, `kept` what was kept, put back once made.
+    readonly property var half: ({ picked: card.picked, typed: card.typed, step: card.shown })
+    property var kept: null
+    function restore(k) {
+        card.picked = k.picked ?? ({});
+        card.typed = k.typed ?? ({});
+        card.shown = card.step = Math.max(0, Math.min(k.step ?? 0, card.questions.length - 1));
+        other.text = card.typed[card.current.question] ?? "";
+    }
+    Component.onCompleted: if (card.kept) card.restore(card.kept)
     // the question on screen: it follows `step` through a fade, so the card does not swap in one frame
     property int shown: 0
     onStepChanged: swap.restart()

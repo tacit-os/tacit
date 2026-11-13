@@ -45,7 +45,7 @@ Item {
             const list = acc.accountsOf(a);
             for (const x of (list.length ? list : [{ id: "" }])) {
                 const step = acc.stepOf(a, x.id);
-                if (acc.stepWord(step) || step === "locked") out.push({ agent: a, account: x.id, step: step });
+                if (acc.stepWord(step) || step === "locked" || step === "noKeyring") out.push({ agent: a, account: x.id, step: step });
             }
         }
         return out;
@@ -150,7 +150,7 @@ Item {
 
     // What stands between an account (or the agent's default one, id "") and a session:
     // installing | needsNode | notInstalled, else the account's state (ready, signedOut, expired,
-    // noKey, keyRefused, noProvider, locked, checking, signingIn); "" when the host has not said.
+    // noKey, keyRefused, noProvider, locked, noKeyring, checking, signingIn); "" when the host has not said.
     // An install that is done still reads installing until the state push that follows it.
     function stepOf(agent, id) {
         const ag = acc.agents[agent];
@@ -178,6 +178,7 @@ Item {
         case "keyRefused": return `The ${acc.providerName(acc.keyProvider(a))} key was refused`;
         case "noProvider": return "Needs a provider";
         case "locked": return "The keyring is locked";
+        case "noKeyring": return "The keyring isn't running";
         case "checking": return "Checking…";
         case "signingIn": return "Signing in…";
         case "notInstalled": return "Not installed";

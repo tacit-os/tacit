@@ -54,6 +54,12 @@ function checking(s) { return ["BashOutput", "Monitor", "KillShell", "KillBash",
 // and then edited was still made; one deleted and then written again was edited.
 function kindOver(was, now) { return now === "delete" ? "delete" : was === undefined ? now : was === "delete" ? "edit" : was; }
 
+// What one step did to one of its files. The host marks every file a Write gives "write", new or not; Claude Code's
+// result says which ("The file … has been updated successfully." for one that was there): that one was edited.
+function fileKind(step, f) {
+    return f.kind === "write" && step.tool === "Write" && /^The file .* has been updated/.test(step.result ?? "") ? "edit" : f.kind;
+}
+
 // "Created", "Deleted" or "Edited" for a list of {kind} files, "Changed" when they differ
 function changed(files) {
     const verbs = new Set(files.map(f => f.kind === "write" ? "Created" : f.kind === "delete" ? "Deleted" : "Edited"));
@@ -80,7 +86,7 @@ function says(k, all) {
         const paths = [], kinds = {};
         for (const st of steps) for (const f of st.files ?? []) {
             if (!paths.includes(f.path)) paths.push(f.path);
-            kinds[f.path] = kindOver(kinds[f.path], f.kind);
+            kinds[f.path] = kindOver(kinds[f.path], fileKind(st, f));
         }
         const verb = changed(paths.map(p => ({ kind: kinds[p] })));
         return paths.length === 1 ? `${verb} ${base(paths[0])}` : `${verb} ${paths.length || n} ${(paths.length || n) === 1 ? "file" : "files"}`;

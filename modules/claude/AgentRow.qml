@@ -30,7 +30,8 @@ Item {
 
     readonly property bool running: row.status === "running"
     function join(parts) { return parts.filter(x => x.length).join(" · "); }
-    readonly property string spanText: row.started > 0 ? Words.span((row.running ? row.now : (row.ended || row.started)) - row.started) : ""
+    // an end the host never recorded (a call it has no agent for) says nothing, not "0s"
+    readonly property string spanText: row.started > 0 && (row.running || row.ended > 0) ? Words.span((row.running ? row.now : row.ended) - row.started) : ""
     readonly property string stepsText: !row.running && row.steps >= 0 ? `${row.steps} ${row.steps === 1 ? "step" : "steps"}` : ""
     readonly property string word: row.status === "stopped" ? "stopped" : row.status === "failed" ? "failed" : ""
     // a command that ended wears the same stop glyph: only "stopped" needs its word

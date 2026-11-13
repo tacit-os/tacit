@@ -111,11 +111,11 @@ Item {
     function openStep(agent, i) { pane.push({ k: "agent", id: agent, f: { jump: i } }); }
     // a finding is known by its first source and its title; the page keeps the finding as it was
     function openFinding(f) { pane.push({ k: "finding", id: `${f.sources?.[0]?.source ?? ""}|${f.title}`, f: { finding: f } }); }
-    // A finding's file as the report wrote it ("F.qml", "F.qml:14", "dir/F.qml", "/abs/F.qml:14", "~/F.qml")
-    // placed: its absolute path (a file the agents changed first, else the session's folder) and line;
+    // A finding's file as the report wrote it ("F.qml", "F.qml:14", "F.qml:12-20", "dir/F.qml", "/abs/F.qml:14", "~/F.qml")
+    // placed: its absolute path (a file the agents changed first, else the session's folder) and line (a range's first);
     // path "" when it cannot be placed.
     function fileOf(raw, line) {
-        const m = /^(.*?)(?::(\d+)(?::\d+)?)?$/.exec(String(raw ?? "").trim());
+        const m = /^(.*?)(?::(\d+)(?:-\d+)?(?::\d+)?)?$/.exec(String(raw ?? "").trim());
         const rel = m[1].replace(/^\.\//, "");
         const at = Number(m[2]) || Number(line) || 0;
         if (!rel.length) return { path: "", line: 0 };
@@ -170,11 +170,10 @@ Item {
     property string resultsError: ""
     property bool resultsBusy: false
     // a reply is taken only when it says something new: it can be megabytes, the page is not redrawn
-    // for an equal one
-    function sigOfResults(m) {
-        return [m.findings?.length, JSON.stringify(m.counts), JSON.stringify(m.unread), m.reading, m.reports?.length,
-                (m.reports ?? []).filter(r => r.kind === "read").length, m.changes?.length, m.pictures?.length, m.error].join("|");
-    }
+    // for an equal one. All of it is compared but its tag: counts alone missed what changes in place (a finding
+    // that may be fixed, a verdict, a change's line counts), and the page went on showing the old reply
+    property string resultsSig: ""
+    function sigOfResults(m) { return JSON.stringify(Object.assign({}, m, { tag: 0 })); }
     function loadResults() {
         if (!pane.canResults || !pane.sessionId.length || pane.resultsBusy || pane.root !== "results" || !pane.visible) return;
         const sid = pane.sessionId;
@@ -184,7 +183,8 @@ Item {
             if (pane.sessionId !== sid) return;
             if (m.ev !== "results") { pane.resultsError = m.message ?? ""; return; }
             pane.resultsError = "";
-            if (!pane.results || pane.sigOfResults(m) !== pane.sigOfResults(pane.results)) pane.results = m;
+            const sig = pane.sigOfResults(m);
+            if (!pane.results || sig !== pane.resultsSig) { pane.resultsSig = sig; pane.results = m; }
         });
     }
     onVisibleChanged: pane.loadResults()

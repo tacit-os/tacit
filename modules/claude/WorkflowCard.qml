@@ -23,8 +23,11 @@ Rectangle {
     signal stopRequested(string task)
 
     // before the host has read it, the call stands in; a launch answers at once ("Workflow launched").
-    // A call the host has no record of, in an idle session it has answered about, has ended.
-    readonly property bool waiting: card.pending || ((card.item?.ts ?? 0) > 0 && card.now - card.item.ts < 30000)
+    // A call the host has no record of, in an idle session it has answered about, has ended. The 30 s are counted on a
+    // clock of their own, as AgentsGroup's: `now` ticks only while something runs.
+    property real graceNow: Date.now()
+    Timer { running: (card.item?.ts ?? 0) > 0 && card.graceNow - card.item.ts < 30000; interval: 1000; repeat: true; onTriggered: card.graceNow = Date.now() }
+    readonly property bool waiting: card.pending || ((card.item?.ts ?? 0) > 0 && card.graceNow - card.item.ts < 30000)
     readonly property string status: card.run?.state
         ?? (card.item && (card.item.result === undefined || /^(Async agent launched|Workflow launched)/.test(String(card.item.result))) ? (card.waiting ? "running" : "ended") : "done")
     readonly property var members: card.run?.agents ?? []

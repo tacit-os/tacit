@@ -40,12 +40,19 @@ PanelPage {
     function take() { lp.entry.order = lp.orderNow(); lp.order = lp.entry.order; }
     function begin() { if (lp.entry.order) lp.order = lp.entry.order; else if (lp.p.loaded) lp.take(); lp.came = lp.entry.came ?? ""; lp.cursorKey = lp.entry.f.cursor ?? ""; }
     Connections { target: lp.p; function onLoadedChanged() { if (lp.p.loaded && !lp.order && lp.entry.k) lp.take(); } }
-    // what failed or started after you arrived joins its section at the end
+    // what failed, started or finished after you arrived joins its section at the end and is kept there: one that started
+    // while you looked and then finished was in neither the kept order nor the running ones, and its row went
     readonly property var fresh: {
-        const o = lp.order; if (!o) return { needs: [], running: [] };
+        const o = lp.order; if (!o) return { needs: [], running: [], done: [] };
         const seen = new Set([...o.needs, ...o.running, ...o.done]);
         const n = lp.orderNow();
-        return { needs: n.needs.filter(k => !seen.has(k)), running: n.running.filter(k => !seen.has(k)) };
+        return { needs: n.needs.filter(k => !seen.has(k)), running: n.running.filter(k => !seen.has(k)), done: n.done.filter(k => !seen.has(k)) };
+    }
+    onFreshChanged: {
+        const o = lp.order, f = lp.fresh;
+        if (!o || !(f.needs.length || f.running.length || f.done.length)) return;
+        lp.entry.order = { needs: o.needs.concat(f.needs), running: o.running.concat(f.running), done: o.done.concat(f.done) };
+        lp.order = lp.entry.order;
     }
     readonly property int settled: {
         const o = lp.order; if (!o) return 0;
@@ -60,7 +67,7 @@ PanelPage {
     }
     readonly property var doneShown: lp.order ? (lp.entry.f.allDone ? lp.order.done : lp.order.done.slice(0, 6)) : []
     // the rows the keys move through, in order
-    readonly property var navList: lp.order ? [...lp.order.needs, ...lp.fresh.needs, ...lp.order.running, ...lp.fresh.running, ...lp.doneShown] : []
+    readonly property var navList: lp.order ? [...lp.order.needs, ...lp.order.running, ...lp.doneShown] : []
     function navKey(k) {
         const n = lp.navList.length;
         if (!n) return false;
@@ -117,6 +124,8 @@ PanelPage {
             meta: en.t === "fails" ? "" : lp.p.took(en.run ?? en.agent ?? en.shell)
             chevron: en.t !== "shell"
             cursor: lp.cursorKey === en.k
+            // the keys' row is scrolled into view, as on the Results page
+            onCursorChanged: if (cursor) lp.reveal(en)
             cameFrom: lp.came === en.k
             extra: RunBar {
                 visible: !!en.run && en.t === "run"
@@ -151,10 +160,10 @@ PanelPage {
             font.pixelSize: 15
             color: says === "Reading…" ? Appearance.colors.colInkMeta : Appearance.colors.colInkSecondary
         }
-        PanelSection { visible: (lp.order?.needs ?? []).length + lp.fresh.needs.length > 0; text: "Needs you"; count: (lp.order?.needs ?? []).length + lp.fresh.needs.length }
-        Repeater { model: [...(lp.order?.needs ?? []), ...lp.fresh.needs]; Entry { required property string modelData; k: modelData } }
-        PanelSection { visible: (lp.order?.running ?? []).length + lp.fresh.running.length > 0; text: "Running"; count: (lp.order?.running ?? []).length + lp.fresh.running.length }
-        Repeater { model: [...(lp.order?.running ?? []), ...lp.fresh.running]; Entry { required property string modelData; k: modelData } }
+        PanelSection { visible: (lp.order?.needs ?? []).length > 0; text: "Needs you"; count: (lp.order?.needs ?? []).length }
+        Repeater { model: lp.order?.needs ?? []; Entry { required property string modelData; k: modelData } }
+        PanelSection { visible: (lp.order?.running ?? []).length > 0; text: "Running"; count: (lp.order?.running ?? []).length }
+        Repeater { model: lp.order?.running ?? []; Entry { required property string modelData; k: modelData } }
         StyledText {
             visible: lp.settled > 0
             width: parent.width

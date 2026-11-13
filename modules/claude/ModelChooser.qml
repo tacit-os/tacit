@@ -259,6 +259,7 @@ FocusScope {
         switch (mc.acctStep) {
         case "installing": return `${n} is being installed`;
         case "locked": return "Unlock the keyring first";
+        case "noKeyring": return "The keyring isn't running";
         }
         return mc.cat === null ? mc.failed : `${n} lists no models`;
     }

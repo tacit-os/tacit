@@ -317,7 +317,8 @@ Item {
     // Appended to the first message of a fresh session in the notch's form (a dropped file's or
     // page's provenance, from claude.qml's startIn), then cleared.
     property string desktopContext: ""
-    function prefill(text) { composer.setText(text); }
+    // after what is in the box: a hand-off, or a page dropped on the folder, replaced a draft its new session held
+    function prefill(text) { composer.addText(text); }
     signal agentChosen(string tool)
     // ── accounts, model, effort ─────────────────────────────────────────────
     property var accounts: null       // AccountsModel; with none given this makes its own
@@ -657,7 +658,7 @@ Item {
             if (turn && it.kind === "tool" && it.error !== true)
                 for (const f of it.files ?? []) {
                     const e = turn.files[f.path] ?? (turn.files[f.path] = { path: f.path, add: 0, del: 0 });
-                    e.kind = Words.kindOver(e.kind, f.kind);
+                    e.kind = Words.kindOver(e.kind, Words.fileKind(it, f));
                     e.add += f.add ?? 0;
                     e.del += f.del ?? 0;
                 }
@@ -1161,6 +1162,7 @@ Item {
     // the list's 20 s refresh hands over a new copy of the same session: keep what is on screen
     property string loadedKey: ""
     property var drafts: ({})          // session key -> { text, files } typed there and not sent
+    property var asksKept: ({})        // request -> a question card's half answer (QuestionCard.half), while the app runs
     // something typed and not sent, here or in another session, or a message queued behind the turn or still on its way
     // (the queue lives only here): what a quit would throw away
     readonly property bool hasDraft: composer.text.trim().length > 0 || composer.attachments.length > 0 || Object.keys(conv.drafts).length > 0
@@ -2644,6 +2646,8 @@ Item {
                     QuestionCard {
                         pending: ask.modelData
                         keys: ask.keys
+                        kept: conv.asksKept[ask.request] ?? null
+                        onHalfChanged: conv.asksKept[ask.request] = half
                         // the conversation keeps the rest of the window
                         maxHeight: (conv.height - header.height) * 0.6
                         onAnswered: input => conv.answer({ op: "answer", id: conv.session.id, request: ask.modelData.request, allow: true, input: input })
@@ -2700,8 +2704,9 @@ Item {
             PillButton {
                 visible: text.length > 0
                 anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                text: composer.step === "locked" ? "Check again" : composer.hasAccounts ? composer.accounts.stepWord(composer.step) : ""
-                onClicked: composer.step === "locked" ? composer.accounts.check(composer.acctId) : composer.openMenu("agent")
+                readonly property bool keyring: composer.step === "locked" || composer.step === "noKeyring"
+                text: keyring ? "Check again" : composer.hasAccounts ? composer.accounts.stepWord(composer.step) : ""
+                onClicked: keyring ? composer.accounts.check(composer.acctId) : composer.openMenu("agent")
             }
         }
         Rectangle {

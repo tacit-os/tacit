@@ -140,6 +140,9 @@ PanelPage {
     function begin() {
         if (ap.entry.f.jump !== undefined) { ap.entry.f.follow = false; jumpLater.i = ap.entry.f.jump; delete ap.entry.f.jump; jumpLater.start(); }
         if (ap.entry.f.follow === undefined) ap.entry.f.follow = ap.running;
+        // followed while it ran and finished since: it opens as a finished one does, at the top on its report (the kept
+        // place was the old end of its activity)
+        else if (ap.entry.f.follow && ap.a && !ap.running) { ap.entry.f.follow = false; ap.entry.y = 0; }
         ap.seen = ap.tools.length;
         ap.unseen = 0;
     }
@@ -269,7 +272,9 @@ PanelPage {
         // a structured report reads as one: its summary first, a list of words as a list, home as ~,
         // nothing for an empty field or a status the header already says
         const home = Quickshell.env("HOME") ?? "";
-        const said = x => String(x).split(home + "/").join("~/");
+        // only where a path starts: "/backup/home/a/notes.txt" read as "/backup~/notes.txt"
+        const atHome = new RegExp("(^|[^\\w./~-])" + home.replace(/[.*+?^${}()|[\]\\]/g, "\\$&") + "/", "g");
+        const said = x => home.length ? String(x).replace(atHome, "$1~/") : String(x);
         const keys = Object.keys(v).sort((x, y) => (y.toLowerCase() === "summary") - (x.toLowerCase() === "summary"));
         const out = [];
         for (const k of keys) {

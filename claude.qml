@@ -250,7 +250,8 @@ ApplicationWindow {
             } else if (!root.restored) {
                 root.restored = true;
                 const id = (lastFile.text() || "").trim();
-                const s = root.history.find(x => x.id === id);
+                // one the rail leaves out but openId() opened (a /tmp run, a helper's) comes back too; a demo's stage still holds
+                const s = root.history.find(x => x.id === id) ?? root.allHistory.find(x => x.id === id && root.onStage(x.cwd));
                 if (s) root.selected = s;
             }
             // an open(id) that came before the history did
@@ -660,9 +661,11 @@ ApplicationWindow {
     property string claudeNeed: ""     // "" | missing | signedOut
     // a host that keeps accounts has said which agents there are, on this connection or before a drop
     readonly property bool accountsHeard: Object.keys(accounts.agents).length > 0
+    // `claude auth status` exits 1 when signed out, its JSON still written: `{}` stands only for no answer at all (an
+    // `|| echo` after it made two documents, which JSON.parse refused, so a signed-out Claude Code went unnoticed)
     Process {
         id: claudeCheck
-        command: ["bash", "-c", "command -v claude >/dev/null 2>&1 || { echo '{\"missing\":true}'; exit 0; }; claude auth status --json 2>/dev/null || echo '{}'"]
+        command: ["bash", "-c", "command -v claude >/dev/null 2>&1 || { echo '{\"missing\":true}'; exit 0; }; out=$(claude auth status --json 2>/dev/null); [ -n \"$out\" ] && echo \"$out\" || echo '{}'"]
         stdout: StdioCollector {
             onStreamFinished: {
                 let d = null;

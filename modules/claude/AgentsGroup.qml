@@ -38,10 +38,15 @@ Column {
     // in. A background launch answers at once ("Async agent launched"): still running. Once the host
     // has answered and the session is idle, a call it has no record of (pruned, another machine, the
     // host died) is over as far as anyone can tell: "ended", not running for ever.
+    // The 30 s are counted on a clock of their own: the window's (`now`) ticks only while something runs, so a call made
+    // after its last tick stayed "running" once the turn was over.
+    property real graceNow: Date.now()
+    readonly property bool inGrace: group.calls.some(c => c.ts > 0 && group.graceNow - c.ts < 30000)
+    Timer { running: group.inGrace; interval: 1000; repeat: true; onTriggered: group.graceNow = Date.now() }
     function statusOf(call, a) {
         if (a) return a.state;
         if (call.error) return "failed";
-        const waiting = group.pending || (call.ts > 0 && group.now - call.ts < 30000);
+        const waiting = group.pending || (call.ts > 0 && group.graceNow - call.ts < 30000);
         if (call.result === undefined) return waiting ? "running" : "ended";
         return /^(Async agent launched|Workflow launched)/.test(String(call.result ?? "")) ? (waiting ? "running" : "ended") : "done";
     }
