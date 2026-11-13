@@ -28,6 +28,7 @@ PERMS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "../../assets/s
 SELF = os.path.abspath(__file__)
 ARCH = os.uname().machine
 LOCAL_DB = "/var/lib/pacman/local"
+SYSTEM_SYNC = "/var/lib/pacman/sync"
 SYSTEM_PARTS = ("usr/lib/systemd/system/", "usr/lib/udev/rules.d/", "usr/share/polkit-1/rules.d/", "usr/lib/modules/",
                 "usr/lib/sysusers.d/", "usr/src/")
 
@@ -37,7 +38,7 @@ def say(**kw):
 
 
 class Refused(Exception):
-    """an outcome in words for the store: unavailable, installed, system, offline, space, failed, stopped"""
+    """an outcome in words for the store: unavailable, installed, system, offline, space, failed, stopped, running"""
     def __init__(self, why, detail=""):
         super().__init__(detail or why); self.why = why; self.detail = detail
 
@@ -110,14 +111,14 @@ def refresh_sync(max_age=3600):
             if r.returncode == 0:
                 os.replace(dst + ".part", dst); break
         else:
-            if not os.path.exists(dst):
+            if not os.path.exists(dst) or not max_age:          # max_age 0: today's list or none
                 raise Refused("offline", f"could not fetch the {name} package list")
 
 
-def load_sync():
+def load_sync(where=None):
     pkgs, provides = {}, {}
     for name, servers in repos():
-        path = os.path.join(CACHE, "sync", name + ".db")
+        path = os.path.join(where or os.path.join(CACHE, "sync"), name + ".db")
         if not os.path.exists(path):
             continue
         with tarfile.open(path) as t:
@@ -381,6 +382,13 @@ def stale(man):
     return man.get("host_versions") != shared_versions(man.get("shared", []))
 
 
+def behind(man):
+    """the system's own lists (Tacit's updates keep them fresh) have a newer version of a package the bundle carries: the
+    app itself was updated, which stale() does not see"""
+    pkgs = load_sync(SYSTEM_SYNC)[0]
+    return any(n in pkgs and vercmp(pkgs[n]["version"], v) > 0 for n, v in man.get("versions", {}).items())
+
+
 @contextlib.contextmanager
 def locked(app):
     """one install, update, remove or refresh of an app at a time; a second one waits for the first"""
@@ -424,16 +432,22 @@ def run(app, cmd):
     tried = os.path.join(RUN, app + ".tried")
     # a refused update (offline, a captive network) is not tried again for ten minutes: each try waits on the network
     if alone and man.get("host_stamp") != host_stamp() and not (os.path.exists(tried) and time.time() - os.path.getmtime(tried) < 600):
-        # the system changed since this bundle was made: bring the bundle in line before starting
+        # the system changed since this bundle was made: bring the bundle in line before starting, and up to date with it
+        # (Your apps says its apps update with Tacit's updates; an app's own update reached it only once a system package
+        # it shares changed too)
         try:
             with locked(app):
                 man = json.load(open(os.path.join(base, "manifest.json")))     # a launch ahead of us may have done it
                 if man.get("host_stamp") != host_stamp():
-                    if stale(man):
+                    old = stale(man)
+                    own = not old and behind(man)
+                    if old or own:
                         # this can be a download before anything shows: the notch says so ("Getting Discord ready"),
                         # where the start used to look like nothing at all (Discord 2026-11-04)
                         tell("preparing", app, 0)
                         try:
+                            if own:
+                                refresh_sync(max_age=0)         # ours may predate the system's, which named the update
                             install(man["package"], quiet=True, step=lambda **kw: kw.get("step") == "get" and kw["bytes"] > 0
                                     and tell("preparing", app, kw["bytes"]))
                         finally:
@@ -614,14 +628,27 @@ def install(target, quiet=False, step=None):
     os.makedirs(ROOT, exist_ok=True)
     if shutil.disk_usage(ROOT).free < size * 1.3 + (1 << 28):
         raise Refused("space", f"needs {size >> 20} MB")
-    # fetch and check everything before touching anything
-    step(step="get", bytes=sum(p["csize"] for p in bundle.values() if not os.path.exists(os.path.join(CACHE, "pkg", p["filename"]))))
+    # fetch and check everything before touching anything. What is in so far is said every second, in bytes: counted by
+    # the package, one big file (Blender's) held the bar still for minutes, and it looked stuck
+    wanted = [p for p in bundle.values() if not os.path.exists(os.path.join(CACHE, "pkg", p["filename"]))]
+    total = sum(p["csize"] for p in wanted)
+    step(step="get", bytes=total)
+    def arrived():
+        n = 0
+        for p in wanted:
+            f = os.path.join(CACHE, "pkg", p["filename"])
+            with contextlib.suppress(OSError):
+                n += os.path.getsize(f if os.path.exists(f) else f + ".part")
+        return min(n, total)
     files, done = {}, 0
     with concurrent.futures.ThreadPoolExecutor(4) as ex:
         futs = {ex.submit(fetch, p): n for n, p in bundle.items()}
-        for f in concurrent.futures.as_completed(futs):
-            files[futs[f]] = f.result(); done += 1
-            step(step="fetch", done=done, total=len(bundle))
+        left = set(futs)
+        while left:
+            ended, left = concurrent.futures.wait(left, timeout=1, return_when=concurrent.futures.FIRST_COMPLETED)
+            for f in ended:
+                files[futs[f]] = f.result(); done += 1
+            step(step="fetch", done=done, total=len(bundle), bytes=arrived(), of=total)
     lists = {n: members(f) for n, f in files.items()}
     tfiles = [m for m in lists[target] if m and not m.startswith(".")]
     sys_parts = sorted({sp for m in tfiles for sp in SYSTEM_PARTS if m.startswith(sp)})
@@ -703,6 +730,10 @@ def remove(app, keep_data=True, quiet=False):
     base = os.path.join(ROOT, app); mp = os.path.join(base, "manifest.json")
     if not os.path.exists(mp):
         raise Refused("unavailable", f"{app} is not a Tacit bundle")
+    # not while it is open: its sandbox has this folder laid over /usr, and wiping it takes the libraries and plugins a
+    # running app has still to load from under it. Held until this process ends, so no start begins on half a folder
+    if app_lock(app, fcntl.LOCK_EX | fcntl.LOCK_NB) is None:
+        raise Refused("running", f"{app} is open")
     for f in json.load(open(mp)).get("made", []):
         try:
             os.unlink(f)

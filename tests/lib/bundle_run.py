@@ -1,7 +1,8 @@
-"""What tacit-bundle run starts an app with: python3 -I bundle_run.py <bundle.py> <app> <manifest permissions as JSON>.
-A home of its own holds an installed bundle whose manifest says what the app could reach when it was got; the script's
-own run() then builds the sandbox, and its bwrap command is printed as JSON instead of started."""
-import json, os, sys, tempfile, time
+"""What tacit-bundle run starts an app with: python3 -I bundle_run.py <bundle.py> <app> <manifest permissions as JSON>
+[<the computer's device nodes as JSON>]. A home of its own holds an installed bundle whose manifest says what the app could
+reach when it was got; the script's own run() then builds the sandbox, and its bwrap command is printed as JSON instead
+of started. Device nodes given (["/dev/video0"]) are the only ones under /dev that run() finds."""
+import fnmatch, json, os, sys, tempfile, time
 sys.dont_write_bytecode = True   # nothing left beside bundle.py in the tree
 bundle_py, app, perms = sys.argv[1], sys.argv[2], json.loads(sys.argv[3])
 home = tempfile.mkdtemp(prefix="tacit-bundle-")
@@ -15,6 +16,9 @@ json.dump(dict(package=app, version="1", versions={app: "1"}, shared=[], host_ve
                ids=[], exec=[f"/usr/bin/{app}"], made=[], size=0, installed=int(time.time()), permissions=perms),
           open(os.path.join(base, "manifest.json"), "w"))
 b.user_dirs = lambda: [os.path.join(home, "Documents")]
+if len(sys.argv) > 4:
+    nodes, real = json.loads(sys.argv[4]), b.glob.glob
+    b.glob.glob = lambda pat: [n for n in nodes if fnmatch.fnmatch(n, pat)] if pat.startswith("/dev/") else real(pat)
 def started(path, argv):
     print(json.dumps({"home": home, "argv": argv})); sys.exit(0)
 b.os.execvp = started

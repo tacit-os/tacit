@@ -171,6 +171,11 @@ ApplicationWindow {
         else if (w.kind === "remove") notice(w.pkg, r);       // installs were told by failedInstall
         Qt.quit();
     }
+    // the system was brought up to date with an app while the window was open (Get X and the updates): said in a notification
+    // too, which stays in the list once Apps is closed, as the page's Restart is shown only on an app's page
+    function sayRestart(pkg) {
+        Quickshell.execDetached(["notify-send", "-a", "Apps", `${appOf(pkg)?.name ?? pkg} is in your apps now`, "Restart to finish the updates."]);
+    }
     // `result` as kept in outcome: a removal's are its own ("r-failed"), so the words are a removal's
     function notice(pkg, result) {
         const name = appOf(pkg)?.name ?? pkg;
@@ -262,6 +267,7 @@ ApplicationWindow {
         "r-busy": ["Another update is running", "Try again when it has finished."],
         "r-failed": ["Couldn't remove it", "Nothing was changed. Try again, or look again later."],
         "r-not-removable": ["Not removed", "Apps removes only what it got itself."],
+        "r-running": ["Not removed", "It's open. Close it, then remove it."],
         "unavailable": ["Not made for this computer", "There is no version of it for this computer's processor."]
     })
 
@@ -303,11 +309,11 @@ ApplicationWindow {
                     if (!root.visible) root.notice(root.work.pkg, "update");
                 } else {
                     const o = Object.assign({}, root.outcome);
-                    o[root.work.pkg] = root.work.kind === "remove" && !["ok", "needed"].includes(msg.result) ? (["cancelled", "denied", "busy", "not-removable"].includes(msg.result) ? "r-" + msg.result : "r-failed") : msg.result;
+                    o[root.work.pkg] = root.work.kind === "remove" && !["ok", "needed"].includes(msg.result) ? (["cancelled", "denied", "busy", "not-removable", "running"].includes(msg.result) ? "r-" + msg.result : "r-failed") : msg.result;
                     root.outcome = o;
                     if (msg.result !== "ok" && root.work.kind === "install") root.failedInstall(root.work);
                 }
-                if (msg.result === "ok" && msg.restart) root.restartNeeded = true;
+                if (msg.result === "ok" && msg.restart) { root.restartNeeded = true; if (root.visible) root.sayRestart(root.work.pkg); }
                 if (msg.result === "ok" && root.work.kind === "install") { root.justGot = root.work.pkg; tickTimer.restart(); }
             }
         } }
@@ -1411,7 +1417,8 @@ ApplicationWindow {
                 Word { visible: !!appPage.a?.homepage; text: "Its website"; glyph: "open_in_new"; onPicked: Qt.openUrlExternally(appPage.a.homepage) }
             }
 
-            // ---- Your apps: every app from here on this computer, as a list, with Remove beside each
+            // ---- Your apps: every app from here on this computer, as a list, with Remove beside each Apps got itself (the
+            // backend's "removable"); one got elsewhere says On this computer instead
             Column {
                 id: yoursPage
                 visible: root.page === "yours"
@@ -1422,7 +1429,7 @@ ApplicationWindow {
                 Item { width: 1; height: 56 }
                 Repeater {
                     model: yoursPage.list
-                    ListRow { required property var modelData; a: modelData; removable: true; width: Math.min(root.cw, 1100) }
+                    ListRow { required property var modelData; a: modelData; removable: !!modelData.removable; width: Math.min(root.cw, 1100) }
                 }
             }
         }

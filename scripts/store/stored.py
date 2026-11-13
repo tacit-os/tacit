@@ -243,7 +243,9 @@ def bundle_install(pkg):
         st = j.get("step")
         if st == "lists":
             out({"progress": 0.03, "phase": "Getting the latest list"})
-        elif st == "fetch":
+        elif st == "fetch" and j.get("of"):
+            out({"progress": 0.05 + 0.75 * j["bytes"] / j["of"], "phase": f"Downloading {round(j['bytes'] / 1e6)} of {round(j['of'] / 1e6)} MB"})
+        elif st == "fetch":        # all of it was here already: only checked
             out({"progress": 0.05 + 0.75 * j["done"] / max(1, j["total"]), "phase": f"Downloading {j['done']} of {j['total']}"})
         elif st in ("unpack", "caches"):
             out({"progress": 0.85 if st == "unpack" else 0.95, "phase": "Installing"})
@@ -854,9 +856,13 @@ def remove(pkg):
     if pkg not in owned:
         return out({"result": "not-removable"})
     if pkg in bundles():
-        # the app's folder and its launcher go; what it saved stays, as on a Mac, should it come back
-        r = subprocess.run(BUNDLE + ["remove", pkg], capture_output=True)
-        return out({"result": "ok" if r.returncode == 0 else "failed"})
+        # the app's folder and its launcher go; what it saved stays, as on a Mac, should it come back. Not while it is open
+        r = subprocess.run(BUNDLE + ["remove", pkg], capture_output=True, text=True, errors="replace")
+        try:
+            refused = json.loads(r.stdout.strip().splitlines()[-1]).get("why")
+        except (ValueError, IndexError):
+            refused = None
+        return out({"result": "ok" if r.returncode == 0 else "running" if refused == "running" else "failed"})
     ed, inst = editorial(), installed()
     names = [pkg] + ed["apps"].get(pkg, {}).get("also", [])
     have = next((n for n in names if n in inst), None)
