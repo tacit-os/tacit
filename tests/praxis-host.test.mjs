@@ -227,11 +227,11 @@ function queue({ connected, answered, accepts, leftover = null }) {
 // the agents it ran, and the conversation ended on the last step or on an unanswered message with nothing said
 {
   const expr = qmlProperty(convSrc, "cutOff");
-  const ask = ({ last, live = null, terminal = null, leftover = null, elsewhere = false, connected = true, answered = true, more = {} }) => {
+  const ask = ({ last, live = null, terminal = null, leftover = null, elsewhere = false, connected = true, answered = true, turns = ["s1"], more = {} }) => {
     if (!expr) return false;
     const session = { id: "s1", cwd: "/home/a/dev/app", fresh: false };
     const conv = { session, shownSession: session, offset: 900, live, terminal, leftover, elsewhere, pendingUser: "", sendingNow: false,
-      queued: [], host: { connected, rosterAnswered: answered },
+      queued: [], host: { connected, rosterAnswered: answered }, openTurns: turns,
       items: [{ role: "user", kind: "text", text: "fix the login" }, { role: "assistant", kind: "text", text: "On it." }, last,
         { role: "system", kind: "queue", op: "remove", text: "" }],
       ...more };
@@ -255,6 +255,35 @@ function queue({ connected, answered, accepts, leftover = null }) {
     ask({ last: yours, more: { sendingNow: true } }), ask({ last: yours, more: { queued: [{ text: "go on" }] } }), ask({ last: yours, more: { offset: -1 } })];
   check("and nothing is said before the host is back with its roster's answer, nor with a message on its way, nor before the read",
     !early.some(x => x), early.join(", "));
+  // shell-praxis review r1 [2]: nothing else said agent-host had run the turn, so a session Praxis sees no process for
+  // was blamed on the service: opencode or Codex under tmux mid-turn in a terminal (presence finds no window for them),
+  // a Codex turn stopped while it thought (no interrupt is written), one closed in a terminal weeks ago
+  const never = [ask({ last: thought, turns: [] }), ask({ last: step, turns: [] }), ask({ last: yours, turns: ["s2"] })];
+  check("a turn agent-host was not seen running says nothing: a terminal Praxis cannot see may hold it, or it was stopped",
+    expr !== null && !never.some(x => x) && ask({ last: thought }), `never run by the host ${never.join(", ")}, run by it ${ask({ last: thought })}`);
+  // the record: kept on disk, as a sign-out stops the host and Praxis together
+  const note = qmlFunction(convSrc, "noteTurns"), kept = qmlProperty(convSrc, "openTurns");
+  const written = [], conv = { openTurns: [], host: { live: {}, terminals: {} } };
+  const seen = (live, terminals = {}) => {
+    if (!note) return "?";
+    conv.host.live = live; conv.host.terminals = terminals;
+    inScope({ conv, turnsFile: { setText: t => written.push(t) } }, note.params, note.body)();
+    return conv.openTurns.join(" ") || "-";
+  };
+  const steps = [
+    seen({ s1: { state: "working", alive: true }, s2: { state: "idle", alive: true } }),   // s1's turn runs in the host
+    seen({}),                                                                              // the host goes: the socket drops
+    seen({ s3: { state: "idle", alive: true } }),                                          // the next host, without s1
+    seen({ s1: { state: "idle", alive: false }, s3: { state: "idle", alive: true } }),     // s1 sent again, ended (or crashed)
+    seen({ s4: { state: "waiting", alive: true } }),                                       // s4 waits on a permission
+    seen({}, { s4: { status: "busy", cwd: "", name: "" } }),                               // resumed in a terminal
+  ];
+  const load = text => (kept === null ? null : inScope({ turnsFile: { text: () => text } }, "", kept.startsWith("{") ? kept.slice(1, -1) : `return (${kept});`)());
+  const file = /FileView\s*\{\s*id:\s*turnsFile;\s*path:\s*`\$\{Directories\.state\}\/user\/[\w.-]+`/.test(convSrc);
+  check("Praxis keeps, on disk, the sessions whose turn agent-host was last seen running, across the host going, until it shows them idle or a terminal holds one",
+    JSON.stringify(steps) === '["s1","s1","s1","-","s4","-"]' && JSON.stringify(written) === '["[\\"s1\\"]\\n","[]\\n","[\\"s4\\"]\\n","[]\\n"]'
+      && file && JSON.stringify([load('["s1"]\n'), load(""), load("{oops"), load("{}")]) === '[["s1"],[],[],[]]',
+    `steps ${JSON.stringify(steps)}, written ${JSON.stringify(written)}, file ${file}, read ${JSON.stringify([load('["s1"]\n'), load(""), load("{oops"), load("{}")])}`);
   const at = convSrc.indexOf("visible: conv.cutOff");
   const text = at < 0 ? "" : readExpression(convSrc, convSrc.indexOf("text:", at) + 5).expr;
   check("the note under it says what happened and how to go on",

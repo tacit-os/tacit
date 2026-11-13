@@ -369,7 +369,7 @@ Singleton {
                 root.liveDone = true;
             }
         }
-        function onExited(id, reason, stderr) {
+        function onExited(id, reason, stderr, ended) {
             if (id !== root.sid) return;
             root.seenSeq = -1;             // a resumed process counts from the start again
             root.watchingId = "";
@@ -381,7 +381,10 @@ Singleton {
             if (!root.liveDone)
                 root.clearLive();
             // stopped with a question unanswered: say why, and keep the draft for a retry
-            if (reason === "crashed" || (reason === "exited" && root.pendingQ.length)) {
+            if (ended === "oom") {
+                root.error = root.oomWords;
+                root.pendingQ = "";
+            } else if (reason === "crashed" || (reason === "exited" && root.pendingQ.length)) {
                 const why = (stderr ?? []).map(l => String(l).trim()).filter(l => l.length).pop() ?? "";
                 root.error = why.length ? `Claude stopped: ${why}` : "Claude stopped before answering.";
                 root.pendingQ = "";
@@ -632,10 +635,12 @@ Singleton {
     Connections {
         target: host
         function onLiveChanged() { root.review(); }
-        function onExited(id, reason, stderr) {
+        function onExited(id, reason, stderr, ended) {
             if (id !== root.activityId) return;
             root.activityId = "";
-            if (reason === "crashed") {
+            if (ended === "oom") {
+                IslandController.endActivity("fail", root.oomWords);
+            } else if (reason === "crashed") {
                 const why = (stderr ?? []).map(l => String(l).trim()).filter(l => l.length).pop() ?? "";
                 IslandController.endActivity("fail", why.length ? `Claude stopped: ${why}`.substring(0, 60) : "Claude stopped.");
             } else if (reason === "signedOut" || reason === "expired") {
@@ -647,6 +652,9 @@ Singleton {
     }
     // a session ended for want of a sign-in, said as Praxis says it (Composer, Conversation)
     function signInWords(reason) { return reason === "expired" ? "Your Claude sign-in has expired" : "Claude isn't signed in"; }
+    // a process the out-of-memory killer ended (the host's `ended`), said as Praxis says it (Conversation's oomWords):
+    // as a plain crash it read "Claude stopped." with no why, and asked again it dies the same way
+    readonly property string oomWords: "This session ran out of memory and was stopped."
     function review() {
         const live = host.live;
         const next = {};

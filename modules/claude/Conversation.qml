@@ -612,13 +612,28 @@ Item {
     onTurnOpenChanged: { conv.testLog(`turnOpen ${conv.turnOpen}`); conv.sendQueued(); }
     // open in a terminal that only the window list knows of (Codex, pi or opencode; Claude Code's are in the roster)
     property bool elsewhere: false
-    // The newest turn was cut off: the transcript ends on your message, a step with no result or a thought, and nothing
-    // holds the session: agent-host does not know it (it stopped since, as a sign-out stops it with the agents it ran),
-    // and no terminal or previous host's process has it. Said once the host is back and its roster has answered, not
+    // The sessions whose turn agent-host was last seen running, kept on disk (a sign-out stops the host and this app
+    // together). One comes off once the host shows it idle (its turn ended, was stopped or its process died) or Claude
+    // Code's roster shows it in a terminal; one still here that the host no longer runs lost its turn with the host.
+    FileView { id: turnsFile; path: `${Directories.state}/user/claude-open-turns.json`; blockLoading: true; printErrors: false }
+    property var openTurns: { try { const v = JSON.parse(turnsFile.text() || "[]"); return Array.isArray(v) ? v : []; } catch (e) { return []; } }
+    function noteTurns() {
+        const live = conv.host.live, t = conv.host.terminals;
+        const ids = conv.openTurns.filter(id => !live[id] && !t[id]).concat(Object.keys(live).filter(id => live[id].state !== "idle"));
+        const now = ids.filter((id, i) => ids.indexOf(id) === i).sort();
+        if (JSON.stringify(now) === JSON.stringify(conv.openTurns)) return;
+        conv.openTurns = now;
+        turnsFile.setText(JSON.stringify(now) + "\n");
+    }
+    // The newest turn was cut off: the transcript ends on your message, a step with no result or a thought, agent-host
+    // was running that turn when last seen (openTurns) and does not know the session now (it stopped since, as a
+    // sign-out stops it with the agents it ran), and no terminal or previous host's process has it. A session the host
+    // never ran says nothing: a terminal Praxis cannot see (opencode, Codex under tmux) may still hold it, and a Codex
+    // turn stopped while it thought ends the same way. Said once the host is back and its roster has answered, not
     // while a message is on its way; the next message resumes the session.
     readonly property bool cutOff: {
         const s = conv.session;
-        if (!s || s.fresh || conv.shownSession !== s || conv.offset < 0) return false;
+        if (!s || s.fresh || conv.shownSession !== s || conv.offset < 0 || !conv.openTurns.includes(s.id)) return false;
         if (conv.live !== null || conv.running || conv.elsewhere || !conv.host.connected || !conv.host.rosterAnswered) return false;
         if (conv.pendingUser.length || conv.sendingNow || conv.queued.length) return false;
         for (let i = conv.items.length - 1; i >= 0; i--) {
@@ -1501,6 +1516,8 @@ Item {
         }
         // the roster has said what runs since the connect: what was queued across it goes, or waits for that turn
         function onRosterAnsweredChanged() { if (conv.host.rosterAnswered) conv.sendQueued(); }
+        function onLiveChanged() { conv.noteTurns(); }
+        function onTerminalsChanged() { conv.noteTurns(); }
     }
 
     // ── sending ─────────────────────────────────────────────────────────────
@@ -1652,10 +1669,10 @@ Item {
     }
     function focusComposer() { composer.focusInput(); }
     // Clicking a reply or a code block to read it moves the focus into that text, which then eats
-    // what you type. Read-only text passes the key on, so it is caught here and typed into the box; a waiting card's
-    // keys go to it as from the box.
+    // what you type. Read-only text passes the key on, so it is caught here and typed into the box. The rail's keys
+    // come here too. A waiting card's keys are not handed on: only a key pressed in the box answers it (Enter on the
+    // rail's session answered the card there before it was read).
     function typeInto(e) {
-        if (composer.cardKey(e)) { composer.focusInput(); e.accepted = true; return; }
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return;
         if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { composer.focusInput(); e.accepted = true; return; }
         // a control character is no letter: Delete's text is DEL (127), which went into the box unseen

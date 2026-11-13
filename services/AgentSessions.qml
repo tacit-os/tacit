@@ -199,8 +199,9 @@ Singleton {
     // The activity line ("running make", "editing Island.qml") from PreToolUse, and the last
     // assistant line from Stop, which the recap on return reads.
     // No hook says a permission prompt was answered: a tool call after it does. The tool that asked sends its own line
-    // just before the prompt and can land a moment after it, hence the second and a half.
-    function activity(id, line) {
+    // just before the prompt and can land a moment after it, hence the second and a half. A sub-agent's call (`agent`,
+    // a background or parallel one's) runs on while the prompt waits, so it answers nothing.
+    function activity(id, line, agent) {
         let list = root.all.slice();
         const s = list.find(x => x.id === id);
         if (!s)
@@ -208,7 +209,7 @@ Singleton {
         s.activity = line;
         s.lastToolAt = Date.now();
         s.quietTold = false;
-        if (s.state === "idle" || (s.state === "waiting" && Date.now() - s.since > 1500)) {
+        if (s.state === "idle" || (s.state === "waiting" && !agent && Date.now() - s.since > 1500)) {
             s.state = "working";
             s.since = Date.now();
         }
@@ -389,6 +390,10 @@ Singleton {
 
         function activity(id: string, line: string): void {
             root.activity(id, line);
+        }
+
+        function agentActivity(id: string, agent: string, line: string): void {
+            root.activity(id, line, agent);
         }
 
         function last(id: string, line: string): void {

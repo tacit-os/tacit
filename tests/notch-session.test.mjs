@@ -62,6 +62,15 @@ try {
     ["TodoWrite", "planning"], ["TaskCreate", "planning"], ["ToolSearch", "working"], ["Skill", "working"]])
     check(`${tool} reads "${line}"`, doing(tool) === line, `read "${doing(tool)}"`);
   check("Bash still names its command", doing("Bash", { command: "ls -la" }) === "running ls -la", doing("Bash", { command: "ls -la" }));
+
+  // shell-praxis review r1 [3]: a sub-agent's tool call comes under the parent's session_id, with its agent_id; passed
+  // on as the session's own, it ended the wait of a permission prompt still open in the terminal
+  const pre = more => hook("PreToolUse", { session_id: "a2", tool_name: "Read", tool_input: { file_path: "/p/notes.md" }, ...more },
+    { TACIT_SHELL: "/s", WAYLAND_DISPLAY: "w" }).filter(l => / (activity|agentActivity) a2 /.test(l)).map(l => l.split(" ipc call sessions ")[1]);
+  const sub = pre({ agent_id: "a7f3c2", agent_type: "Explore" }), own = pre({});
+  check("a sub-agent's tool call is told as that agent's, the main thread's as the session's",
+    JSON.stringify(sub) === '["agentActivity a2 a7f3c2 reading notes.md"]' && JSON.stringify(own) === '["activity a2 reading notes.md"]',
+    `sub-agent ${JSON.stringify(sub)}, main ${JSON.stringify(own)}`);
 } finally {
   rmSync(tmp, { recursive: true, force: true });
 }

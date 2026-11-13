@@ -34,6 +34,23 @@ const row = (id, status) => ({ kind: "interactive", sessionId: id, status, name:
   s.t.now += 6000; s.root.activity("a", "editing Island.qml");   // answered: the next tool runs
   check("after the prompt is answered, the next tool call shows the session working", s.state("a") === "working");
 }
+// shell-praxis review r1 [3]: a background or parallel agent's tool call comes under the parent's session id while the
+// session's own prompt waits in the terminal, and it took the "Needs you" away
+{
+  const s = sessions();
+  s.root.update("f", "working", "0x6", "/p");
+  s.root.activity("f", "running rm -rf build");
+  s.t.now += 200; s.root.update("f", "waiting", "", "");
+  s.t.now += 3000; s.root.activity("f", "reading notes.md", "a7f3c2");   // a sub-agent reads on
+  const sub = s.state("f"), line = s.root.all[0].activity;
+  s.t.now += 3000; s.root.activity("f", "running rm -rf build", "");      // answered: the main thread's tool runs
+  const f = /function agentActivity\(([^)]*)\)[^{]*\{([^}]*)\}/.exec(src);
+  const passed = [];
+  if (f) inScope({ root: { activity: (...a) => passed.push(a) } }, f[1].replace(/:\s*\w+/g, ""), f[2])("f", "a7f3c2", "reading notes.md");
+  check("a sub-agent's tool call keeps a waiting session \"Needs you\" (its line still shows); the main thread's next call ends the wait",
+    sub === "waiting" && line === "reading notes.md" && s.state("f") === "working" && JSON.stringify(passed) === '[["f","reading notes.md","a7f3c2"]]',
+    `after the sub-agent's call ${sub} (line "${line}"), after the main thread's ${s.state("f")}, the IPC passed ${JSON.stringify(passed)}`);
+}
 {
   const s = sessions();
   s.root.update("b", "working", "0x2", "/p");

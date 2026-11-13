@@ -31,7 +31,9 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
 // The cards had Alt chords each of their own (Alt+Shift+Enter, Alt+S, Alt+0, Alt+Left), found by nobody.
 {
   const Qt = { Key_Escape: 0x01000000, Key_Tab: 0x01000001, Key_Return: 0x01000004, Key_Enter: 0x01000005, Key_Down: 0x01000015, Key_Up: 0x01000013,
-    Key_V: 0x56, Key_3: 0x33, ShiftModifier: 0x02000000, ControlModifier: 0x04000000, AltModifier: 0x08000000, MetaModifier: 0x10000000, KeypadModifier: 0x20000000 };
+    Key_Left: 0x01000012, Key_Right: 0x01000014, Key_Space: 0x20, Key_Delete: 0x01000007, Key_F2: 0x01000031, Key_F10: 0x01000039, Key_Menu: 0x01000055,
+    Key_Z: 0x5a, Key_V: 0x56, Key_3: 0x33, ShiftModifier: 0x02000000, ControlModifier: 0x04000000, AltModifier: 0x08000000, MetaModifier: 0x10000000,
+    KeypadModifier: 0x20000000 };
   const srcs = Object.fromEntries(["PermissionCard", "QuestionCard", "ChooseCard"].map(f => [f, read(`modules/claude/${f}.qml`)]));
   const left = Object.entries(srcs).filter(([, src]) => /\bShortcut\s*\{|\bsequences?:/.test(src)).map(([f]) => f);
   check("no card keeps a Shortcut of its own, and the choose card shows no key at its rows",
@@ -75,14 +77,14 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
   const boxSrc = read("modules/claude/Composer.qml");
   const m = /Keys\.onPressed:\s*/.exec(boxSrc);
   const handler = m ? readExpression(boxSrc, m.index + m[0].length).expr : "e => {}";
-  const press = (key, { text = "", typed = "", mods = 0, aside = false, card = true } = {}) => {
+  const press = (key, { text = "", typed = "", mods = 0, aside = false, card = true, held = false } = {}) => {
     const log = [];
     const composer = { suggest: { items: [] }, aside, attachments: [], working: true, pick: 0,
       card: card ? { key: k => (log.push(`card ${k}`), true) } : null, submit: () => log.push("send"), stop: () => log.push("stop") };
     const scope = { composer, Qt, input: { text: typed }, pasteImage: {} };
     const f = qmlFunction(boxSrc, "cardKey");
     if (f) composer.cardKey = inScope(scope, f.params, f.body);
-    const e = { key, text, modifiers: mods, accepted: false };
+    const e = { key, text, modifiers: mods, accepted: false, isAutoRepeat: held };
     inScope(scope, "", `return (${handler});`)()(e);
     return log.join(",") + (e.accepted ? "" : " (to the text)");
   };
@@ -98,22 +100,44 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
   const wrong = Object.keys(want).filter(k => got[k] !== want[k]);
   check("the box hands Enter, Esc and 1-9 to the card while it is empty; typed words keep them, and Tab is the box's",
     !wrong.length, wrong.map(k => `${k}: ${JSON.stringify(got[k])} (want ${JSON.stringify(want[k])})`).join("; "));
-  // a reply's text holding the keyboard (a click to read it) passes typing on to the box, and the card's keys with it
+  // shell-praxis review r1 [1]: a held key repeats (Tacit's repeat_delay is 250 ms) into the box once its press has
+  // moved the keyboard there, as the rail's Enter does: the repeats answered the card the press never reached
+  const held = { enter: press(Qt.Key_Return, { text: "\r", held: true }), esc: press(Qt.Key_Escape, { held: true }),
+    digit: press(Qt.Key_3, { text: "3", held: true }), typed: press(Qt.Key_Return, { text: "\r", typed: "go on", held: true }) };
+  check("a held Enter, Esc or digit's repeats answer no card and do nothing else while it waits; with words in the box a held Enter sends them",
+    JSON.stringify(held) === '{"enter":"","esc":"","digit":"","typed":"send"}', JSON.stringify(held));
+  // shell-praxis review r1 [1]: a reply's text holding the keyboard (a click to read it) and the rail (claude.qml's
+  // onTyped) hand their keys to typeInto, which typed them into the box and handed the card's keys to the card: Enter on
+  // the rail's session, pressed to go and type there, allowed its waiting Bash card before it was read
   const conv = read("modules/claude/Conversation.qml");
-  const reply = (key, text, typed = "") => {
-    const log = [];
-    const composer = { aside: false, attachments: [], card: { key: k => (log.push(`card ${k}`), true) },
-      focusInput: () => log.push("focus"), insertAtCursor: t => log.push(`type ${t}`) };
+  const c = qmlFunction(boxSrc, "cardKey"), f = qmlFunction(conv, "typeInto");
+  const passOn = (from, key, text, { typed = "", bash = false } = {}) => {
+    const log = [], said = [];
+    const card = bash ? { pending: { tool: "Bash", input: { command: "rm -rf build" }, suggestions: [{}] }, canAlways: true, keyed: true, sent: false,
+      answered: (...a) => said.push(a) } : { key: k => (log.push(`card ${k}`), true) };
+    if (bash) {
+      Object.defineProperty(card, "buttons", { get: () => cardValue("buttons", card.pending) });
+      for (const name of ["key", "pick"]) { const q = qmlFunction(perm_src, name); card[name] = inScope({ card }, q.params, q.body); }
+    }
+    const composer = { aside: false, attachments: [], card, focusInput: () => log.push("focus"), insertAtCursor: t => log.push(`type ${t}`) };
     const scope = { composer, Qt, input: { text: typed } };
-    const c = qmlFunction(boxSrc, "cardKey"), f = qmlFunction(conv, "typeInto");
     if (c) composer.cardKey = inScope(scope, c.params, c.body);
+    const typeInto = inScope(scope, f.params, f.body);
     const e = { key, text, modifiers: 0, accepted: false };
-    inScope(scope, f.params, f.body)(e);
-    return log.join(",");
+    if (from === "rail") {
+      const row = { key: "s:abc", type: "session", id: "abc", session: { id: "abc" } };
+      const rail = { cursorKey: row.key, currentId: "abc", rows: [row], rowOf: k => (k === row.key ? row : null), typed: typeInto, fold: () => log.push("fold") };
+      const k = qmlFunction(read("modules/claude/SessionList.qml"), "key");
+      inScope({ rail, Qt }, k.params, k.body)(e);
+    } else typeInto(e);
+    return log.join(",") + (said.length ? ` (card ${said[0][0] ? "allowed" : "denied"})` : "");
   };
-  const fromReply = [reply(Qt.Key_Return, "\r"), reply(Qt.Key_Escape, "\u001b"), reply(Qt.Key_3, "3"), reply(Qt.Key_3, "3", "step ")];
-  check("from a reply's text the card's keys answer it as from the box, and with words in the box a digit is typed there",
-    JSON.stringify(fromReply) === '["card enter,focus","card esc,focus","card 3,focus","focus,type 3"]', JSON.stringify(fromReply));
+  const fromReply = [passOn("reply", Qt.Key_Return, "\r"), passOn("reply", Qt.Key_Escape, "\u001b"), passOn("reply", Qt.Key_3, "3"), passOn("reply", Qt.Key_3, "3", { typed: "step " })];
+  check("from a reply's text Enter gives the box the keyboard, Esc is not taken and a digit is typed into the box: no card is answered",
+    JSON.stringify(fromReply) === '["focus","","focus,type 3","focus,type 3"]', JSON.stringify(fromReply));
+  const fromRail = [passOn("rail", Qt.Key_Return, "\r", { bash: true }), passOn("rail", Qt.Key_3, "3")];
+  check("Enter on a session in the rail only gives the box the keyboard, its Bash card unanswered, and a digit there is typed into the box",
+    /onTyped:\s*e\s*=>\s*conv\.typeInto\(e\)/.test(read("claude.qml")) && JSON.stringify(fromRail) === '["focus","focus,type 3"]', JSON.stringify(fromRail));
   const at = conv.indexOf("Composer {");
   const bound = at < 0 ? "" : conv.slice(at, matchBrace(conv, conv.indexOf("{", at)) + 1).match(/\n\s*card:\s*([^\n]*)/)?.[1] ?? "";
   check("the conversation gives the box the first card waiting, when it takes keys", /asks\.itemAt\(0\)/.test(bound) && /\.keys\b/.test(bound), bound || "no card: on the Composer");

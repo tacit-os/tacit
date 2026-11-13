@@ -101,13 +101,14 @@ Item {
     }
     // The keys a waiting card answers to, from the box (which keeps the keyboard, Tab too) while nothing is typed in it:
     // Enter its first answer, Esc its no, 1-9 its nth (the card's key()). With words in the box they are the box's:
-    // Enter sends them, Esc stops the turn, a digit is typed.
+    // Enter sends them, Esc stops the turn, a digit is typed. A held key's repeats are taken and do nothing: they come
+    // to the box once its press has moved the keyboard here (the rail's Enter), and would answer this card and the next.
     function cardKey(e) {
         if (!composer.card || composer.aside || input.text.length > 0 || composer.attachments.length > 0) return false;
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false;
-        if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) return !(e.modifiers & Qt.ShiftModifier) && composer.card.key("enter");
-        if (e.key === Qt.Key_Escape) return composer.card.key("esc");
-        return /^[1-9]$/.test(e.text) && composer.card.key(Number(e.text));
+        const k = e.key === Qt.Key_Return || e.key === Qt.Key_Enter ? (e.modifiers & Qt.ShiftModifier ? null : "enter")
+            : e.key === Qt.Key_Escape ? "esc" : /^[1-9]$/.test(e.text) ? Number(e.text) : null;
+        return k !== null && (e.isAutoRepeat || composer.card.key(k));
     }
     signal stop()
     signal folderPicked(string path)

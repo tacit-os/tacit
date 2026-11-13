@@ -152,7 +152,10 @@ PreToolUse)
 	*)          line="working" ;;   # Claude's own tools (ToolSearch, Skill, ...): their ids mean nothing to a person
 	esac
 	printf '%s' "$line" > "$dir/$sid.activity"
-	qs_call activity "$sid" "$line" ;;
+	# a sub-agent's tool call comes under the session's id with its agent_id: it says nothing of the session's own
+	# permission prompt, which only the main thread's next call answers
+	aid=$(jq -r '.agent_id // ""' <<<"$input")
+	if [ -n "$aid" ]; then qs_call agentActivity "$sid" "$aid" "$line"; else qs_call activity "$sid" "$line"; fi ;;
 SubagentStart|SubagentStop)
 	# field names are defensive: agent id and a description under whichever key Claude sends
 	aid=$(jq -r '.agent_id // ""' <<<"$input")
