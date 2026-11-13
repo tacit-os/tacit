@@ -425,6 +425,7 @@ ApplicationWindow {
                             : parent.c === "asleep" && backend.disk.why === "other" ? "Tacit can't read the Windows disk yet."
                             : parent.c === "asleep" ? "Windows didn't shut down fully."
                             : parent.c === "windows" && !parent.room && backend.plan ? "There is no room next to Windows."
+                            : parent.c === "small" ? "This disk is too small for Tacit."
                             : parent.c === "none" ? "There is no disk to install on."
                             : parent.c === "empty" ? "Tacit will use the whole disk."
                             : "Where should Tacit go?"
@@ -445,6 +446,7 @@ ApplicationWindow {
                             : parent.c === "linux" ? `This computer has Linux on its ${parent.size} disk.${parent.noNext}`
                             : parent.c === "empty" && root.windowsElsewhere ? `This ${parent.size} disk is empty. Windows, on the other disk, stays as it is.`
                             : parent.c === "empty" ? `This computer's ${parent.size} disk is empty.`
+                            : parent.c === "small" ? `Tacit needs a disk of 32 GB or more, and this one is ${parent.size}.${backend.disks.length > 1 ? " Choose another disk." : ""}`
                             : parent.c === "none" ? "Tacit found no disk inside this computer. The USB stick it runs from can't be used."
                             : `This computer's disk is ${parent.size}.${parent.noNext}`
                     }
@@ -474,7 +476,7 @@ ApplicationWindow {
                         // one way only (an empty disk) is no choice: the headline says it. A locked Windows can be erased too,
                         // which needs nothing read from it (the erase page asks once more)
                         Choice {
-                            visible: !["none", "looking", "choose", "nouefi", "empty"].includes(parent.parent.c)
+                            visible: !["none", "looking", "choose", "nouefi", "empty", "small"].includes(parent.parent.c)
                             width: Look.px(600)
                             name: root.isWindows(backend.disk) ? "Instead of Windows" : "Instead of what is on it"
                             on: setup.place === "instead" || (!parent.parent.room && !parent.parent.locked)
@@ -482,7 +484,7 @@ ApplicationWindow {
                             onPicked: setup.place = "instead"
                         }
                         T {
-                            visible: !(backend.power.ac ?? true) && !["none", "looking", "choose", "nouefi"].includes(parent.parent.c) && (!parent.parent.locked || setup.place === "instead")
+                            visible: !(backend.power.ac ?? true) && !["none", "looking", "choose", "nouefi", "small"].includes(parent.parent.c) && (!parent.parent.locked || setup.place === "instead")
                             width: Look.px(600); wrapMode: Text.Wrap
                             horizontalAlignment: parent.parent.c === "empty" ? Text.AlignHCenter : Text.AlignLeft
                             text: "Plug in the charger. Installing takes about 10 minutes."
@@ -846,6 +848,7 @@ ApplicationWindow {
     })[shownPage] ?? (shownPage === "where" ? (!backend.disksRead ? "Continue"
                                                 : backend.disk.case === "choose" ? "Choose a disk"
                                                 : ["bitlocker", "asleep"].includes(backend.disk.case) ? (setup.place === "instead" ? "Continue" : "Restart into Windows")
+                                                : backend.disk.case === "small" ? (backend.disks.length > 1 ? "Choose a disk" : "Turn off")
                                                 : backend.disk.case === "none" ? "Turn off"
                                                 : backend.disk.case === "nouefi" ? "Restart"
                                                 : (backend.plan?.room ?? false) && setup.place === "next" ? (root.other === "it" ? "Install" : `Install next to ${root.other}`)
@@ -905,6 +908,13 @@ ApplicationWindow {
             if (!backend.disksRead) break;      // the disks are still being read
             const c = backend.disk.case ?? "none";
             if (c === "choose") { setup.go("disks"); break; }
+            // a disk under the 32 GB Tacit needs: another disk, or nothing to do here
+            if (c === "small") {
+                if (backend.disks.length > 1) setup.go("disks");
+                else if (backend.practice) root.endPractice();
+                else backend.send({ op: "off" });
+                break;
+            }
             // "Restart into Windows" and "Turn off" do that on the stick (they only closed Setup there)
             if (c === "bitlocker" || c === "asleep" || c === "nouefi" || c === "none") {
                 if (c !== "none" && setup.place === "instead") { setup.go("erase"); break; }
@@ -922,8 +932,9 @@ ApplicationWindow {
         case "eraseparts": setup.startManual(); break;
         case "you": if (!root.primaryLater) root.afterQuestions(); break;
         case "ready": if (backend.practice) root.endPractice(); else backend.send({ op: "restart" }); break;
-        // the disks are read again (a failed install may have changed them), and Back and Esc lead on from the page it shows
-        case "failed": setup.installState = ""; setup.trail = ["welcome", "wifi"]; setup.page = "where"; backend.send({ op: "disks" }); break;
+        // the disks are read again (a failed install may have changed them), and Back and Esc lead on from the page it shows;
+        // until they are, the page says it is looking and nothing can start on what they were
+        case "failed": setup.installState = ""; setup.trail = ["welcome", "wifi"]; backend.disksRead = false; setup.page = "where"; backend.send({ op: "disks" }); break;
         }
     }
     function afterQuestions() {

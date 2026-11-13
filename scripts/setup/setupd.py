@@ -7,7 +7,7 @@
 # its free room, and how small Windows can go. Anywhere else it is a PRACTICE run: it reads the computer and plays the install, but writes to no disk,
 # joins no network and creates no account.
 #
-# TACIT_SETUP_SCENARIO=windows|bitlocker|asleep|nouefi|full|empty|linux|linuxroom  shows a disk case this computer does not have
+# TACIT_SETUP_SCENARIO=windows|bitlocker|asleep|nouefi|full|empty|small|linux|linuxroom  shows a disk case this computer does not have
 #                     two                                   two disks: Windows on one, the other empty
 #                     check|unread                          Windows with a disk check waiting, or a partition not read
 # TACIT_SETUP_FAIL=1                                       the practice install stops at 60 %
@@ -128,13 +128,18 @@ def wired():
 
 # The time zone where this computer is, from its internet address (Ubuntu's lookup, which its installer uses for the
 # same), set on the live system so Setup's clock is right, and handed to tacit-install; "" offline or for a name the
-# system does not have, and the installed system keeps UTC. Every install was UTC until 2026-10-16.
+# system does not have, and the installed system keeps UTC. Every install was UTC until 2026-10-16. Asked at the first
+# hello, after a Wi-Fi join and, when still not found, as the answers go to tacit-install; one ask at a time
 zone = {"name": ""}
+zone_lock = threading.Lock()
 def find_zone():
-    m = re.search(r"<TimeZone>([A-Za-z0-9_+/-]+)</TimeZone>", run("curl", "-fsS", "--max-time", "6", "https://geoip.ubuntu.com/lookup", timeout=8))
-    if m and os.path.isfile(f"/usr/share/zoneinfo/{m.group(1)}"):
-        zone["name"] = m.group(1)
-        as_root("timedatectl", "set-timezone", zone["name"])
+    with zone_lock:
+        if zone["name"]:
+            return
+        m = re.search(r"<TimeZone>([A-Za-z0-9_+/-]+)</TimeZone>", run("curl", "-fsS", "--max-time", "6", "https://geoip.ubuntu.com/lookup", timeout=8))
+        if m and os.path.isfile(f"/usr/share/zoneinfo/{m.group(1)}"):
+            zone["name"] = m.group(1)
+            as_root("timedatectl", "set-timezone", zone["name"])
 
 # ------------------------------------------------------------------ disks (read only)
 def as_root(*cmd):
@@ -329,6 +334,8 @@ def fake_disk(case):
     if case == "unread":
         return dict(disk, case="asleep", why="other", says="This software has detected that the NTFS volume is already "
                     "opened by another software thus it refuses to progress to preserve data consistency.")
+    if case == "small":     # a tablet's 29 GB of eMMC
+        return dict(disk, name="/dev/mmcblk0", model="eMMC", size=29 * GB, case="empty", parts=[])
     return dict(disk, case=case)
 
 def plan(d):
@@ -385,9 +392,13 @@ def no_next(d):
     return no_room(d, pl)
 
 def shown_disk(d):
-    """The disk as Setup is told of it: with noNext, and as the case "nouefi" where nothing can be installed."""
+    """The disk as Setup is told of it: with noNext, as the case "nouefi" where nothing can be installed, and as "small"
+    under the 32 GB tacit-install refuses (a lone 16 GB disk said "Tacit will use the whole disk", and the refusal came
+    only after Install, with a Try again that could not work)."""
     if d.get("case") != "none" and not uefi():
         return dict(d, case="nouefi")
+    if d.get("case") not in ("none", "choose") and d.get("size", 0) < MIN_TACIT:
+        return dict(d, case="small")
     return dict(d, noNext=no_next(d))
 
 # ------------------------------------------------------------------ power
@@ -503,12 +514,17 @@ def send_answers():
 # message ("disks"), and one read runs at a time.
 surveying = threading.Lock()
 zone_asked = threading.Event()
+# the disks as the last read found them, which a disk chosen from the list and the install go by: each read every disk
+# again, as root, beside a read that could still be running, so slow NTFS reads hit their 60 s limit and the chosen disk
+# could show as unreadable. Only a survey reads them again (Try again, the partition editor closed, a slow drive)
+last = {"disks": None}
 
 def survey():
     if not surveying.acquire(blocking=False):
         return
     try:
         many = all_disks()          # every disk read once (it was read twice: once for the disk, once for the list)
+        last["disks"] = many
         d = disks(many)
         # the disk list only where there is a choice to make
         listed = [dict(x, plan=show(x), noNext=no_next(x)) for x in many] if len(many) > 1 else []
@@ -535,7 +551,7 @@ def act(req):
     elif op == "disk":
         if not install["running"]:
             chosen["name"] = req.get("name")
-        d = disks()
+        d = disks(last["disks"])
         emit({"ev": "disk", "disk": shown_disk(d), "plan": show(d)})
     elif op == "power":
         emit({"ev": "power", "power": power()})
@@ -565,8 +581,8 @@ def act(req):
             threading.Thread(target=find_zone, daemon=True).start()
         emit({"ev": "join", "ssid": req.get("ssid"), "ok": ok, "why": why})
     elif op == "install":
-        # claimed before the disks are read again (seconds, as root, on a computer with several drives): a second
-        # request in that time started a second installer on the same disk
+        # claimed before the disks are looked at (a read still running is waited for): a second request in that time
+        # started a second installer on the same disk
         with starting:
             if install["running"]:
                 return
@@ -580,7 +596,8 @@ def act(req):
                 manual = {k: req.get(k) for k in ("root", "efi", "boot")}
                 threading.Thread(target=real_install, args=(None, "manual", None, manual), daemon=True).start()
             elif REAL:
-                d = disks()
+                with surveying:     # a read of disks a failed install changed, still running, is the one to go by
+                    d = disks(last["disks"])
                 pl = plan(d)
                 # "next to" is never turned into an erase: without room it stops before anything changes. Room shown
                 # earlier goes ahead on the shown plan: tacit-install measures again before it shrinks anything and stops
@@ -615,6 +632,9 @@ def act(req):
         threading.Thread(target=edit, daemon=True).start()
     elif op == "answers":
         if REAL:
+            # a cable that connected after Setup started, or a network that came after "Not now" on Wi-Fi, was never
+            # asked: the installed system kept UTC with nothing said. Asked once more here (8 s at most) when none is known
+            find_zone()
             install["answers"] = {k: v for k, v in req.items() if k != "op"}
             install["answers"]["timezone"] = zone["name"]
             send_answers()

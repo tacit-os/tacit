@@ -333,7 +333,33 @@ def make_room(disk, keep):
     state["touched"] = True
     sh("sgdisk", f"-n{boot_n}:{first}:{boot_last}", f"-t{boot_n}:ea00", f"-c{boot_n}:Tacit boot",
        f"-n{root_n}:{boot_last + 1}:{last}", f"-t{root_n}:8304", f"-c{root_n}:Tacit", disk)
+    state["made"] = (disk, first, last, ((boot_n, "Tacit boot"), (root_n, "Tacit")))
     return esp[0], part_dev(disk, boot_n), part_dev(disk, root_n)
+
+
+def unmake():
+    """Tacit's two partitions next to another system, made by this run, taken away again when it stops before Tacit is
+    what the computer starts: left, they held the free room, and Try again offered to shrink Windows a second time beside
+    them. Both or neither, and only while each is still the one made here (its number and name, inside the stretch that
+    was free) with nothing mounted from it; Windows keeps the size it was given. What is left is said in the log."""
+    made = state.pop("made", None)
+    if not made:
+        return
+    disk, first, last, parts = made
+    try:
+        now = {p["node"]: p for p in table(disk)["partitions"]}
+        for n, name in parts:
+            p = now.get(part_dev(disk, n))
+            if not p or p.get("name") != name or p["start"] < first or p["start"] + p["size"] - 1 > last:
+                raise Refused(f"{part_dev(disk, n)} is not the partition this install made")
+            if sh("lsblk", "-nro", "MOUNTPOINTS", p["node"]).strip():
+                raise Refused(f"{p['node']} is in use")
+        sh("sgdisk", *[f"-d{n}" for n, _ in parts], disk)
+        subprocess.run(["partprobe", disk], capture_output=True)
+        subprocess.run(["udevadm", "settle"], capture_output=True)
+        print("removed the partitions this install made: " + " ".join(part_dev(disk, n) for n, _ in parts), file=sys.stderr)
+    except Exception as e:      # the failure is still told to Setup
+        print(f"the partitions this install made are left: {e}", file=sys.stderr)
 
 
 def image():
@@ -739,6 +765,8 @@ def main():
                 raise Refused("Setup went away before the account was made")
             answers = json.loads(line).get("answers")
         account(answers)
+        # from here the firmware may start Tacit: what was made next to the other system stays, whatever happens
+        state.pop("made", None)
         make_default(first.get("place", "instead"), *boot)
         finish()
         say(dict({"state": "done", "done": 1.0}, **({"other": state["other"]} if state.get("other") else {})))
@@ -751,6 +779,7 @@ def main():
         if not isinstance(e, Refused):
             traceback.print_exc()
         subprocess.run(["umount", "-R", TARGET], capture_output=True)
+        unmake()
         say({"state": "failed", "reason": reason, "step": state["step"], "untouched": not state["touched"]})
 
 
