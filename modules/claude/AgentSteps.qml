@@ -81,6 +81,8 @@ Item {
     onFlowChanged: {
         if (steps.flow && steps.pending === "signin") steps.pending = "";
         if (steps.flow?.step === "done") steps.finish();
+        // every step is a push of its own: a code step while one is checked is the host asking again (it was refused)
+        if (steps.flow?.step === "code") steps.checkingCode = false;
     }
     Connections {
         target: steps.model
@@ -186,6 +188,9 @@ Item {
         // why the last install did not happen: the host's refusal, or the install's failed step
         const instFail = steps.refusal?.kind === "install" ? steps.refusal.message
             : m.install?.agent === steps.agent && m.install.step === "failed" ? (m.install.line ?? "") : null;
+        // agent-host gets Node.js as the Apps window gets an app, so not while system updates wait (install.rs NODE_UPDATE)
+        const updates = instFail === "Node.js needs a system update first"
+            ? { word: "Open Updates", out: true, run: () => SettingsApp.open("about:updates") } : null;
         switch (steps.shown) {
         case "signedOut":
             return { methods: steps.signInMethods(), actions: [checkAgain] };
@@ -201,9 +206,15 @@ Item {
             ].filter(x => x) };
         case "starting":
             return { spin: true, line: "Starting the sign-in…", actions: [cancel] };
-        case "code":
+        case "code": {
             if (steps.checkingCode) return { spin: true, line: "Checking the code…", actions: [cancel] };
-            return { field: true, sub: steps.refusal?.kind === "code" ? `The code didn't go through: ${steps.refusal.message}` : "", actions: [cancel] };
+            // the host's code step: the page that shows the code (a new one when opencode 2 started again), and why it
+            // asks again
+            const page = steps.flow?.step === "code" ? (steps.flow.url ?? "") : "";
+            return { field: true, sub: steps.refusal?.kind === "code" ? `The code didn't go through: ${steps.refusal.message}`
+                                                                      : steps.flow?.step === "code" ? (steps.flow.message ?? "") : "",
+                     actions: [page ? { word: "Open the page", run: () => Qt.openUrlExternally(page) } : null, cancel].filter(x => x) };
+        }
         case "device": {
             const where = (steps.flow?.url ?? "").replace(/^https?:\/\//, "");
             return { rich: true,
@@ -250,17 +261,18 @@ Item {
                      actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
         case "noKeyring":
             // no Secret Service answered: a key account has nowhere to read its key from until one does
-            return { line: "The keyring isn't running", actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
+            return { line: "The keyring isn't running", sub: "Sign out and in again to start it",
+                     actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
         case "notInstalled":
             return { line: "Not installed", sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
-                     actions: [{ word: "Install", run: () => steps.install(false) }, checkAgain] };
+                     actions: [updates, { word: "Install", run: () => steps.install(false) }, checkAgain].filter(x => x) };
         case "installing":
             return { spin: true, lineMono: true, line: m.install?.step === "running" && m.install.line || `Installing ${name}…`,
                      actions: [{ word: "Cancel", run: () => { steps.pending = ""; m.cancelInstall(steps.agent); } }] };
         case "needsNode":
             return { line: `${name} needs one more install first. Installing both asks for your password.`,
                      sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
-                     actions: [{ word: "Install both", run: () => steps.install(true) }, checkAgain] };
+                     actions: [updates, { word: "Install both", run: () => steps.install(true) }, checkAgain].filter(x => x) };
         case "done": {
             const a = Object.assign({}, steps.acct ?? {}, steps.flow?.who ?? {});
             return { check: true, line: steps.standing === "ready" ? m.factsOf(steps.agent, steps.accountId) : (m.planWords(a) || "Signed in") };

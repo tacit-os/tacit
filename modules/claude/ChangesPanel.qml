@@ -14,7 +14,8 @@ import "Highlight.js" as Highlight
  * this session (every file it touched), or everything uncommitted in the repository; those two
  * compared with the last commit. A file opens to its hunks (the app's
  * DiffView); a hunk can be opened in Code at its line, kept (marked reviewed, remembered per
- * session) or reverted, with an undo for the last revert. The hunks and the revert come from
+ * session) or reverted (asked first when the file changed after the agent's edit), with an undo
+ * for the last revert. The hunks and the revert come from
  * ~/.local/bin/claude-review, which Code uses too. Each file is reviewed in its own repository
  * (a session in ~ often edits several); a file in none is listed without hunks.
  *
@@ -60,6 +61,8 @@ Item {
     property bool loaded: false
     property string error: ""
     property var lastRevert: null     // { file, line, undo, repo }
+    property var asking: null         // { file, hunk }: a revert held back, the file having changed since the agent's edit
+    property var ownAt: ({})          // abs -> when a revert or undo here last wrote the file (ms): not someone else's change
     property var open: ({})           // path -> expanded
     property string cursor: ""        // the file the keys act on
     function step(by) {
@@ -91,6 +94,7 @@ Item {
             if (e.key === Qt.Key_Down) { panel.step(1); e.accepted = true; }
             else if (e.key === Qt.Key_Up) { panel.step(-1); e.accepted = true; }
             else if (e.key === Qt.Key_Space) { panel.reviewCursor(); e.accepted = true; }
+            else if (e.key === Qt.Key_Escape && panel.asking) { panel.asking = null; e.accepted = true; }
             else if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) {
                 const f = panel.shownFiles.find(x => x.abs === panel.cursor);
                 if (f) panel.openAt(f.abs, (f.hunks ?? [])[0]?.line ?? 0, true);
@@ -262,7 +266,7 @@ Item {
         Qt.callLater(panel.refresh);   // after scopeFiles has followed the scope
     }
     onChangesChanged: refreshLater.restart()
-    onCwdChanged: { panel.cache = ({}); panel.lastRevert = null; panel.error = ""; panel.loaded = false; refreshLater.restart(); }
+    onCwdChanged: { panel.cache = ({}); panel.lastRevert = null; panel.asking = null; panel.error = ""; panel.loaded = false; refreshLater.restart(); }
     // All of this belongs to one session: comments written for it, its commit sheet, its last
     // commit. Two chats in the same project share a cwd, so the reset above cannot stand in.
     onSessionIdChanged: {
@@ -280,6 +284,7 @@ Item {
         panel.drafting = false;
         panel.sentNote = "";
         panel.lastRevert = null;
+        panel.asking = null;
         panel.error = "";
         panel.loaded = false;
         refreshLater.restart();
@@ -331,17 +336,37 @@ Item {
         actProc.running = true;
         return true;
     }
-    function revert(file, hunk) {
-        panel.act(["revert", panel.cwd, file.abs, hunk.id], out => {
+    // When the agent's last edit of a file had surely been written (ms; 0: not known): the time of the first item after
+    // it that is not another call. A call's own time is when it was asked for, before any permission wait; the words
+    // or the message that follow come after its result.
+    function editDone(abs) {
+        const its = panel.items;
+        const absOf = p => p.startsWith("~/") ? panel.home + p.substring(1) : p.startsWith("/") ? p : `${panel.cwd}/${p}`;
+        let i = its.length - 1;
+        while (i >= 0 && !(its[i].kind === "tool" && its[i].error !== true && (its[i].files ?? []).some(f => absOf(f.path) === abs))) i--;
+        if (i < 0) return 0;
+        for (let j = i + 1; j < its.length; j++)
+            if (its[j].kind !== "tool" && (its[j].ts ?? 0) > 0) return its[j].ts;
+        return 0;
+    }
+    // anyway: asked and answered; otherwise a file written since the agent's edit (by the person, or anything but this
+    // panel) is left alone and the panel asks first
+    function revert(file, hunk, anyway) {
+        const done = anyway ? 0 : panel.editDone(file.abs);
+        const since = done ? Math.max(done, panel.ownAt[file.abs] ?? 0) : 0;
+        panel.asking = null;
+        panel.act(["revert", panel.cwd, file.abs, hunk.id].concat(since ? [String(since)] : []), out => {
             let r = {};
             try { r = JSON.parse(out); } catch (e) {}
-            panel.lastRevert = r.undo ? { file: file.path, line: hunk.line, undo: r.undo, repo: file.repo } : null;
+            if (r.changed) { panel.asking = { file: file, hunk: hunk }; return; }
+            panel.ownAt[file.abs] = Date.now();
+            panel.lastRevert = r.undo ? { file: file.path, line: hunk.line, undo: r.undo, repo: file.repo, abs: file.abs } : null;
         });
     }
     function undoRevert() {
         if (!panel.lastRevert) return;
         const u = panel.lastRevert;
-        panel.act(["restore", u.repo || panel.cwd, u.undo], () => panel.lastRevert = null);
+        panel.act(["restore", u.repo || panel.cwd, u.undo], () => { panel.ownAt[u.abs] = Date.now(); panel.lastRevert = null; });
     }
     function draftMessage() {
         // the draft replaces what the box held when Draft was pressed, not what was typed while Claude wrote it
@@ -496,6 +521,34 @@ Item {
                 font.pixelSize: 13
                 color: undoArea.containsMouse ? Appearance.colors.colInkMain : Appearance.colors.colInkSecondary
                 MouseArea { id: undoArea; anchors { fill: parent; margins: -4 } hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.undoRevert() }
+            }
+        }
+        // a revert held back until it is answered (Esc is Cancel)
+        Flow {
+            visible: panel.asking !== null
+            width: parent.width
+            spacing: 6
+            StyledText { text: `${panel.asking?.file.path.split("/").pop() ?? ""}:${panel.asking?.hunk.line ?? ""}`; font.pixelSize: 12; color: Appearance.colors.colInkSecondary }
+            StyledText { text: "·"; font.pixelSize: 13; color: Appearance.colors.colInkSecondary }
+            StyledText {
+                width: Math.min(implicitWidth, parent.width)
+                text: "This file changed after the agent's edit. Revert anyway?"
+                wrapMode: Text.Wrap
+                font.pixelSize: 12
+                color: Appearance.colors.colInkMain
+            }
+            StyledText {
+                text: "Revert"
+                font.pixelSize: 13
+                color: anywayArea.containsMouse ? Appearance.colors.colInkMain : Appearance.colors.colInkSecondary
+                MouseArea { id: anywayArea; anchors { fill: parent; margins: -4 } hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.revert(panel.asking.file, panel.asking.hunk, true) }
+            }
+            StyledText { text: "·"; font.pixelSize: 13; color: Appearance.colors.colInkSecondary }
+            StyledText {
+                text: "Cancel"
+                font.pixelSize: 13
+                color: keepArea.containsMouse ? Appearance.colors.colInkMain : Appearance.colors.colInkSecondary
+                MouseArea { id: keepArea; anchors { fill: parent; margins: -4 } hoverEnabled: true; cursorShape: Qt.PointingHandCursor; onClicked: panel.asking = null }
             }
         }
         StyledText {

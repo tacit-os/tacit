@@ -412,12 +412,13 @@ Item {
     // why a session's process crashed (session id -> text): the 8 s error line was gone before anyone came back to
     // it, and a crash in another session never showed. Kept until that session's next message, or Dismiss.
     property var crashes: ({})
-    readonly property string crashNote: conv.session ? (conv.crashes[conv.session.id] ?? "") : ""
+    // agent-host's session state says ended "oom" until the session's next process starts: so said also when the
+    // exit came while Praxis was away
+    readonly property string oomWords: "This session ran out of memory and was stopped."
+    readonly property string crashNote: conv.session ? (conv.crashes[conv.session.id] ?? (conv.live?.ended === "oom" ? conv.oomWords : "")) : ""
+    // "" (a message sent, or Dismiss) stands over what the state still says until its next process
     function setCrash(id, text) {
-        const c = Object.assign({}, conv.crashes);
-        if (text.length) c[id] = text;
-        else delete c[id];
-        conv.crashes = c;
+        conv.crashes = Object.assign({}, conv.crashes, { [id]: text });
     }
     property var lastSent: null
     // ── going back, and asking aside ──────────────────────────────────────────
@@ -1167,7 +1168,7 @@ Item {
     // the list's 20 s refresh hands over a new copy of the same session: keep what is on screen
     property string loadedKey: ""
     property var drafts: ({})          // session key -> { text, files } typed there and not sent
-    property var asksKept: ({})        // request -> a question card's half answer (QuestionCard.half), while the app runs
+    property var asksKept: ({})        // request -> a question or choose card's half answer (its half), while the app runs
     // something typed and not sent, here or in another session, or a message queued behind the turn or still on its way
     // (the queue lives only here): what a quit would throw away
     readonly property bool hasDraft: composer.text.trim().length > 0 || composer.attachments.length > 0 || Object.keys(conv.drafts).length > 0
@@ -1438,8 +1439,9 @@ Item {
                 if (data.total_cost_usd) conv.cost = data.total_cost_usd;
             }
         }
-        function onExited(id, reason, stderr) {
-            if (reason === "crashed") {
+        function onExited(id, reason, stderr, ended) {
+            if (ended === "oom") conv.setCrash(id, conv.oomWords);
+            else if (reason === "crashed") {
                 const why = (stderr ?? []).map(l => String(l).trim()).filter(l => l.length).pop() ?? "";
                 const agent = conv.session && id === conv.session.id ? conv.agentName : (conv.agentNames[conv.host.live[id]?.tool] ?? "The session");
                 conv.setCrash(id, why.length ? `${agent} stopped unexpectedly: ${why}` : `${agent} stopped unexpectedly. Send again to pick up where it left off.`);
@@ -1647,8 +1649,10 @@ Item {
     }
     function focusComposer() { composer.focusInput(); }
     // Clicking a reply or a code block to read it moves the focus into that text, which then eats
-    // what you type. Read-only text passes the key on, so it is caught here and typed into the box.
+    // what you type. Read-only text passes the key on, so it is caught here and typed into the box; a waiting card's
+    // keys go to it as from the box.
     function typeInto(e) {
+        if (composer.cardKey(e)) { composer.focusInput(); e.accepted = true; return; }
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return;
         if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) { composer.focusInput(); e.accepted = true; return; }
         // a control character is no letter: Delete's text is DEL (127), which went into the box unseen
@@ -2637,6 +2641,7 @@ Item {
             }
         }
         Repeater {
+            id: asks
             model: askRows
             delegate: Loader {
                 id: ask
@@ -2670,6 +2675,8 @@ Item {
                     ChooseCard {
                         pending: ask.modelData
                         keys: ask.keys
+                        kept: conv.asksKept[ask.request] ?? null
+                        onHalfChanged: conv.asksKept[ask.request] = half
                         maxHeight: (conv.height - header.height) * 0.6
                         onAnswered: input => conv.answer({ op: "answer", id: conv.session.id, request: ask.modelData.request, allow: true, input: input })
                         onDeclined: conv.answer({ op: "answer", id: conv.session.id, request: ask.modelData.request, allow: false })
@@ -2771,6 +2778,7 @@ Item {
             // (those stop from the agents panel)
             working: conv.turnOpen
             locked: conv.locked
+            card: { asks.count; const a = asks.itemAt(0); return a?.keys ? a.item : null; }
             fresh: conv.session?.fresh ?? false
             folder: conv.session?.cwd ?? ""
             folders: conv.folders

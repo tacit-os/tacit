@@ -318,6 +318,12 @@ ApplicationWindow {
         host: host
         stage: root.stage
         onDeleted: (id, error) => {
+            // agent-host's words for a turn its previous process is finishing: that one it can stop first (a terminal's
+            // process it never does, and says "Open in a terminal")
+            if (error === "Still finishing a turn from before the background service restarted") {
+                rail.notice(`Not deleted: ${error}`, { word: "Stop it and delete", run: () => fm.sendDelete(id, fm.byId[id]?.tool || "claude", true) });
+                return;
+            }
             if (error.length) { rail.notice(`Not deleted: ${error}`); return; }
             if (id !== root.selectedId) return;
             // the open session went: a new one in its folder, and the keyboard stays where it was

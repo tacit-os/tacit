@@ -361,7 +361,8 @@ Item {
     // session was archived again, so it stayed in Archived and "deleted" was a lie.
     // false while agent-host is not connected: a request then would get no answer, so the undo row
     // stays and a later tick sends it.
-    function sendDelete(id, tool) {
+    // stop: a turn agent-host's previous process is finishing is ended first (its delete's `stop`), as Stop ends it
+    function sendDelete(id, tool, stop) {
         if ((tool === "codex" || tool === "opencode") && !fm.archived.includes(id)) {
             fm.toggleArchive(id);
             return true;
@@ -372,7 +373,7 @@ Item {
         const s = Object.assign({}, fm.sent);
         s[id] = Date.now();
         fm.sent = s;
-        fm.host.request({ op: "delete", id: id }, m => {
+        fm.host.request(Object.assign({ op: "delete", id: id }, stop ? { stop: true } : {}), m => {
             const waited = id in fm.sent;
             if (waited) { const s2 = Object.assign({}, fm.sent); delete s2[id]; fm.sent = s2; }
             if (m.ev === "deleted") {

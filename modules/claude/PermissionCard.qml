@@ -45,23 +45,23 @@ Rectangle {
     readonly property var buttons: {
         switch (card.pending.tool) {
         case "Door": return [
-            { label: "Allow once", accent: true, allow: true, input: { scope: "once" }, keys: ["Alt+Return", "Alt+Enter"] },
-            { label: "This session", accent: false, allow: true, input: { scope: "session" }, keys: ["Alt+S"] },
-            { label: "This folder", accent: false, allow: true, input: { scope: "folder" }, keys: ["Alt+F"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }];
+            { label: "Allow once", accent: true, allow: true, input: { scope: "once" } },
+            { label: "This session", accent: false, allow: true, input: { scope: "session" } },
+            { label: "This folder", accent: false, allow: true, input: { scope: "folder" } },
+            { label: "Deny", accent: false, allow: false }];
         case "Wall": return [
-            { label: "Open the folder", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }];
+            { label: "Open the folder", accent: true, allow: true },
+            { label: "Deny", accent: false, allow: false }];
         // Claude Code's own two answers to a plan: Always allow had nothing to remember, and Deny read as a refusal
         case "ExitPlanMode": return [
-            { label: "Start on this plan", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
-            { label: "Keep planning", accent: false, allow: false, keys: ["Alt+N"],
+            { label: "Start on this plan", accent: true, allow: true },
+            { label: "Keep planning", accent: false, allow: false,
               message: "The user wants to keep planning. Stay in plan mode and wait for them to say what to change." }];
         }
         return [
-            { label: "Allow once", accent: true, allow: true, keys: ["Alt+Return", "Alt+Enter"] },
-            { label: "Always allow", accent: false, allow: true, always: true, keys: ["Alt+Shift+Return", "Alt+Shift+Enter"] },
-            { label: "Deny", accent: false, allow: false, keys: ["Alt+N"] }
+            { label: "Allow once", accent: true, allow: true },
+            { label: "Always allow", accent: false, allow: true, always: true },
+            { label: "Deny", accent: false, allow: false }
         ].filter(b => !b.always || card.canAlways);
     }
     // what an edit will change, drawn as a finished one is (DiffView): the path alone asked for a yes to an edit
@@ -81,11 +81,17 @@ Rectangle {
     // answered: the card stays until the host takes the request away; a second click answered a closed
     // request and put up "That request had already closed"
     property bool sent: false
-    // keys for the card on top (a second card waiting would share them): the buttons were mouse-only.
-    // Each button takes its own (`keys` in `buttons`): Alt chords, as the composer keeps the keyboard while the card
-    // is up, and Ctrl+Enter there, meant to send a reply, allowed the request instead
+    // the card on top (a second card waiting waits its turn) answers to the keys the box hands it while nothing is
+    // typed there (Composer.cardKey), one set on every card: Enter its first answer, Esc the one that says no, 1-9 the
+    // answer in that place
     property bool keys: true
     readonly property bool keyed: card.keys && card.visible && !card.sent
+    function key(k) {
+        const b = k === "enter" ? card.buttons[0] : k === "esc" ? card.buttons.find(x => !x.allow) : card.buttons[k - 1];
+        if (!card.keyed || !b) return false;
+        card.pick(b);
+        return true;
+    }
     opacity: card.sent ? 0.6 : 1
     // still here well after the answer (it did not reach the host): it can be answered again
     Timer { running: card.sent; interval: 5000; onTriggered: card.sent = false }
@@ -186,11 +192,6 @@ Rectangle {
                     Keys.onSpacePressed: card.pick(modelData)
                     border.width: activeFocus ? 1.5 : modelData.allow ? 0 : 1
                     border.color: activeFocus ? Appearance.colors.colInkMain : ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.82)
-                    Shortcut {
-                        sequences: modelData.keys ?? []
-                        enabled: card.keyed
-                        onActivated: card.pick(modelData)
-                    }
                     StyledText {
                         id: btnText
                         anchors.centerIn: parent

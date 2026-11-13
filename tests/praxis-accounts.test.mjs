@@ -1,7 +1,7 @@
 // What Praxis says of an account that cannot start a session yet (modules/claude/AccountsModel.qml, Composer.qml,
-// AgentSteps.qml, PrefsSheet.qml): the state agent-host pushes, in words, with a way on. The files' own functions and
-// bindings run under node with a pretend host.
-import { inScope, qmlFunction, qmlProperty } from "./lib/qml.mjs";
+// AgentSteps.qml, PrefsSheet.qml, and the Settings app's account row): the state agent-host pushes, in words, with a way
+// on. The files' own functions and bindings run under node with a pretend host.
+import { inScope, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 const accSrc = read("modules/claude/AccountsModel.qml"), boxSrc = read("modules/claude/Composer.qml");
@@ -53,6 +53,17 @@ console.log("What Praxis says of an account that needs a step (modules/claude/Ac
   const sheet = { needs, accounts: acc };
   const line = value(prefsSrc, "needLine", { sheet }), anchor = value(prefsSrc, "needAnchor", { sheet });
   check("the preferences sheet names it too, with no Settings link that has nothing to set", /keyring/i.test(line) && anchor === "", `"${line}", anchor "${anchor}"`);
+
+  // the owner's words (r3): what to do about it, not only what is wrong; the Settings app's row had none
+  const said = "The keyring isn't running. Sign out and in again to start it.";
+  const settings = read("tacit-settings.qml"), accPage = { accounts: [acc.account("k1")] };
+  for (const f of ["facts", "accountsOf", "defaultOf", "planText", "providerName", "keyProvider"]) {
+    const q = qmlFunction(settings, f);
+    if (q) accPage[f] = inScope({ accPage, Qt: { formatDate: () => "" } }, q.params, q.body);
+  }
+  const row = accPage.facts ? accPage.facts(acc.account("k1")) : "";
+  check("the box and the cove say how to start it, and so does the Settings app's account row",
+    newOne.line === said && `${view.line}. ${view.sub}.` === said && row === said, `box "${newOne.line}", cove "${view.line}" / "${view.sub}", Settings "${row}"`);
 }
 
 // later-praxis-1 [9] a key marked refused (one provider hiccup is enough) or missing offered only Replace in Settings,
@@ -74,6 +85,61 @@ console.log("What Praxis says of an account that needs a step (modules/claude/Ac
   check("a refused or missing key offers Check again beside Replace in Settings, which asks the host and says Checking…",
     [refused, none].every(r => JSON.stringify(r.words) === '["Replace in Settings","Check again"]' && JSON.stringify(r.checked) === '[""]' && r.during === "checking"),
     `refused ${JSON.stringify(refused)}, no key ${JSON.stringify(none)}`);
+}
+
+// decisions2 a2 (the owner's): agent-host gets Node.js as the Apps window gets an app, and refuses while system updates
+// wait; the cove showed the refusal with only Install both, which could not work until the system was updated
+{
+  const view = line => {
+    const acc = model("ready");
+    acc.install = { agent: "claude", step: "failed", line };
+    const opened = [];
+    const steps = { agent: "claude", accountId: "k1", shown: "needsNode", acct: acc.account("k1"), refusal: null, flow: null, model: acc,
+      settingsRequested() {}, checkAgain() {}, cancelSignIn() {}, install() {} };
+    const v = value(stepsSrc, "view", { steps, Qt: {}, Quickshell: {}, SettingsApp: { open: page => opened.push(page) } });
+    const words = (v.actions ?? []).map(a => a.word);
+    (v.actions ?? []).find(a => a.word === "Open Updates")?.run();
+    return { mono: v.mono, words, opened };
+  };
+  const waits = view("Node.js needs a system update first"), other = view("npm error 404 Not Found");
+  check("Node.js refused while updates wait: the line offers Open Updates, which opens Settings at Updates; another failure does not",
+    waits.mono === "Node.js needs a system update first" && waits.words[0] === "Open Updates" && JSON.stringify(waits.opened) === '["about:updates"]'
+      && waits.words.includes("Install both") && !other.words.includes("Open Updates"),
+    `refused ${JSON.stringify(waits)}, other ${JSON.stringify(other)}`);
+}
+
+// later-agent-host-2 [8] and decisions3-agent-host [2] (h8, h11): the code step agent-host sends carries the page that
+// shows the code (`url`, Claude Code's printed manual page; for opencode 2 the new attempt's) and why it asks again
+// (`message`); Praxis showed the field alone, and after a refused paste it said "Checking the code…" until its own 20 s
+{
+  const manual = "https://claude.ai/oauth/authorize?code=true&state=s1";
+  const cove = (flow, checking = false) => {
+    const acc = model("signingIn");
+    const opened = [];
+    const steps = { agent: "claude", accountId: "k1", shown: "code", acct: acc.account("k1"), refusal: null, flow, model: acc, checkingCode: checking,
+      pending: "", settingsRequested() {}, checkAgain() {}, cancelSignIn() {}, finish() {} };
+    const v = value(stepsSrc, "view", { steps, Qt: { openUrlExternally: u => opened.push(u) }, Quickshell: {} });
+    (v.actions ?? []).find(a => a.word === "Open the page")?.run();
+    return { field: v.field ?? false, sub: v.sub ?? "", words: (v.actions ?? []).map(a => a.word), opened };
+  };
+  const refused = cove({ step: "code", account: "k1", url: manual, message: "Invalid code. Please make sure the full code was copied." });
+  const again = cove({ step: "code", account: "k1", url: "https://claude.ai/oauth/authorize?state=s2", message: "That code didn't work. Here's a new page to sign in again." });
+  const bare = cove({ step: "code", account: "k1" }), early = cove({ step: "waiting", account: "k1", url: "http://localhost:5173/callback" });
+  check("the code step links its page with Open the page and says why it asks again; with no page, or before the host asks, no link",
+    refused.field && JSON.stringify(refused.opened) === JSON.stringify([manual]) && /Invalid code/.test(refused.sub)
+      && again.sub === "That code didn't work. Here's a new page to sign in again." && again.opened[0] === "https://claude.ai/oauth/authorize?state=s2"
+      && !bare.words.includes("Open the page") && !early.words.includes("Open the page") && early.sub === "",
+    `refused ${JSON.stringify(refused)}, opencode 2 ${JSON.stringify(again)}, none ${JSON.stringify(bare)}, waiting ${JSON.stringify(early)}`);
+
+  const m = /\bonFlowChanged:\s*/.exec(stepsSrc);
+  const onFlow = m ? readExpression(stepsSrc, m.index + m[0].length).expr : "{}";
+  const after = step => {
+    const steps = { flow: { step, account: "k1" }, pending: "", checkingCode: true, finish() {} };
+    inScope({ steps }, "", onFlow.slice(1, -1))();
+    return steps.checkingCode;
+  };
+  check("a code step pushed while a pasted code is checked ends the checking, so the field and the words come back at once",
+    after("code") === false && after("waiting") === true, `after a code step ${after("code")}, after waiting ${after("waiting")}`);
 }
 
 done();

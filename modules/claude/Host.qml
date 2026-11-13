@@ -41,7 +41,7 @@ Item {
     property var features: []
     signal event(string id, int seq, var data)
     signal items(string id, var list)
-    signal exited(string id, string reason, var stderr)   // stderr: the process's last lines
+    signal exited(string id, string reason, var stderr, string ended)   // stderr: the process's last lines; ended: "oom", else ""
     signal historyChanged()
     // untagged events this file does not handle (accounts, signin, install, catalog), for whoever
     // reads them (AccountsModel)
@@ -124,7 +124,7 @@ Item {
             host.items(m.id, m.items);
             break;
         case "exit":
-            host.exited(m.id, m.reason, m.stderr ?? []);
+            host.exited(m.id, m.reason, m.stderr ?? [], m.ended ?? "");
             host.historyChanged();
             break;
         default:

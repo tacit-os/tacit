@@ -3,10 +3,10 @@
 // diff.mnemonicPrefix, an external diff, a textconv driver); and a project with thousands of new files, which are not
 // all read, with the Review panel's own rows binding (ChangesPanel.qml) under node for the line that counts the rest.
 import { spawnSync } from "child_process";
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, utimesSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { inScope, qmlProperty } from "./lib/qml.mjs";
+import { inScope, qmlFunction, qmlProperty } from "./lib/qml.mjs";
 import { check, done, read, tree } from "./lib/check.mjs";
 
 console.log("== the Review panel's hunks under a person's git config (bin/claude-review)");
@@ -62,6 +62,21 @@ try {
   check("with a textconv driver a hunk is taken back", res.status === 0 && readFileSync(join(r, "top.txt"), "utf8") === "alpha\nbeta\n",
     (res.stderr || "").trim());
 
+  // later-praxis-1 [15] a revert took back a change in a file the person had edited after the agent, at one click: with
+  // the time the agent's edit was written, a file written later is left as it is and the panel told so
+  {
+    const r = repo("");
+    const file = join(r, "top.txt"), edited = "alpha\nbeta\ngamma\n";
+    utimesSync(file, new Date(2_000_000_000_000), new Date(2_000_000_000_000));
+    const id = listed(r).find(x => x.path === "top.txt")?.hunks?.[0]?.id ?? "";
+    const held = review("revert", r, file, id, String(2_000_000_000_000 - 60_000));
+    const after = readFileSync(file, "utf8");
+    const gone = review("revert", r, file, id, String(2_000_000_000_000 + 60_000));
+    check("a file written after the agent's edit is not reverted and says changed; one not written since is",
+      held.status === 0 && /"changed": true/.test(held.stdout) && after === edited && gone.status === 0 && /"undo"/.test(gone.stdout)
+        && readFileSync(file, "utf8") === "alpha\nbeta\n", `${(held.stdout + held.stderr).trim()} | ${(gone.stdout + gone.stderr).trim()}`);
+  }
+
   // a project with no .gitignore: node_modules, a build, dumps
   writeFileSync(gitconfig, "");
   const many = join(tmp, "many");
@@ -87,5 +102,42 @@ try {
   const rows = inScope({ panel: { shownFiles: [], review: { repo: "/home/sam/app", files: [], unlisted: 50 }, open: {}, scope: "all", cursor: "",
     isKept: () => false, context: {}, comments: [], writing: null, showOutside: false } }, "", qmlProperty(read("modules/claude/ChangesPanel.qml"), "rows"))();
   check("the Review panel says how many more new files there are", rows.some(r => r.kind === "note" && r.text === "50 more new files"), JSON.stringify(rows));
+}
+
+// later-praxis-1 [15] the panel's side: the time it sends is when the agent's last edit of that file was surely written
+// (the first item after the call that is not another call), and an answer of changed holds the revert for the question
+{
+  const src = read("modules/claude/ChangesPanel.qml");
+  const sent = [];
+  const panel = { cwd: "/home/sam/app", home: "/home/sam", ownAt: {}, asking: null, lastRevert: null,
+    items: [
+      { role: "user", kind: "text", ts: 1000 },
+      { kind: "tool", tool: "Edit", files: [{ path: "/home/sam/app/top.txt" }], ts: 2000, result: "ok" },
+      { kind: "tool", tool: "Edit", files: [{ path: "other.txt" }], ts: 2001, result: "ok" },   // the same message's next call
+      { role: "assistant", kind: "text", ts: 45000 },                                             // after a permission wait
+      { kind: "tool", tool: "Write", files: [{ path: "~/app/new.txt" }], ts: 50000, error: true },
+      { role: "user", kind: "text", ts: 90000 } ],
+    act: (args, cb) => { sent.push({ args, cb }); return true; } };
+  for (const f of ["editDone", "revert"]) { const q = qmlFunction(src, f); if (q) panel[f] = inScope({ panel, Date: { now: () => 99999 } }, q.params, q.body); }
+  const top = { path: "top.txt", abs: "/home/sam/app/top.txt", repo: "/home/sam/app" }, hunk = { id: "h1", line: 3 };
+  if (panel.revert) panel.revert(top, hunk);
+  const first = sent[0]?.args ?? [];
+  sent[0]?.cb?.('{"ok": false, "changed": true}');
+  const held = panel.asking;
+  if (panel.revert && held) panel.revert(held.file, held.hunk, true);
+  const anyway = sent[1]?.args ?? [];
+  sent[1]?.cb?.('{"ok": true, "undo": "/run/u.patch"}');
+  if (panel.revert) panel.revert(top, hunk);
+  const again = sent[2]?.args ?? [];
+  if (panel.revert) panel.revert({ path: "new.txt", abs: "/home/sam/app/new.txt", repo: "/home/sam/app" }, hunk);
+  const refused = sent[3]?.args ?? [];
+  check("Revert sends when the agent's edit was written, holds the revert on changed, and Revert anyway sends none",
+    JSON.stringify(first) === '["revert","/home/sam/app","/home/sam/app/top.txt","h1","45000"]' && held?.hunk === hunk && JSON.stringify(anyway.slice(4)) === "[]"
+      && panel.asking === null && panel.lastRevert?.undo === "/run/u.patch",
+    `sent ${JSON.stringify(first)}, then ${JSON.stringify(anyway)}, asking ${JSON.stringify(held)}`);
+  check("its own revert is not a change of someone else's, and a file the agent's edit of failed sends no time",
+    again[4] === "99999" && refused.length === 4, `next ${JSON.stringify(again)}, a refused Write ${JSON.stringify(refused)}`);
+  check("the question is the decided one, and Esc puts it away",
+    src.includes(`"This file changed after the agent's edit. Revert anyway?"`) && /Key_Escape && panel\.asking\) \{ panel\.asking = null/.test(src));
 }
 done();

@@ -248,4 +248,75 @@ function queue({ connected, answered, accepts }) {
   check("Praxis tells the conversation of a Codex, pi or opencode session open in a terminal window",
     open([{ session: "s1", window: "0x55" }]) && !open([{ session: "s2", window: "0x55" }]) && !open([{ session: "s1", window: "" }]));
 }
+// later-agent-host-2 [2], Praxis's side (h2): agent-host says ended "oom" on the exit of a process the out-of-memory
+// killer ended, and keeps it in the session's state until its next process starts; Praxis said "stopped unexpectedly.
+// Send again", and the resent turn was killed the same way
+{
+  const at = hostSrc.indexOf('case "exit":');
+  const exitCase = at < 0 ? "" : hostSrc.slice(at + 'case "exit":'.length, hostSrc.indexOf("break;", at));
+  const passed = m => { const got = []; inScope({ m, host: { exited: (...a) => got.push(a), historyChanged() {} } }, "", exitCase)(); return got[0] ?? []; };
+  const oomExit = passed({ ev: "exit", id: "s1", reason: "crashed", stderr: [], ended: "oom" }), plain = passed({ ev: "exit", id: "s1", reason: "crashed", stderr: [] });
+  check("the host's exit hands on its ended, and \"\" when it has none", oomExit[3] === "oom" && plain[3] === "", `${JSON.stringify(oomExit)} / ${JSON.stringify(plain)}`);
+
+  const conv = { crashes: {}, session: { id: "s1" }, agentName: "Claude Code", agentNames: {}, host: { live: {} }, live: null };
+  for (const f of ["setCrash", "onExited"]) { const q = qmlFunction(convSrc, f); if (q) conv[f] = inScope({ conv, followSoon: { restart() {} } }, q.params, q.body); }
+  const words = qmlProperty(convSrc, "oomWords");
+  if (words) conv.oomWords = inScope({}, "", `return (${words});`)();
+  const note = () => { const e = qmlProperty(convSrc, "crashNote"); return inScope({ conv }, "", `return (${e});`)(); };
+  const said = "This session ran out of memory and was stopped.";
+  conv.onExited("s1", "crashed", [], "oom");
+  const onExit = note();
+  conv.onExited("s1", "crashed", [], "");
+  const otherwise = note();
+  conv.crashes = {};
+  conv.live = { id: "s1", alive: false, state: "idle", ended: "oom" };
+  const fromState = note();
+  conv.setCrash("s1", "");
+  const dismissed = note();
+  conv.crashes = {};
+  conv.live = { id: "s1", alive: true, state: "idle" };
+  const next = note();
+  check("an out-of-memory end says so, from the exit or from the state when the exit was missed; Dismiss or a message puts it away",
+    onExit === said && /stopped unexpectedly/.test(otherwise) && fromState === said && dismissed === "" && next === "",
+    JSON.stringify({ onExit, otherwise, fromState, dismissed, next }));
+}
+
+// later-agent-host-2 [5], Praxis's side (h5): a delete refused while the previous host's process finishes a turn said
+// only "Not deleted: Still finishing a turn from before the background service restarted"; agent-host's delete now
+// takes `stop`, which ends that turn first (never a terminal's process)
+{
+  const fmSrc = read("modules/claude/FolderModel.qml"), railSrc = read("modules/claude/SessionList.qml");
+  const sent = [];
+  const fm = { archived: [], sent: {}, gone: {}, host: { connected: true, request: r => sent.push(r) }, setGone() {}, deleted() {}, toggleArchive() {} };
+  const q = qmlFunction(fmSrc, "sendDelete");
+  const sendDelete = inScope({ fm, Date }, q.params, q.body);
+  sendDelete("s1", "claude");
+  sendDelete("s1", "claude", true);
+  check("a delete asks agent-host to stop the leftover turn only when told to", JSON.stringify(sent) === '[{"op":"delete","id":"s1"},{"op":"delete","id":"s1","stop":true}]', JSON.stringify(sent));
+
+  const m = /\bonDeleted:\s*/.exec(appSrc);
+  const handler = m ? readExpression(appSrc, m.index + m[0].length).expr : "() => {}";
+  const refused = error => {
+    const said = [], again = [];
+    const rail = { notice: (text, action) => said.push({ text, word: action?.word ?? "", action }) };
+    const scope = { rail, fm: { byId: { s1: { tool: "claude" } }, sendDelete: (...a) => again.push(a) }, root: { selectedId: "" } };
+    inScope(scope, "", `return (${handler});`)()("s1", error);
+    said[0]?.action?.run();
+    return { text: said[0]?.text ?? "", word: said[0]?.word ?? "", again };
+  };
+  const leftover = refused("Still finishing a turn from before the background service restarted"), terminal = refused("Open in a terminal");
+  check("refused for a leftover turn the rail offers Stop it and delete, which deletes with stop; a terminal's refusal offers nothing",
+    leftover.word === "Stop it and delete" && JSON.stringify(leftover.again) === '[["s1","claude",true]]' && /^Not deleted: Still finishing/.test(leftover.text)
+      && terminal.word === "" && terminal.text === "Not deleted: Open in a terminal" && !terminal.again.length,
+    `leftover ${JSON.stringify(leftover)}, terminal ${JSON.stringify(terminal)}`);
+
+  const rail = { noticeText: "", noticeAction: null }, timer = { interval: 6000, restart() {} };
+  const n = qmlFunction(railSrc, "notice");
+  inScope({ rail, noticeTimer: timer }, n.params, n.body)("Not deleted: …", { word: "Stop it and delete", run() {} });
+  const kept = timer.interval;
+  inScope({ rail, noticeTimer: timer }, n.params, n.body)("Not renamed: …");
+  check("the rail's notice draws its way on as a button and stays a little longer with one", kept === 12000 && timer.interval === 6000 && rail.noticeAction === null
+    && /PillButton\s*\{\s*visible:\s*rail\.noticeAction !== null\s*text:\s*rail\.noticeAction\?\.word/.test(railSrc), `interval ${kept} / ${timer.interval}`);
+}
+
 done();

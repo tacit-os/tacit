@@ -18,10 +18,28 @@ Rectangle {
     property real maxHeight: 100000
     signal answered(var input)        // { chosen, note, none }
     signal declined()
-    // the card that answers to the keyboard: the first one waiting. Alt+1..9 ticks a path, Alt+Enter answers,
-    // Alt+0 is "None of these", Alt+N leaves it to the agent
+    // the first card waiting answers to the keys the box hands it while nothing is typed there (Composer.cardKey),
+    // the set every card has: 1-9 ticks a path, Enter answers, Esc leaves it to the agent
     property bool keys: false
     readonly property bool keysOn: card.keys && card.visible && !card.sent
+    function key(k) {
+        if (!card.keysOn) return false;
+        if (k === "enter") { if (card.picked.length) card.submit(false); return true; }
+        if (k === "esc") { card.sent = true; card.declined(); return true; }
+        const p = card.items[k - 1];
+        if (p === undefined) return false;
+        card.toggle(p);
+        return true;
+    }
+
+    // Half an answer, kept by the conversation while another session is open (the card is made anew on the way back,
+    // and its ticks and note went): `half` is what to keep, `kept` what was kept, put back once made.
+    readonly property var half: ({ picked: card.picked, note: other.text })
+    property var kept: null
+    Component.onCompleted: if (card.kept) {
+        card.picked = (card.kept.picked ?? []).filter(p => card.items.includes(p));
+        other.text = card.kept.note ?? "";
+    }
 
     readonly property var items: card.pending.input?.items ?? []
     readonly property bool multi: card.pending.input?.multiSelect ?? true
@@ -45,10 +63,6 @@ Rectangle {
         const chosen = none ? [] : card.items.filter(p => card.picked.includes(p));
         card.answered({ chosen: chosen, note: other.text.trim(), none: none });
     }
-
-    Shortcut { sequences: ["Alt+Return", "Alt+Enter"]; enabled: card.keysOn && card.picked.length > 0; onActivated: card.submit(false) }
-    Shortcut { sequence: "Alt+0"; enabled: card.keysOn; onActivated: card.submit(true) }
-    Shortcut { sequence: "Alt+N"; enabled: card.keysOn; onActivated: { card.sent = true; card.declined(); } }
 
     readonly property int pad: 24
     implicitHeight: column.implicitHeight + 2 * card.pad
@@ -118,20 +132,11 @@ Rectangle {
                                 Behavior on scale { NumberAnimation { duration: 160; easing.type: Easing.OutCubic } }
                             }
                         }
-                        Shortcut { sequence: `Alt+${row.index + 1}`; enabled: card.keysOn && row.index < 9; onActivated: card.toggle(row.modelData) }
-                        // the key that ticks it
-                        StyledText {
-                            anchors { right: parent.right; verticalCenter: parent.verticalCenter }
-                            visible: card.keysOn && row.index < 9
-                            text: row.index + 1
-                            font.pixelSize: Tacit.size.meta
-                            color: Tacit.inkFaint
-                        }
                         // the name in full tone, its folder quiet beside it
                         StyledText {
                             id: name
                             x: 36
-                            width: Math.min(implicitWidth, row.width - 36 - (card.keysOn ? 20 : 0))
+                            width: Math.min(implicitWidth, row.width - 36)
                             anchors.verticalCenter: parent.verticalCenter
                             text: row.rel.replace(/\/+$/, "").substring(row.cut + 1)
                             elide: Text.ElideMiddle
@@ -139,7 +144,7 @@ Rectangle {
                             color: Tacit.inkMain
                         }
                         StyledText {
-                            anchors { left: name.right; leftMargin: 10; right: parent.right; rightMargin: card.keysOn ? 20 : 0; verticalCenter: parent.verticalCenter }
+                            anchors { left: name.right; leftMargin: 10; right: parent.right; verticalCenter: parent.verticalCenter }
                             text: row.cut > 0 ? row.rel.substring(0, row.cut) : ""
                             elide: Text.ElideLeft
                             font.pixelSize: Tacit.size.meta

@@ -26,6 +26,7 @@ Item {
 
     property bool working: false
     property bool locked: false        // the session belongs to a terminal
+    property var card: null            // the card waiting on top (Conversation): see cardKey
     property bool fresh: false         // a new session: the folder can still change
     property string folder: ""
     property var folders: []           // [{ path, name }] recent project folders
@@ -97,6 +98,16 @@ Item {
     function dictate() {
         input.forceActiveFocus();
         Quickshell.execDetached(["hyprctl", "dispatch", 'hl.dsp.global("quickshell:flowHold")']);
+    }
+    // The keys a waiting card answers to, from the box (which keeps the keyboard, Tab too) while nothing is typed in it:
+    // Enter its first answer, Esc its no, 1-9 its nth (the card's key()). With words in the box they are the box's:
+    // Enter sends them, Esc stops the turn, a digit is typed.
+    function cardKey(e) {
+        if (!composer.card || composer.aside || input.text.length > 0 || composer.attachments.length > 0) return false;
+        if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false;
+        if (e.key === Qt.Key_Return || e.key === Qt.Key_Enter) return !(e.modifiers & Qt.ShiftModifier) && composer.card.key("enter");
+        if (e.key === Qt.Key_Escape) return composer.card.key("esc");
+        return /^[1-9]$/.test(e.text) && composer.card.key(Number(e.text));
     }
     signal stop()
     signal folderPicked(string path)
@@ -177,7 +188,7 @@ Item {
         case "notInstalled": return `${n} isn't installed`;
         case "needsNode": return `${n} needs one more install first`;
         case "locked": return "The keyring is locked";
-        case "noKeyring": return "The keyring isn't running";
+        case "noKeyring": return "The keyring isn't running. Sign out and in again to start it.";
         case "noKey": return `${n} has no key`;
         case "keyRefused": return `${n}'s key was refused`;
         }
@@ -660,6 +671,8 @@ Item {
                         e.accepted = true;
                     } else if (open && e.key === Qt.Key_Escape) {
                         composer.suggest = { kind: "", items: [], start: 0 };
+                        e.accepted = true;
+                    } else if (composer.cardKey(e)) {
                         e.accepted = true;
                     } else if ((e.key === Qt.Key_Return || e.key === Qt.Key_Enter) && !(e.modifiers & Qt.ShiftModifier)) {
                         composer.submit();

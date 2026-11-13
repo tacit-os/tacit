@@ -91,6 +91,39 @@ console.log("Praxis's message box (modules/claude/Composer.qml, QuestionCard.qml
   check("a question never answered starts empty on question 1", JSON.stringify(fresh.card.picked) === "{}" && fresh.card.shown === 0);
 }
 
+// the same for a choose card (mcp__tacit__choose): its ticks and its note went with the card on a session switch
+{
+  const cardSrc = read("modules/claude/ChooseCard.qml"), convSrc = read("modules/claude/Conversation.qml");
+  const at = convSrc.indexOf("ChooseCard {"), inConv = convSrc.slice(at, matchBrace(convSrc, convSrc.indexOf("{", at)) + 1);
+  const binding = name => { const m = new RegExp(`\\b${name}:\\s*`).exec(inConv); return m ? readExpression(inConv, m.index + m[0].length).expr : ""; };
+  const pending = { request: "r9", tool: "Choose", input: { question: "Which?", items: ["/a/one", "/a/two", "/a/three"], multiSelect: true } };
+  const conv = { asksKept: {} }, ask = { request: "r9", modelData: pending, keys: true };
+  const make = () => {
+    const other = { text: "" };
+    const card = { pending, picked: [] };
+    const scope = { card, other, conv, ask };
+    for (const name of ["items", "half"]) { const e = qmlProperty(cardSrc, name); if (e) Object.defineProperty(card, name, { get: () => inScope(scope, "", `return (${e});`)() }); }
+    const kept = binding("kept");
+    card.kept = kept ? inScope(scope, "", `return (${kept});`)() : null;
+    const done = /\bComponent\.onCompleted:\s*/.exec(cardSrc);
+    if (done) { const e = readExpression(cardSrc, done.index + done[0].length).expr; inScope(scope, "", /^if\b/.test(e) ? `${e};` : `return (${e});`)(); }
+    const halfChanged = binding("onHalfChanged");
+    const own = { conv, ask, get half() { return card.half; } };
+    return { card, other, changed: () => { if (halfChanged) inScope(own, "", `return (${halfChanged});`)(); } };
+  };
+  const first = make();
+  first.card.picked = ["/a/one", "/a/three"];
+  first.other.text = "keep the newest";
+  first.changed();
+  const again = make();
+  check("coming back, a choose card has its ticks and its note",
+    JSON.stringify(again.card.picked) === '["/a/one","/a/three"]' && again.other.text === "keep the newest",
+    `ticked ${JSON.stringify(again.card.picked)}, the note "${again.other.text}"`);
+  conv.asksKept = {};
+  const fresh = make();
+  check("a choose card never touched starts with nothing ticked", JSON.stringify(fresh.card.picked) === "[]" && fresh.other.text === "");
+}
+
 // later-praxis-2 [1] a key pressed while a reply has the keyboard goes into the box as typed: Delete's text is DEL
 // (U+007F), which passed the "below 32" test and was put in the box, unseen, and sent with the next message
 {
@@ -100,7 +133,7 @@ console.log("Praxis's message box (modules/claude/Composer.qml, QuestionCard.qml
     let box = "", focused = 0;
     const e = { key, text, modifiers: 0, accepted: false };
     const Qt = { ControlModifier: 0x04000000, AltModifier: 0x08000000, MetaModifier: 0x10000000, Key_Return: 0x01000004, Key_Enter: 0x01000005 };
-    inScope({ Qt, composer: { focusInput() { focused++; }, insertAtCursor(s) { box += s; } } }, f.params, f.body)(e);
+    inScope({ Qt, composer: { cardKey: () => false, focusInput() { focused++; }, insertAtCursor(s) { box += s; } } }, f.params, f.body)(e);
     return { box, focused, accepted: e.accepted };
   };
   const del = press(0x01000007, "\u007f"), letter = press(0x41, "a"), back = press(0x01000003, "\b");

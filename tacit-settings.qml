@@ -3615,6 +3615,7 @@ ApplicationWindow {
                 case "noKey": words.push(`There is no ${accPage.providerName(accPage.keyProvider(a))} key for it`); break;
                 case "keyRefused": words.push(`The ${accPage.providerName(accPage.keyProvider(a))} key was refused`); break;
                 case "locked": words.push("The keyring is locked"); break;
+                case "noKeyring": words.push("The keyring isn't running. Sign out and in again to start it."); break;
                 case "checking": words.push("Checking…"); break;
                 case "signingIn": words.push("Signing in…"); break;
                 }

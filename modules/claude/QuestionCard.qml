@@ -1,5 +1,4 @@
 import QtQuick
-import QtQml
 import QtQuick.Controls
 import qs.modules.common
 import qs.modules.common.widgets
@@ -59,22 +58,19 @@ Rectangle {
     Timer { running: card.sent; interval: 5000; onTriggered: card.sent = false }
     enabled: !card.sent
 
-    // keys for the card on top: the choices, Next and Skip were mouse-only (Alt+digit, as the composer
-    // is a text field and keeps the plain digits)
+    // the card on top answers to the keys the box hands it while nothing is typed there (Composer.cardKey), the set
+    // every card has: 1-9 picks a choice of the question shown, Enter goes on (sends after the last), Esc skips
     property bool keys: true
     readonly property bool keyed: card.keys && card.visible && !card.sent
-    Instantiator {
-        model: 9
-        delegate: Shortcut {
-            required property int index
-            sequence: `Alt+${index + 1}`
-            enabled: card.keyed && index < (card.current.options ?? []).length
-            onActivated: card.toggle(card.current.question, card.current.options[index].label, card.multi)
-        }
+    function key(k) {
+        if (!card.keyed) return false;
+        if (k === "enter") { card.next(); return true; }
+        if (k === "esc") { card.sent = true; card.skipped(); return true; }
+        const opt = (card.current.options ?? [])[k - 1];
+        if (!opt) return false;
+        card.toggle(card.current.question, opt.label, card.multi);
+        return true;
     }
-    Shortcut { sequences: ["Alt+Return", "Alt+Enter"]; enabled: card.keyed; onActivated: card.next() }
-    Shortcut { sequence: "Alt+N"; enabled: card.keyed; onActivated: { card.sent = true; card.skipped(); } }
-    Shortcut { sequence: "Alt+Left"; enabled: card.keyed && card.shown > 0; onActivated: card.step = card.shown - 1 }
 
     function toggle(q, label, multi) {
         const p = Object.assign({}, card.picked);

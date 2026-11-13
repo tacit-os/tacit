@@ -141,8 +141,14 @@ Item {
 
     // ── notices: a write the shell did not confirm, a delete or fork refused ──
     property string noticeText: ""
-    function notice(text) { rail.noticeText = text; noticeTimer.restart(); }
-    Timer { id: noticeTimer; interval: 6000; onTriggered: rail.noticeText = "" }
+    property var noticeAction: null    // { word, run }: a way on from it, shown under it for a little longer
+    function notice(text, action) {
+        rail.noticeText = text;
+        rail.noticeAction = action ?? null;
+        noticeTimer.interval = rail.noticeAction ? 12000 : 6000;
+        noticeTimer.restart();
+    }
+    Timer { id: noticeTimer; interval: 6000; onTriggered: { rail.noticeText = ""; rail.noticeAction = null; } }
     // saveFailed stays set until a later write is confirmed: the line shows for the notice's 6 s
     onSaveFailedChanged: if (rail.saveFailed) rail.notice("Couldn't save: the shell isn't answering")
     readonly property string shownNotice: rail.noticeText
@@ -797,20 +803,35 @@ Item {
                 Item {
                     id: noticeLine
                     anchors { left: parent.left; right: parent.right; top: liveLine.bottom }
-                    height: rail.expanded && rail.shownNotice.length ? noticeText.implicitHeight + 8 : 0
+                    height: rail.expanded && rail.shownNotice.length ? noticeColumn.implicitHeight + 8 : 0
                     clip: true
-                    StyledText {
-                        id: noticeText
+                    Column {
+                        id: noticeColumn
                         x: 20
                         y: 4
                         width: parent.width - 40
-                        text: rail.shownNotice
-                        font.family: Appearance.font.family.compact
-                        font.pixelSize: 13
-                        color: Appearance.colors.colInkSecondary
-                        wrapMode: Text.Wrap
-                        maximumLineCount: 2
-                        elide: Text.ElideRight
+                        spacing: 6
+                        StyledText {
+                            id: noticeText
+                            width: parent.width
+                            text: rail.shownNotice
+                            font.family: Appearance.font.family.compact
+                            font.pixelSize: 13
+                            color: Appearance.colors.colInkSecondary
+                            wrapMode: Text.Wrap
+                            maximumLineCount: 2
+                            elide: Text.ElideRight
+                        }
+                        PillButton {
+                            visible: rail.noticeAction !== null
+                            text: rail.noticeAction?.word ?? ""
+                            onClicked: {
+                                const a = rail.noticeAction;
+                                rail.noticeText = "";
+                                rail.noticeAction = null;
+                                a?.run();
+                            }
+                        }
                     }
                 }
 

@@ -5,7 +5,9 @@
 #
 #   claude-review hunks <dir> [path ...]      JSON on stdout; no paths = every change in <dir>'s repo
 #   claude-review edits <dir> < items.json    one turn's own edits (the app's tool items) as hunks
-#   claude-review revert <dir> <path> <id>    reverse-apply one hunk; prints the undo patch
+#   claude-review revert <dir> <path> <id> [<ms>]   reverse-apply one hunk; prints the undo patch. With <ms> (when
+#                                             the agent's edit was written), a file written since is left alone
+#                                             and {"changed": true} printed
 #   claude-review restore <dir> <patch>       put a reverted hunk back (<dir>: inside its repo)
 #   claude-review status <dir>                branch, upstream, ahead/behind, remote, GitHub + gh
 #   claude-review draft <dir> [path ...]      a commit message for those changes (claude -p, haiku)
@@ -313,7 +315,14 @@ def edits(d, items, created):
     return {"repo": next((f["repo"] for f in files.values() if f["repo"]), None), "files": list(files.values())}
 
 
-def revert(d, path, want):
+def written_after(path, ms):
+    try:
+        return os.stat(path).st_mtime_ns // 1_000_000 > ms
+    except OSError:   # deleted: nothing of anyone's to lose there
+        return False
+
+
+def revert(d, path, want, since=0):
     repo = toplevel(os.path.dirname(os.path.realpath(path))) or toplevel(d)
     if not repo:
         sys.exit("not a git repository")
@@ -324,6 +333,9 @@ def revert(d, path, want):
         for h in f["hunks"]:
             if h["id"] != want:
                 continue
+            if since and written_after(path, since):
+                print(json.dumps({"ok": False, "changed": True}))
+                return
             os.makedirs(UNDO, exist_ok=True)
             pf = os.path.join(UNDO, h["id"] + ".patch")
             with open(pf, "w", encoding="utf-8", errors="surrogateescape", newline="") as fh:
@@ -449,8 +461,8 @@ if __name__ == "__main__":
     elif cmd == "edits":
         req = json.load(sys.stdin)
         print(json.dumps(edits(d, req.get("items", []), set(req.get("created", [])))))
-    elif cmd == "revert" and len(sys.argv) == 5:
-        revert(d, sys.argv[3], sys.argv[4])
+    elif cmd == "revert" and len(sys.argv) in (5, 6):
+        revert(d, sys.argv[3], sys.argv[4], int(sys.argv[5]) if len(sys.argv) == 6 else 0)
     elif cmd == "restore" and len(sys.argv) == 4:
         restore(d, sys.argv[3])
     elif cmd == "status":
