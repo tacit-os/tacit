@@ -25,7 +25,7 @@ function editor(disk, { oldEdit = false } = {}) {
     conflicted: false, missing: false, selfWrite: false, savingText: "", lastDisk: "", cached: "", dirty: false, eol: "\n",
     kindOf: () => "text", detectIndent: () => "    ", announce() {}, refreshMarks() {}, edited() {}, layoutTick: 0 };
   const scope = { doc, area, Edit, disk: file, Voice: { size: n => `${n} B` } };
-  for (const name of ["fromDisk", "validUtf8", "unkept", "bufferText", "save"]) {
+  for (const name of ["fromDisk", "toDisk", "validUtf8", "unkept", "bufferText", "save"]) {
     const f = qmlFunction(src, name);
     if (f) doc[name] = inScope(scope, f.params, f.body);
   }

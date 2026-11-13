@@ -243,10 +243,13 @@ Item {
             resume = null;
             if (kind === "video" || kind === "audio") wantPlay = true;
         } else if (slid) {
+            // the same place in the new list, then on to the framed file: written with the Behavior off, pos stopped
+            // where its animation was, short of cur, so the roll never landed and the picture never filled the window
             const on = animate;
             animate = false;
             pos += shift;
             animate = on;
+            if (!touching) pos = i;   // under the fingers the roll is theirs until they lift
             land();
         } else if (moved) { pos = i; land(); }
         if (!bare) dwell.restart();
@@ -801,9 +804,33 @@ Item {
         onActiveChanged: vw.pinch(1, active)
         onActiveScaleChanged: if (active) vw.pinch(activeScale, true)
     }
+    // A finger, as a touchpad's two: sideways steps the roll (or pans a zoomed picture), up and down is inside the file
+    // (a page column scrolls, a zoomed picture pans). Pages and the roll took only the wheel, so on a touch screen a
+    // drag moved nothing.
     DragHandler {
+        id: finger
         target: null
-        enabled: false
+        acceptedDevices: PointerDevice.TouchScreen
+        maximumPointCount: 1              // two are the pinch
+        property real lx: 0
+        property real ly: 0
+        property string axis: ""
+        onActiveChanged: {
+            lx = 0; ly = 0; axis = "";
+            if (!active) vw.swipeEnd();
+        }
+        onActiveTranslationChanged: {
+            if (!active) return;
+            const t = activeTranslation, dx = t.x - lx, dy = t.y - ly;
+            lx = t.x; ly = t.y;
+            if (axis === "") {
+                const strict = vw.bare && (vw.kind === "pdf" || vw.zoom > 1);   // as the touchpad decides it
+                axis = Math.abs(t.x) > Math.abs(t.y) * (strict ? 2 : 1) ? "x" : "y";
+            }
+            if (axis === "y") vw.inside(dy, true);
+            else if (vw.zoom > 1) { vw.panX += dx; vw.clampPan(); }
+            else vw.swipe(dx / 1.6, Qt.ScrollUpdate, Date.now());   // the roll under the finger: a touchpad moves it 1.6 times
+        }
     }
 
     // ================================================================ the frames

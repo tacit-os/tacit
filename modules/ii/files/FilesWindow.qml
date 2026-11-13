@@ -439,7 +439,9 @@ FloatingWindow {
     // index then sent Enter, F2 and the preview column to another file than the highlighted one.
     property string cursorPath: ""
     readonly property int cursor: win.cursorPath.length > 0 && win.cursorPath in win.rowByPath ? win.rowByPath[win.cursorPath] : -1
-    property int anchorIndex: -1
+    // Shift's other end, held the same way: as a bare index, a file landing above it moved the range to another file
+    property string anchorPath: ""
+    readonly property int anchorIndex: win.anchorPath.length > 0 && win.anchorPath in win.rowByPath ? win.rowByPath[win.anchorPath] : -1
     property string query: ""
     property bool showHidden: false
     onShowHiddenChanged: win.relist()
@@ -505,7 +507,7 @@ FloatingWindow {
     // the typed filter changes no row of the model (the list narrows by name here; the grid's own filter reloads the
     // model, which relists), so the rows are not read and sorted again
     onQueryChanged: win.relist(false)
-    onViewChanged: win.editingIndex = -1   // the field belongs to a list row; the grid has none
+    onViewChanged: win.editingFile = ""   // the field belongs to a list row; the grid has none
     // Selected paths whose file is no longer listed: an external delete or rename would
     // otherwise leave "3 selected" naming files that are gone, and Delete would forward one.
     function pruneSelection() {
@@ -546,12 +548,17 @@ FloatingWindow {
     property bool previewToggled: false
     readonly property bool wide: win.width >= 1240 || (win.width >= 900 && win.height >= 800)
     readonly property bool previewOpen: !win.searching && !win.phoneShown && !renameSheet.active && (win.wide ? !win.previewToggled : win.previewToggled)
+    // what the files here add up to, left out (0) where that is not the folder's size: a subfolder's files are not
+    // counted, nor rows past the first 2000 ("6,000 items, 4.1 GB" was the first 2,000's)
     readonly property double folderBytes: {
+        if (folderModel.count > 2000)
+            return 0;
         let total = 0;
-        const n = Math.min(folderModel.count, 2000);
-        for (let i = 0; i < n; i++)
-            if (!folderModel.get(i, "fileIsDir"))
-                total += folderModel.get(i, "fileSize");
+        for (let i = 0; i < folderModel.count; i++) {
+            if (folderModel.get(i, "fileIsDir"))
+                return 0;
+            total += folderModel.get(i, "fileSize");
+        }
         return total;
     }
     property bool panelBefore: false      // open before renaming many took the panel over
@@ -581,7 +588,7 @@ FloatingWindow {
         }
         return isDir
             ? [{ "id": "open", "label": "Open", "glyph": "folder_open", "run": () => win.go(p) },
-               { "id": "terminal", "label": "Open in terminal", "glyph": "terminal", "run": () => Quickshell.execDetached(["foot", "-D", p]) },
+               { "id": "terminal", "label": "Open in terminal", "glyph": "terminal", "run": () => win.terminalAt(p) },
                Files.pins.includes(p) ? { "id": "unpin", "label": "Unpin from the rail", "glyph": "keep_off", "run": () => Files.unpin(p) }
                                       : { "id": "pin", "label": "Pin to the rail", "glyph": "push_pin", "run": () => Files.pin(p) },
                { "id": "park", "label": "Park on the shelf", "glyph": "stacks", "run": () => DropShelf.addItems([win.fileUrl(p) + "/"]) },
@@ -646,11 +653,16 @@ FloatingWindow {
     }
     // The sum of a multi-selection. A binding here walked the whole folder on every change
     // of the selection, open column or not; the column asks for it when it has a sum to show.
+    // A selected folder's files are not counted, so then no sum is said (0) rather than its files' alone.
     function selectedBytesNow() {
         let total = 0;
-        for (let k = 0; k < folderModel.count; k++)
-            if (win.selectedMap[folderModel.get(k, "filePath")] && !folderModel.get(k, "fileIsDir"))
-                total += folderModel.get(k, "fileSize");
+        for (let k = 0; k < folderModel.count; k++) {
+            if (!win.selectedMap[folderModel.get(k, "filePath")])
+                continue;
+            if (folderModel.get(k, "fileIsDir"))
+                return 0;
+            total += folderModel.get(k, "fileSize");
+        }
         return total;
     }
     readonly property var selectionActions: win.inTrash
@@ -853,11 +865,11 @@ FloatingWindow {
         if (win.phoneShown)
             return "";
         if (win.recentShown)
-            return Voice.facts([`${Voice.count(win.hits.length, "file")} touched this week`, win.searchRunning ? "looking" : ""]);
+            return Voice.facts([`${win.hits.length >= 300 ? "300+ files" : Voice.count(win.hits.length, "file")} touched this week`, win.searchRunning ? "looking" : ""]);   // the newest 300 are listed
         if (win.shelfShown)
             return `${Voice.count(win.hits.length, "item")} parked on the notch`;
         if (win.largeOld)
-            return Voice.facts([`${Voice.count(win.hits.length, "file")} over 100 MB not touched in 90 days`, win.diskLine, win.searchRunning ? "looking" : ""]);
+            return Voice.facts([`${win.hits.length >= 100 ? "100+ files" : Voice.count(win.hits.length, "file")} over 100 MB not touched in 90 days`, win.diskLine, win.searchRunning ? "looking" : ""]);   // the biggest 100
         if (win.searching)
             return Voice.facts([`${Voice.count(win.hits.length, "hit")} for "${win.searchQuery}" under ${Files.placeName(win.folder)}`, win.searchRunning ? "searching" : ""]);
         const parts = [Voice.count(win.shownCount, "item")];
@@ -887,7 +899,7 @@ FloatingWindow {
     property bool largeOld: false
     property string diskLine: ""
     function showLargeOld() {
-        win.editingIndex = -1;
+        win.editingFile = "";
         win.phoneShown = false;
         win.shelfShown = false;
         win.searching = true;
@@ -924,7 +936,7 @@ FloatingWindow {
     // take one off, or clear it. Drag a row out to carry it, as from a tile.
     property bool shelfShown: false
     function showShelf() {
-        win.editingIndex = -1;
+        win.editingFile = "";
         win.phoneShown = false;
         win.searching = true;
         win.recentShown = false;
@@ -945,7 +957,7 @@ FloatingWindow {
     // The phone's page (the rail's "Your phone"): a view of its own, in the list's place (services/PhoneLink.qml).
     property bool phoneShown: false
     function showPhone() {
-        win.editingIndex = -1;
+        win.editingFile = "";
         win.shelfShown = false;
         win.largeOld = false;
         win.recentShown = false;
@@ -961,7 +973,7 @@ FloatingWindow {
         Qt.callLater(() => phonePage.focusFirst());
     }
     function showRecent() {
-        win.editingIndex = -1;
+        win.editingFile = "";
         win.phoneShown = false;
         win.shelfShown = false;
         win.largeOld = false;
@@ -1079,7 +1091,7 @@ FloatingWindow {
         fdProc.running = true;
     }
     function endSearch() {
-        win.editingIndex = -1;
+        win.editingFile = "";
         recentProc.running = false;
         largeProc.running = false;
         win.recentShown = false;
@@ -1166,6 +1178,19 @@ FloatingWindow {
     }
 
     // ------------------------------------------------------------------ navigation
+    // A path typed into the path field (Ctrl+L) as an absolute one: "~" and "~/..." are home, anything else not starting
+    // with "/" is under the folder shown, and "." and ".." are walked. "Downloads" went to go() as it was and was shown
+    // as moved or deleted, and "~bob" became <home>bob.
+    function typedPath(t) {
+        if (t === "~" || t.startsWith("~/")) t = win.home + t.substring(1);
+        else if (!t.startsWith("/")) t = win.folder + "/" + t;
+        const out = [];
+        for (const part of t.split("/")) {
+            if (part === "..") out.pop();
+            else if (part !== "" && part !== ".") out.push(part);
+        }
+        return "/" + out.join("/");
+    }
     function go(path, push) {
         const p = Files.trim(path);
         if (win.searching) { fdProc.running = false; recentProc.running = false; largeProc.running = false; win.searching = false; win.recentShown = false; win.largeOld = false; win.shelfShown = false; win.phoneShown = false; win.hits = []; win.searchCursor = -1; win.query = ""; }
@@ -1181,8 +1206,8 @@ FloatingWindow {
         win.query = "";
         win.selectedMap = ({});
         win.cursorPath = "";
-        win.anchorIndex = -1;
-        win.editingIndex = -1;
+        win.anchorPath = "";
+        win.editingFile = "";
         win.editingPath = false;
         win.view = win.view === "columns" ? "columns" : Files.viewFor(p) || "list";   // Columns goes down folders with you
         win.clearFilter();
@@ -1295,7 +1320,7 @@ FloatingWindow {
         const p = win.pathAt(i);
         win.selectedMap = p.length > 0 ? ({ [p]: true }) : ({});
         win.cursorPath = p;
-        win.anchorIndex = i;
+        win.anchorPath = p;
     }
     function toggle(i) {
         const p = win.pathAt(i);
@@ -1306,7 +1331,7 @@ FloatingWindow {
             next[p] = true;
         win.selectedMap = next;
         win.cursorPath = win.pathAt(i);
-        win.anchorIndex = i;
+        win.anchorPath = win.pathAt(i);
     }
     function selectRange(i) {
         const a = win.anchorIndex < 0 ? i : win.anchorIndex;
@@ -1373,7 +1398,7 @@ FloatingWindow {
         // the keyboard follows the band, or Down after it would jump back to wherever the
         // cursor was before, collapsing the selection
         if (first >= 0) {
-            win.anchorIndex = first;
+            win.anchorPath = win.pathAt(first);
             win.cursorPath = win.pathAt(last);
         }
     }
@@ -1464,7 +1489,10 @@ FloatingWindow {
     // reports to the foot while it runs, and carries its own undo (Ctrl+Z, or the
     // Undo pill for a minute). Nothing is lost: Delete is the trash; for good only after a
     // sheet that says how many and where.
-    property int editingIndex: -1
+    // The row whose name is a field (F2), held by its path as the cursor is: as a row number, a file landing above it
+    // moved the field to the neighbour, and the name typed renamed that one.
+    property string editingFile: ""
+    readonly property int editingIndex: win.editingFile.length > 0 && win.editingFile in win.rowByPath ? win.rowByPath[win.editingFile] : -1
     property var myJobs: ({})         // ids this window started
     property string undoJob: ""       // the last finished job with an undo
     property string jobLine: ""       // what just finished, for the foot
@@ -1539,7 +1567,7 @@ FloatingWindow {
                     next[q] = true;
                 win.selectedMap = next;
                 win.cursorPath = win.pathAt(first);
-                win.anchorIndex = first;
+                win.anchorPath = win.pathAt(first);
                 win.currentView()?.positionViewAtIndex(first, ListView.Contain);
             }
         }
@@ -1616,13 +1644,14 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     function nameTaken(name, except) {
         return name !== except && win.names[name] === true;
     }
-    function freeName(base) {
-        if (!win.nameTaken(base, ""))
-            return base;
+    // "base", else "base 2", "base 3" ...; the number goes before ext ("Untitled 2.txt", not "Untitled.txt 2")
+    function freeName(base, ext = "") {
+        if (!win.nameTaken(base + ext, ""))
+            return base + ext;
         for (let n = 2; n < 1000; n++)
-            if (!win.nameTaken(`${base} ${n}`, ""))
-                return `${base} ${n}`;
-        return base;
+            if (!win.nameTaken(`${base} ${n}${ext}`, ""))
+                return `${base} ${n}${ext}`;
+        return base + ext;
     }
     function renameAt(i) {
         if (i < 0 || i >= folderModel.count || !win.rowShown(i) || win.isDriveTrash(win.pathAt(i)))
@@ -1632,7 +1661,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         if (win.view !== "list")
             win.view = "list";   // only a list row has a name field (not remembered: Ctrl+2 is still yours)
         win.selectOnly(i);
-        win.editingIndex = i;
+        win.editingFile = win.pathAt(i);
     }
     function rename(i, name) {
         const p = win.pathAt(i);
@@ -1658,7 +1687,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     }
     // an empty file, named in its row at once like a new folder (the stem selected, ".txt" kept)
     function newFile() {
-        win.run("touch", [win.folder, win.freeName("Untitled.txt")]);
+        win.run("touch", [win.folder, win.freeName("Untitled", ".txt")]);
     }
     // one .zip beside them: "name.zip" for one, "Archive.zip" for several
     function compressSelection() {
@@ -1774,12 +1803,12 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     }
     // the order, as a menu: a field picked again turns its direction
     function sortBy(field) {
-        win.editingIndex = -1;   // the rows are about to move under the field
+        win.editingFile = "";   // the rows are about to move under the field
         if (win.sortField === field) win.sortReversed = !win.sortReversed;
         else { win.sortField = field; win.sortReversed = false; }
     }
     function sortTo(field) {   // the menu's Sort by: a new field starts at its first order
-        win.editingIndex = -1;
+        win.editingFile = "";
         if (win.sortField !== field) { win.sortField = field; win.sortReversed = false; }
     }
     readonly property string orderWord: {
@@ -1803,8 +1832,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         { "label": "Size", "checked": win.sortField === FolderListModel.Size, "run": () => win.sortTo(FolderListModel.Size) },
         { "rule": true },
         { "heading": true, "label": "Order" },
-        { "label": win.orderWords[0], "checked": !win.sortReversed, "run": () => { win.editingIndex = -1; win.sortReversed = false; } },
-        { "label": win.orderWords[1], "checked": win.sortReversed, "run": () => { win.editingIndex = -1; win.sortReversed = true; } },
+        { "label": win.orderWords[0], "checked": !win.sortReversed, "run": () => { win.editingFile = ""; win.sortReversed = false; } },
+        { "label": win.orderWords[1], "checked": win.sortReversed, "run": () => { win.editingFile = ""; win.sortReversed = true; } },
         { "rule": true },
         { "heading": true, "label": "Group by" },
         { "label": "None", "checked": win.grouped === "", "run": () => win.groupMode = "none" },
@@ -1950,9 +1979,12 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         const dest = target ?? win.folder;
         const list = paths.filter(x => !(Files.parent(x) === dest && op === "move") && x !== dest && !dest.startsWith(x + "/"));
         if (list.length === 0) {
-            if (op === "move") {   // a cut pasted where it already is: the rows would stay faint
+            // a folder into itself or one of its own: a copy said nothing, and a move said "Already here"
+            const inside = paths.some(x => x === dest || dest.startsWith(x + "/"));
+            if (op === "move")   // a cut pasted where it already is: the rows would stay faint
                 Files.clip = null;
-                win.reason = "Already here";
+            if (op === "move" || inside) {
+                win.reason = inside ? "A folder can't go inside itself" : "Already here";
                 reasonTimer.restart();
             }
             return;
@@ -2178,7 +2210,14 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
             win.openIndex(win.cursor);
     }
     function terminalHere() {
-        Quickshell.execDetached(["foot", "-D", win.folder]);
+        win.terminalAt(win.folder);
+    }
+    // The terminal chosen in Settings > Default apps (apps.terminal, run as Recents runs it), started in the folder:
+    // terminals open where they are started, and "foot -D" opened foot whatever was chosen.
+    function terminalAt(path) {
+        Quickshell.execDetached(["bash", "-c",
+            'cd -- "$1" || exit 1; command -v "${0%% *}" >/dev/null || { notify-send -a Tacit "No terminal" "Nothing was opened: $0 is missing."; exit 1; }; exec $0',
+            Config.options.apps.terminal, path]);
     }
     function copyPaths() {
         const paths = win.selectedPaths.length > 0 ? win.selectedPaths : [win.folder];
@@ -2246,11 +2285,20 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                     // the name field has the keys - unless nothing took them, and then Escape
                     // is the only way back to a window that answers at all
                     if (event.key === Qt.Key_Escape) {
-                        win.editingIndex = -1;
+                        win.editingFile = "";
                         event.accepted = true;
                     }
                     return;
                 }
+                const ctrl = event.modifiers & Qt.ControlModifier;
+                const shift = event.modifiers & Qt.ShiftModifier;
+                const alt = event.modifiers & Qt.AltModifier;
+                // the window's own keys, in every view: in a search, Recent, the shelf or Large & old they did nothing
+                if (ctrl && event.key === Qt.Key_W) { win.visible = false; event.accepted = true; return; }
+                if (ctrl && event.key === Qt.Key_L) { win.editingPath = true; event.accepted = true; return; }
+                if (ctrl && event.key === Qt.Key_B) { Files.setRailPref(win.railCompact ? "full" : "compact"); event.accepted = true; return; }
+                if (ctrl && event.key === Qt.Key_Period) { win.stopJob(); event.accepted = true; return; }
+                if (ctrl && event.key === Qt.Key_Z) { win.undo(); event.accepted = true; return; }
                 if (win.searching) {
                     switch (event.key) {
                     case Qt.Key_Escape: win.endSearch(); event.accepted = true; return;
@@ -2262,9 +2310,6 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                     if ((event.modifiers & Qt.ControlModifier) && event.key === Qt.Key_F) { search.forceActiveFocus(); search.selectAll(); event.accepted = true; }
                     return;
                 }
-                const ctrl = event.modifiers & Qt.ControlModifier;
-                const shift = event.modifiers & Qt.ShiftModifier;
-                const alt = event.modifiers & Qt.AltModifier;
                 if (ctrl && shift && event.key === Qt.Key_C) { win.copyPaths(); event.accepted = true; return; }
                 if (ctrl && shift && event.key === Qt.Key_T) { win.terminalHere(); event.accepted = true; return; }
                 // Ctrl+F filters what is in front of you, Ctrl+Shift+F looks through the whole
@@ -2275,19 +2320,14 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                     else { search.forceActiveFocus(); search.selectAll(); }
                     event.accepted = true; return;
                 }
-                if (ctrl && event.key === Qt.Key_W) { win.visible = false; event.accepted = true; return; }
-                if (ctrl && event.key === Qt.Key_L) { win.editingPath = true; event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_F) { search.forceActiveFocus(); event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_H) { win.showHidden = !win.showHidden; event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_A) { win.selectAll(); event.accepted = true; return; }
-                if (ctrl && event.key === Qt.Key_B) { Files.setRailPref(win.railCompact ? "full" : "compact"); event.accepted = true; return; }
                 if (ctrl && shift && event.key === Qt.Key_N) { win.newFolder(); event.accepted = true; return; }
                 if (ctrl && shift && event.key === Qt.Key_S) { win.sendTo(); event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_C) { win.copySelection(false); event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_X) { win.copySelection(true); event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_V) { win.paste(); event.accepted = true; return; }
-                if (ctrl && event.key === Qt.Key_Period) { win.stopJob(); event.accepted = true; return; }
-                if (ctrl && event.key === Qt.Key_Z) { win.undo(); event.accepted = true; return; }
                 if (event.key === Qt.Key_F2) { if (win.selectedPaths.length > 1) win.renameMany(); else win.renameAt(win.cursor); event.accepted = true; return; }
                 if (event.key === Qt.Key_Delete) { if (shift) win.deleteSelection(); else win.trashSelection(); event.accepted = true; return; }
                 if (ctrl && event.key === Qt.Key_1) { win.setView("list"); event.accepted = true; return; }
@@ -2404,7 +2444,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                     onPlaceActions: (name, path, x, y) => {
                         actions.model = [
                             { "id": "open", "label": `Open ${name}`, "glyph": "folder_open", "run": () => win.go(path) },
-                            { "id": "terminal", "label": "Open in terminal", "glyph": "terminal", "run": () => Quickshell.execDetached(["foot", "-D", path]) },
+                            { "id": "terminal", "label": "Open in terminal", "glyph": "terminal", "run": () => win.terminalAt(path) },
                             { "id": "path", "label": "Copy path", "glyph": "content_copy", "run": () => Things.copyPath(path) }
                         ].concat(Files.pins.includes(path) ? [{ "id": "unpin", "label": "Unpin", "glyph": "keep_off", "run": () => Files.unpin(path) }] : []);
                         const pos = railView.mapToItem(body, x, y);
@@ -2536,8 +2576,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                     Keys.onPressed: event => {
                                         if (event.key === Qt.Key_Escape) { win.editingPath = false; event.accepted = true; }
                                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
-                                            const t = text.trim().replace(/^~/, win.home);
-                                            if (t.length > 0) win.go(t);
+                                            const t = text.trim();
+                                            if (t.length > 0) win.go(win.typedPath(t));
                                             win.editingPath = false;
                                             event.accepted = true;
                                         }
@@ -2582,7 +2622,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                         { "id": "time", "label": "Modified", "glyph": win.sortField === FolderListModel.Time ? "check" : "", "run": () => win.sortTo(FolderListModel.Time) },
                                         { "id": "size", "label": "Size", "glyph": win.sortField === FolderListModel.Size ? "check" : "", "run": () => win.sortTo(FolderListModel.Size) },
                                         { "id": "kind", "label": "Kind", "glyph": win.sortField === FolderListModel.Type ? "check" : "", "run": () => win.sortTo(FolderListModel.Type) },
-                                        { "id": "flip", "label": win.sortReversed ? win.orderWords[0] : win.orderWords[1], "glyph": "swap_vert", "run": () => { win.editingIndex = -1; win.sortReversed = !win.sortReversed; } },
+                                        { "id": "flip", "label": win.sortReversed ? win.orderWords[0] : win.orderWords[1], "glyph": "swap_vert", "run": () => { win.editingFile = ""; win.sortReversed = !win.sortReversed; } },
                                         { "id": "gdate", "label": "Group by date", "glyph": win.grouped === "date" ? "check" : "", "run": () => win.groupMode = win.grouped === "date" ? "none" : "date" },
                                         { "id": "gkind", "label": "Group by kind", "glyph": win.grouped === "kind" ? "check" : "", "run": () => win.groupMode = win.grouped === "kind" ? "none" : "kind" }])
                                 }
@@ -2764,7 +2804,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                 anchors.margins: -4
                                 cursorShape: Qt.PointingHandCursor
                                 onClicked: {
-                                    win.editingIndex = -1;   // the rows are about to move under the field
+                                    win.editingFile = "";   // the rows are about to move under the field
                                     if (win.sortField === parent.field) win.sortReversed = !win.sortReversed;
                                     else { win.sortTo(parent.field); }
                                 }
@@ -2821,7 +2861,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                             function uriList(i) { return win.uriList(i); }
                             readonly property Item dragProxy: dragProxy
                             function nameTaken(name, except) { return win.nameTaken(name, except); }
-                            function editNext(i) { const n = win.nextShown(i + 1, 1); if (n >= 0) win.renameAt(n); else win.editingIndex = -1; }
+                            function editNext(i) { const n = win.nextShown(i + 1, 1); if (n >= 0) win.renameAt(n); else win.editingFile = ""; }
                             function selectedCount() { return win.selectedPaths.length; }
                             delegate: FilesRow {
                                 required property var modelData
@@ -2840,13 +2880,14 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                 picture: win.pictureFor(filePath, fileIsDir)
                                 flash: win.flashPath === filePath
                                 // only a list row has a field, and only while the list is the view
-                                editing: win.editingIndex === index && win.view === "list" && !win.searching
+                                editing: win.editingFile === filePath && win.view === "list" && !win.searching
                                 cut: win.cutMap[filePath] === true
                                 offer: win.offerFor(filePath)
                                 onOfferTaken: i => { const o = win.offerFor(win.pathAt(i)); if (o) o.run(); }
                                 onOfferDismissed: i => win.dismissOffer(win.pathAt(i))
                                 onRenamed: (i, name) => win.rename(i, name)
-                                onEditDone: { win.editingIndex = -1; keys.forceActiveFocus(); }
+                                onRefused: why => { win.reason = why; reasonTimer.restart(); }
+                                onEditDone: { win.editingFile = ""; keys.forceActiveFocus(); }
                                 onDroppedInto: (i, urls, mods, internal) => win.dropIn(urls, mods, internal, win.pathAt(i))
                                 onBand: (sx, sy) => win.bandFromScene(sx, sy)
                                 onBandEnd: win.bandStop()

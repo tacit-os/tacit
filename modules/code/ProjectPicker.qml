@@ -90,7 +90,8 @@ Item {
 
     Process {
         id: scan
-        command: ["fd", "--hidden", "--no-ignore", "--type", "d", "--max-depth", "4", "^\\.git$", Quickshell.env("HOME"),
+        // a .git folder, or the .git file of a worktree or a submodule; six deep reaches ~/go/src/github.com/owner/repo
+        command: ["fd", "--hidden", "--no-ignore", "--max-depth", "6", "^\\.git$", Quickshell.env("HOME"),
             "--exclude", ".cache", "--exclude", ".local", "--exclude", "node_modules", "--exclude", ".gradle",
             "--exclude", ".npm", "--exclude", ".cargo", "--exclude", ".var", "--exclude", "build",
             // tools' own checkouts and caches (skills, marketplaces): repositories nobody opens as a project
@@ -141,6 +142,7 @@ Item {
                 Keys.onDownPressed: list.incrementCurrentIndex()
                 Keys.onUpPressed: list.decrementCurrentIndex()
                 Keys.onReturnPressed: if (picker.all[list.currentIndex]) picker.chosen(picker.all[list.currentIndex])
+                Keys.onEnterPressed: if (picker.all[list.currentIndex]) picker.chosen(picker.all[list.currentIndex])
                 Keys.onEscapePressed: if (picker.canGoBack) { filter.text = ""; picker.back(); }
                 Keys.onTabPressed: event => {
                     const hit = picker.all[list.currentIndex];

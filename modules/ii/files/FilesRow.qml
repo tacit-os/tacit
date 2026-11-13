@@ -52,6 +52,7 @@ Item {
     signal doubleClicked(int index)
     signal contextRequested(int index, real x, real y)
     signal renamed(int index, string name)
+    signal refused(string why)                 // a typed name that cannot be: what the foot says
     signal editDone()
     signal droppedInto(int index, var urls, int modifiers, bool internal)
     signal band(real sceneX, real sceneY)      // a drag from the blank part of the row: a selection band
@@ -305,7 +306,8 @@ Item {
         // The name as a field, where the name stands (the kit's Field: a faint wash, the ring while
         // typing): the stem selected, the extension kept; Enter commits, Escape reverts, Tab commits
         // and edits the next row. A name already here turns the ring and the words to the risk ink
-        // and refuses. Above the row's MouseArea, so a click in it places the caret.
+        // and refuses: Enter keeps the field, and the foot says why. Above the row's MouseArea, so a
+        // click in it places the caret.
         Item {
             visible: row.editing
             x: 46 - Tacit.space.m
@@ -339,19 +341,24 @@ Item {
                 renderType: Text.NativeRendering
                 cursorDelegate: Rectangle { width: 1.5; color: Tacit.accent; visible: nameEdit.cursorVisible }
                 onTextChanged: row.taken = row.ListView.view ? row.ListView.view.nameTaken(text, row.fileName) : false
-                // a click elsewhere commits a good name, as Finder does; a bad one is dropped
+                // why a typed name is refused, or "": closing the field on it said nothing, and the old name came back
+                function refusal(n) { return n.includes("/") ? "A name can't hold /" : row.taken ? `${n} is already here` : ""; }
+                // a click elsewhere commits a good name, as Finder does; a bad one is dropped, saying why
                 onActiveFocusChanged: {
                     if (activeFocus || !row.editing)
                         return;
                     const n = text.trim();
                     if (n.length > 0 && n !== "." && n !== ".." && !n.includes("/") && n !== row.fileName && !row.taken)
                         row.renamed(row.index, n);
+                    else if (refusal(n).length > 0)
+                        row.refused(refusal(n));
                     row.editDone();
                 }
                 Keys.onPressed: event => {
                     if (event.key === Qt.Key_Escape) { row.editDone(); event.accepted = true; }
                     else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter || event.key === Qt.Key_Tab) {
                         const n = text.trim();
+                        if (refusal(n).length > 0) { row.refused(refusal(n)); event.accepted = true; return; }   // the field stays
                         if (n.length > 0 && n !== "." && n !== ".." && !n.includes("/") && n !== row.fileName && !row.taken)
                             row.renamed(row.index, n);
                         if (event.key === Qt.Key_Tab) row.ListView.view.editNext(row.index); else row.editDone();

@@ -107,9 +107,12 @@ because() {
 keep_name() {   # dir base -> free path
     local d=$1 b=$2 stem ext n=2
     [ ! -e "$d/$b" ] && { printf '%s' "$d/$b"; return; }
-    # only a short, letters-and-digits tail counts as an extension ("tar.gz" keeps ".gz";
-    # a folder "Hyprland-0.56.2" is not a file called Hyprland-0.56 with a ".2")
-    if [ ! -d "$d/$b" ] && [[ "$b" =~ ^(.+)\.([A-Za-z0-9]{1,5})$ ]]; then stem=${BASH_REMATCH[1]}; ext=.${BASH_REMATCH[2]}; else stem=$b; ext=""; fi
+    # a file's extension is its last dot-word, or .tar.<x> whole, as Rename many takes it ("notes 2.markdown",
+    # "x 2.tar.gz"; a 1-to-5-letter rule gave "notes.markdown 2"); a folder "Hyprland-0.56.2" has none
+    stem=$b; ext=""
+    if [ ! -d "$d/$b" ] && { [[ "$b" =~ ^(.+)(\.tar\.[^.[:space:]]+)$ ]] || [[ "$b" =~ ^(.+)(\.[^.[:space:]]+)$ ]]; }; then
+        stem=${BASH_REMATCH[1]}; ext=${BASH_REMATCH[2]}
+    fi
     while [ -e "$d/$stem $n$ext" ]; do n=$((n+1)); done
     printf '%s' "$d/$stem $n$ext"
 }

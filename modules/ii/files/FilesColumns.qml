@@ -4,6 +4,7 @@ import Qt.labs.folderlistmodel
 import Quickshell
 import qs.services
 import qs.modules.common
+import qs.modules.common.functions
 import qs.modules.common.widgets
 import qs.modules.tacit
 import Tacit.Kit as K
@@ -94,7 +95,7 @@ Item {
                 height: strip.height
                 FolderListModel {
                     id: dir
-                    folder: "file://" + col.modelData
+                    folder: FileUtils.fileUrl(col.modelData)    // encoded: '#', '?' or '%' in a name ended the url there
                     showDirsFirst: true
                     showDotAndDotDot: false
                     showHidden: columns.showHidden

@@ -50,6 +50,32 @@ Item {
         if (t.includes("\r\n")) doc.eol = "\r\n";
         return t.includes("\r") ? t.replace(/\r\n?/g, "\n") : t;
     }
+    // What a save writes: the buffer with the file's own line endings. One kind on disk is put back everywhere. A file
+    // that mixes them, or breaks lines at a lone "\r" (a log with progress lines), gets them back line by line: each
+    // line still as it was on disk, above and below what changed, keeps its own, and what changed takes the commonest.
+    // Writing the first "\r\n" seen everywhere rewrote every line of a script that had one pasted Windows line.
+    function toDisk(t) {
+        const raw = disk.text();
+        const ends = raw.match(/\r\n|\r|\n/g) ?? [];
+        if (ends.every(e => e === ends[0])) {
+            const eol = ends[0] ?? doc.eol;        // nothing on disk now (a file saved anyway): what it came with
+            return eol === "\n" ? t : t.replace(/\n/g, eol);
+        }
+        const n = { "\n": 0, "\r\n": 0, "\r": 0 };
+        for (const e of ends) n[e]++;
+        const most = Object.keys(n).reduce((a, b) => n[b] > n[a] ? b : a);
+        const was = raw.split(/\r\n|\r|\n/), now = t.split("\n");
+        let top = 0, bottom = 0;
+        while (top < was.length && top < now.length && was[top] === now[top]) top++;
+        while (bottom < was.length - top && bottom < now.length - top && was[was.length - 1 - bottom] === now[now.length - 1 - bottom]) bottom++;
+        let out = now[0];
+        for (let i = 1; i < now.length; i++) {
+            // the break before line i: after a kept line at the top, or before one at the bottom, it is that line's own
+            const k = i <= top ? i - 1 : i >= now.length - bottom ? i - 1 + was.length - now.length : -1;
+            out += (k >= 0 && k < ends.length ? ends[k] : most) + now[i];
+        }
+        return out;
+    }
     // What Tab puts in: the file's own indentation (a tab, or its width in spaces), found when it opens.
     property string indentUnit: "    "
     readonly property int indentWidth: doc.indentUnit === "\t" ? 4 : doc.indentUnit.length
@@ -83,9 +109,21 @@ Item {
     // it rewrote every one in the file; Tacit.Edit's text() keeps them. A Tacit.Edit built before it (an older copy in
     // ~/.local/lib/qml) has no text(): then area.text, as before.
     function bufferText() { return typeof Edit.text === "function" ? Edit.text(area.textDocument) : area.text; }
-    // with lines wrapped a visual row is not a line, so the line is counted from the text (prose files are small)
-    readonly property int line: doc.wrap ? (doc.cached.substring(0, area.cursorPosition).match(/\n/g) || []).length + 1
-        : Math.round(area.cursorRectangle.y / doc.lineHeight) + 1
+    // The line is found in the text, not from the row's height: a wrapped line is several rows, and a line that falls
+    // back to another font (Devanagari, Hebrew) is taller than the others, so the mean height said 'Ln 296' on line 300.
+    // Where each line starts is listed once per change (2 ms for a 2 MB file; counting the "\n"s took 17 at each move).
+    readonly property var lineStarts: {
+        const t = doc.cached, s = [0];
+        for (let i = t.indexOf("\n"); i >= 0; i = t.indexOf("\n", i + 1)) s.push(i + 1);
+        return s;
+    }
+    function lineAt(offset) {     // 0-based
+        const s = doc.lineStarts;
+        let lo = 0, hi = s.length - 1;
+        while (lo < hi) { const mid = (lo + hi + 1) >> 1; if (s[mid] <= offset) lo = mid; else hi = mid - 1; }
+        return lo;
+    }
+    readonly property int line: doc.lineAt(area.cursorPosition) + 1
     readonly property int column: {
         const p = area.cursorPosition;
         return p - (p > 0 ? doc.cached.lastIndexOf("\n", p - 1) : -1);
@@ -377,7 +415,7 @@ Item {
         if (doc.missing && !force) { doc.missingOnSave(); return false; }
         doc.selfWrite = true;
         doc.savingText = doc.bufferText();
-        disk.setText(doc.eol === "\r\n" ? doc.savingText.replace(/\n/g, "\r\n") : doc.savingText);
+        disk.setText(doc.toDisk(doc.savingText));
         return !doc.dirty;
     }
 
@@ -715,7 +753,6 @@ Item {
     }
 
     // ── drawing ─────────────────────────────────────────────────────────────
-    readonly property real lineHeight: area.lineCount > 0 ? area.contentHeight / area.lineCount : 18
     readonly property int gutter: Math.max(3, String(area.lineCount).length) * fm.averageCharacterWidth + 28
 
     FontMetrics { id: fm; font: area.font }
@@ -728,37 +765,47 @@ Item {
         color: Tacit.inkMeta
     }
 
-    ListView {
+    // The line numbers, each where the text puts its line: rows of one mean height drifted from their lines below a
+    // taller one. Only the rows on screen are made; a line is never under three quarters of the font's height.
+    Item {
         id: numbers
         anchors { left: parent.left; top: parent.top; bottom: parent.bottom }
         width: doc.wrap ? 20 : doc.gutter
         visible: doc.problem.length === 0 && !doc.wrap
-        interactive: false
         clip: true
-        model: area.lineCount
+        readonly property int first: (doc.layoutTick, doc.lineAt(area.positionAt(0, flick.contentY)))
         // A Flickable draws its content at -contentY and topMargin only shifts that range, so
         // the numbers follow contentY as it is; subtracting the margin put them a line low.
-        contentY: flick.contentY
-        delegate: Text {
-            required property int index
-            width: numbers.width - 14
-            height: doc.lineHeight
-            horizontalAlignment: Text.AlignRight
-            verticalAlignment: Text.AlignVCenter
-            text: index + 1
-            font.family: Appearance.font.family.monospace
-            font.hintingPreference: Font.PreferNoHinting
-            font.pixelSize: Math.max(10, doc.fontSize - 1)
-            color: index + 1 === doc.line ? Tacit.inkMain : Tacit.inkFaint
-            Rectangle {
-                readonly property string kind: doc.marks[index + 1] ?? ""
-                visible: kind.length > 0
-                x: numbers.width - 14 + 6
-                width: 3
-                height: kind === "d" ? 4 : parent.height
-                y: kind === "d" ? parent.height - 2 : 0
-                radius: 1.5
-                color: kind === "a" ? Appearance.m3colors.m3primary : kind === "m" ? Appearance.m3colors.m3tertiary : Appearance.colors.colError
+        Item {
+            y: -flick.contentY
+            Repeater {
+                model: numbers.visible ? Math.ceil(numbers.height / (fm.height * 0.75)) + 2 : 0
+                delegate: Text {
+                    required property int index
+                    readonly property int row: numbers.first + index      // 0-based
+                    readonly property rect at: (doc.layoutTick, area.positionToRectangle(doc.lineStarts[row] ?? 0))
+                    visible: row < doc.lineStarts.length
+                    y: at.y
+                    width: numbers.width - 14
+                    height: at.height
+                    horizontalAlignment: Text.AlignRight
+                    verticalAlignment: Text.AlignVCenter
+                    text: row + 1
+                    font.family: Appearance.font.family.monospace
+                    font.hintingPreference: Font.PreferNoHinting
+                    font.pixelSize: Math.max(10, doc.fontSize - 1)
+                    color: row + 1 === doc.line ? Tacit.inkMain : Tacit.inkFaint
+                    Rectangle {
+                        readonly property string kind: doc.marks[row + 1] ?? ""
+                        visible: kind.length > 0
+                        x: numbers.width - 14 + 6
+                        width: 3
+                        height: kind === "d" ? 4 : parent.height
+                        y: kind === "d" ? parent.height - 2 : 0
+                        radius: 1.5
+                        color: kind === "a" ? Appearance.m3colors.m3primary : kind === "m" ? Appearance.m3colors.m3tertiary : Appearance.colors.colError
+                    }
+                }
             }
         }
     }
@@ -788,7 +835,7 @@ Item {
 
         Rectangle {   // the current line: a quiet band
             width: flick.contentWidth
-            height: doc.lineHeight
+            height: area.cursorRectangle.height
             y: area.cursorRectangle.y
             color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.95)
             visible: area.activeFocus && area.selectedText.length === 0

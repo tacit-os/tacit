@@ -19,6 +19,7 @@ Item {
     scale: press.pressed && !later ? 0.96 : 1
     Behavior on scale { Anim { type: Anim.FastEffects } }
     Keys.onReturnPressed: if (!v.later) v.clicked()
+    Keys.onEnterPressed: if (!v.later) v.clicked()
     Keys.onSpacePressed: if (!v.later) v.clicked()
     Rectangle {
         anchors.fill: parent

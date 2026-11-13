@@ -27,7 +27,8 @@ Item {
         sheet.mode = "replace";
         find.text = "";
         replaceWith.text = "";
-        base.text = list.length ? list[0].split("/").pop().replace(/\.[A-Za-z0-9]{1,5}$/, "").replace(/[\s_-]*\d+$/, "") : "";
+        // the first name without its number and its extension, taken as the plan takes it ('a.torrent' gave 'a.torrent 01.torrent')
+        base.text = list.length ? list[0].split("/").pop().replace(/^(.+?)(\.tar\.[^.\s]+|\.[^.\s]+)$/, "$1").replace(/[\s_-]*\d+$/, "") : "";
         start.text = "";
         sheet.active = true;
         if (sheet.visible)
@@ -71,6 +72,11 @@ Item {
             out.push({ path: p, old: old, name: name, bad: bad });
         }
         return out;
+    }
+    // what the first five become, and the first clash below them: Rename waited for it with no reason on screen
+    readonly property var shown: {
+        const bad = sheet.plan.findIndex(r => r.bad);
+        return bad >= 5 ? sheet.plan.slice(0, 5).concat([sheet.plan[bad]]) : sheet.plan.slice(0, 5);
     }
     readonly property int changes: sheet.plan.filter(r => r.name !== r.old).length
     readonly property bool clean: sheet.plan.every(r => !r.bad) && sheet.changes > 0
@@ -122,7 +128,7 @@ Item {
         Item { width: 1; height: 22 }
         // what the first ones become
         Repeater {
-            model: sheet.plan.slice(0, 5)
+            model: sheet.shown
             Row {
                 id: change
                 required property var modelData
@@ -147,10 +153,10 @@ Item {
             }
         }
         K.TacitText {
-            visible: sheet.plan.length > 5
+            visible: sheet.plan.length > sheet.shown.length
             height: 30
             verticalAlignment: Text.AlignVCenter
-            text: `and ${sheet.plan.length - 5} more`
+            text: `and ${sheet.plan.length - sheet.shown.length} more`
             ink: "meta"
         }
         Item { width: 1; height: 24 }

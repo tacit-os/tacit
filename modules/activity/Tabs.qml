@@ -37,6 +37,7 @@ Item {
                 height: 30
                 activeFocusOnTab: true
                 Keys.onReturnPressed: nav.picked(modelData)
+                Keys.onEnterPressed: nav.picked(modelData)
                 Keys.onSpacePressed: nav.picked(modelData)
                 T {
                     id: tl
@@ -75,6 +76,7 @@ Item {
         height: 36
         activeFocusOnTab: visible
         Keys.onReturnPressed: nav.back()
+        Keys.onEnterPressed: nav.back()
         Keys.onSpacePressed: nav.back()
         T {
             id: bt

@@ -236,7 +236,8 @@ ApplicationWindow {
         dir = dir.replace(/\/+$/, "");
         root.picking = false;      // the picker would stay over the project that was just opened (code-open)
         root.saveSession();
-        for (const d of root.docs) if (d.doc) d.doc.destroy();
+        // saved or let go on purpose (guardUnsaved asked first): nothing kept to offer when this project opens again
+        for (const d of root.docs) if (d.doc) { root.dropKept(d.doc.abs); d.doc.destroy(); }
         root.docs = []; root.current = -1;
         project.setRoot(dir);
         root.remember(dir);
@@ -253,8 +254,9 @@ ApplicationWindow {
 
     // Wherever the keyboard should go when a surface closes or hides.
     function refocus() {
-        if (root.cur) root.cur.focusEditor();
-        else if (!project.root.length) picker.focusFilter();
+        // the picker over the open files keeps the keys: typing there went into the file hidden under it
+        if (root.picking || !project.root.length) picker.focusFilter();
+        else if (root.cur) root.cur.focusEditor();
         else if (root.treeShown) tree.forceActiveFocus();
     }
 
@@ -274,7 +276,7 @@ ApplicationWindow {
     function show(i) {
         root.materialize(i);
         root.current = i;
-        if (root.cur) { project.reveal(root.docs[i].rel); root.cur.focusEditor(); }
+        if (root.cur) { project.reveal(root.docs[i].rel); root.refocus(); }
         sessionLater.restart();
     }
     function materialize(i) {
@@ -639,10 +641,10 @@ ApplicationWindow {
     Shortcut { sequence: "Ctrl+PgUp"; onActivated: if (root.docs.length) root.show((root.current - 1 + root.docs.length) % root.docs.length) }
     Shortcut { sequence: "Ctrl+O"; enabled: root.ask === null; onActivated: root.pickProject() }
     Shortcut { sequence: "Ctrl+Q"; enabled: root.ask === null; onActivated: root.quit() }
-    Shortcut { sequence: "Ctrl+N"; enabled: project.root.length > 0 && root.ask === null; onActivated: root.startNew(root.here(), "file") }
-    Shortcut { sequence: "Ctrl+Shift+N"; enabled: project.root.length > 0 && root.ask === null; onActivated: root.startNew(root.here(), "folder") }
-    Shortcut { sequence: "Ctrl+P"; enabled: project.root.length > 0; onActivated: finder.open("files") }
-    Shortcut { sequence: "Ctrl+Shift+F"; enabled: project.root.length > 0; onActivated: finder.open("search") }
+    Shortcut { sequence: "Ctrl+N"; enabled: project.root.length > 0 && root.ask === null && !root.picking; onActivated: root.startNew(root.here(), "file") }
+    Shortcut { sequence: "Ctrl+Shift+N"; enabled: project.root.length > 0 && root.ask === null && !root.picking; onActivated: root.startNew(root.here(), "folder") }
+    Shortcut { sequence: "Ctrl+P"; enabled: project.root.length > 0 && !root.picking; onActivated: finder.open("files") }
+    Shortcut { sequence: "Ctrl+Shift+F"; enabled: project.root.length > 0 && !root.picking; onActivated: finder.open("search") }
     Shortcut { sequence: "Ctrl+F"; enabled: root.cur !== null && !root.covered; onActivated: find.open("find", root.cur.selection) }
     Shortcut { sequence: "Ctrl+G"; enabled: root.cur !== null && !root.covered; onActivated: find.open("line", "") }
     Shortcut { sequence: "F3"; enabled: root.cur !== null && !root.covered; onActivated: find.visible ? find.step(false) : find.open("find", root.cur.selection) }

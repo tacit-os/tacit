@@ -44,7 +44,10 @@ Item {
     Component.onCompleted: diskTight = IslandController.diskPct >= 85
     // What is happening this minute: a download growing, a copy running, a file that just
     // arrived, a disk that just appeared. The section exists only while there is something.
+    // Read again at each tick: Date.now() is no dependency, so a row stayed for hours until something else changed.
+    property int nowTick: 0
     property var nowItems: {
+        rail.nowTick;
         const t = Date.now();
         let items = [];
         for (const j of Jobs.running)
@@ -57,7 +60,7 @@ Item {
                 items.push({ "kind": "device", "glyph": Devices.glyphFor(d), "text": `${Devices.nameFor(d)} appeared`, "dev": d });
         return items.slice(0, 4);
     }
-    Timer { interval: 15000; running: rail.nowItems.length > 0; repeat: true; onTriggered: rail.nowItemsChanged() }
+    Timer { interval: 15000; running: rail.nowItems.length > 0; repeat: true; onTriggered: rail.nowTick++ }
 
     implicitWidth: places.implicitWidth
 

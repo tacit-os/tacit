@@ -183,6 +183,7 @@ Item {
                 Keys.onDownPressed: list.incrementCurrentIndex()
                 Keys.onUpPressed: list.decrementCurrentIndex()
                 Keys.onReturnPressed: finder.choose(list.currentIndex)
+                Keys.onEnterPressed: finder.choose(list.currentIndex)
                 Keys.onEscapePressed: finder.close()
             }
             StyledText {

@@ -349,6 +349,7 @@ ApplicationWindow {
                                     height: 24
                                     activeFocusOnTab: true
                                     Keys.onReturnPressed: facts.byProcessor = modelData.cpu
+                                    Keys.onEnterPressed: facts.byProcessor = modelData.cpu
                                     Keys.onSpacePressed: facts.byProcessor = modelData.cpu
                                     T {
                                         id: ut

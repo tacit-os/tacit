@@ -65,6 +65,7 @@ ListView {
     }
 
     Keys.onReturnPressed: tree.activate(tree.currentIndex)
+    Keys.onEnterPressed: tree.activate(tree.currentIndex)
     Keys.onPressed: event => {
         const r = tree.model[tree.currentIndex];
         if (event.key === Qt.Key_F2 && r && !r.draft && r.status !== "D") { tree.renaming = r.path; event.accepted = true; return; }

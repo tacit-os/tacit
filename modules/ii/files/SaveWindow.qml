@@ -86,12 +86,13 @@ PanelWindow {
         win.dirs = d;
     }
 
-    // "name 2", "name 3" ... as the job runner's keep_name does (scripts/files/job.sh)
+    // "name 2", "name 3" ... as the job runner's keep_name does (scripts/files/job.sh): before a file's extension, its last
+    // dot-word or .tar.<x> as Rename many takes it ("notes 2.markdown", "x 2.tar.gz"); a folder has none
     function keepName(nm) {
         if (win.names[nm] !== true)
             return nm;
-        const m = /^(.+)\.([A-Za-z0-9]{1,5})$/.exec(nm);
-        const stem = m ? m[1] : nm, ext = m ? "." + m[2] : "";
+        const m = win.dirs[nm] === true ? null : /^(.+?)(\.tar\.[^.\s]+|\.[^.\s]+)$/.exec(nm);
+        const stem = m ? m[1] : nm, ext = m ? m[2] : "";
         let k = 2;
         while (win.names[`${stem} ${k}${ext}`] === true)
             k++;
