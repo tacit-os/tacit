@@ -788,7 +788,7 @@ FloatingWindow {
     Timer {
         id: reasonTimer
         interval: 8000
-        running: win.reason.length > 0
+        running: win.reason.length > 0 && win.ejecting.length === 0
         onTriggered: win.reason = ""
     }
     Timer {
@@ -1082,7 +1082,9 @@ FloatingWindow {
         command: {
             const p = win.searchPlan ?? { "exts": [], "within": "", "size": "", "name": [win.searchQuery] };
             const wantsHidden = p.name.some(w => w.startsWith("."));
-            let args = `fd --color never ${wantsHidden ? "--hidden " : ""}--exclude .git --exclude node_modules --exclude .cache --exclude .local/share/Trash --max-results 500`;
+            // every file is found, also one a .gitignore, an .ignore or ~/.fdignore leaves out (a project's dist/, its
+            // generated PDFs): fd skips those by itself, and the page said "Nothing under project matches"
+            let args = `fd --color never --no-ignore ${wantsHidden ? "--hidden " : ""}--exclude .git --exclude node_modules --exclude .cache --exclude .local/share/Trash --max-results 500`;
             for (const e of p.exts) args += ` -e ${e}`;
             if (p.within) args += ` --changed-within ${p.within}`;
             if (p.size) args += ` --size ${p.size}`;
@@ -1323,9 +1325,13 @@ FloatingWindow {
             last = k;
         };
         if (win.view === "list") {
-            const a = list.indexAt(10, top - list.y + list.contentY), b = list.indexAt(10, bottom - list.y + list.contentY);
-            const from = a < 0 ? 0 : a, to = b < 0 ? folderModel.count - 1 : b;
-            for (let k = Math.min(from, to); k <= Math.max(from, to); k++)
+            // an edge on no row is above the first or past the last: a band wholly in the ground under the rows (or in
+            // the margin over them) takes none, where it used to take every file in the folder
+            const ya = top - list.y + list.contentY, yb = bottom - list.y + list.contentY;
+            const a = list.indexAt(10, ya), b = list.indexAt(10, yb);
+            const from = a >= 0 ? a : ya < list.originY ? 0 : folderModel.count;
+            const to = b >= 0 ? b : yb < list.originY ? -1 : folderModel.count - 1;
+            for (let k = from; k <= to; k++)
                 take(k);
         } else if (win.pictures) {
             for (const k of pics.indexesIn(top, bottom, left, right))
@@ -2042,9 +2048,20 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     // Mounting and unmounting are fire-and-forget; only the notch heard them fail, far from
     // the rail that was clicked. The folder an eject stepped off is still there to go back to.
     property string ejectedFrom: ""
+    // The drive an eject waits on: "Ejecting USB 14G" stays until it is done (a stick writes out what it holds first,
+    // a minute after a big copy) and then says it is safe to pull out. It used to go after 8 s with nothing after it.
+    property string ejecting: ""
     Connections {
         target: Devices
+        function onUnmounted(dev) {
+            if (dev.path !== win.ejecting)
+                return;
+            win.ejecting = "";
+            win.reason = dev.usb ? `${Devices.nameFor(dev)} is safe to pull out` : `${Devices.nameFor(dev)} is unmounted`;
+            reasonTimer.restart();
+        }
         function onFailed(what) {
+            win.ejecting = "";
             win.reason = `Can't: ${what}`;
             reasonTimer.restart();
             if (win.ejectedFrom.length > 0) {
@@ -2322,8 +2339,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                             win.go(win.home);   // step off it first, or it is "still in use" by us
                         }
                         Devices.unmount(dev);
+                        win.ejecting = dev.path;
                         win.reason = `${dev.usb ? "Ejecting" : "Unmounting"} ${Devices.nameFor(dev)}`;
-                        reasonTimer.restart();
                     }
                     recentShown: win.recentShown
                     onRecent: win.showRecent()
@@ -2335,8 +2352,15 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                     onPhone: win.showPhone()
                     onNow: item => {
                         if (item.kind === "file") win.show(Files.parent(item.path), item.path, "");
-                        else if (item.kind === "device" && item.dev.mountpoint.length > 0) win.go(item.dev.mountpoint);
+                        else if (item.kind === "device") railView.device(item.dev);   // as under Devices: mounted first if it is not
                         else if (item.kind === "job" && item.job.kind === "job") Jobs.cancel(item.job.id);
+                        else if (item.kind === "job" && item.job.kind === "download") win.show(Files.parent(item.job.path), item.job.path, "");
+                    }
+                    onDeviceActions: (dev, x, y) => {
+                        actions.model = [{ "id": "open", "label": `Open ${Devices.nameFor(dev)}`, "glyph": "folder_open", "run": () => railView.device(dev) }]
+                            .concat(dev.mountpoint.length > 0 ? [{ "id": "eject", "label": dev.usb ? "Eject" : "Unmount", "glyph": "eject", "run": () => railView.eject(dev) }] : []);
+                        const pos = railView.mapToItem(body, x, y);
+                        win.openActionsAt(pos.x, pos.y);
                     }
                     onPlaceActions: (name, path, x, y) => {
                         actions.model = [
@@ -2991,9 +3015,12 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                         }
                         // Files dropped here, from another window or another app: a move from
                         // Files' own drag, a copy from anywhere else; Ctrl forces a copy, Shift a move.
+                        // Under the views (z -1), so a folder row's own DropArea takes a drop on it first: over
+                        // them, this one took every drag and a drop on a folder landed in the folder shown.
                         DropArea {
                             id: dropZone
                             anchors.fill: parent
+                            z: -1
                             keys: ["text/uri-list"]
                             onDropped: drop => {
                                 drop.accept();
@@ -3111,7 +3138,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                     return `Nothing under ${Files.placeName(win.folder)} matches “${win.searchQuery}”.`;
                                 }
                                 if (win.gone.length > 0)
-                                    return pageState.drive.length > 0 ? `${pageState.drive} was removed. Plug it in again to see its files.`
+                                    return pageState.drive.length > 0 ? `${pageState.drive} was removed. Plug it in again, then open it under Devices.`
                                         : `${Files.placeName(win.folder)} was moved or deleted.`;
                                 if (win.unreadable)
                                     return `You don't have permission to look in ${Files.placeName(win.folder)}.`;
@@ -3387,7 +3414,8 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         onOpened: sheetKeys.forceActiveFocus()
         onClosed: { keys.forceActiveFocus(); rows = []; safe = 1; }
         dim: false
-        closePolicy: Popup.CloseOnEscape
+        // a press beside it closes it as Esc does, answering nothing: Send to has no button to say no with
+        closePolicy: Popup.CloseOnEscape | Popup.CloseOnPressOutside
         padding: 18
         x: Math.round((body.width - width) / 2)
         y: body.height - height - 48

@@ -21,6 +21,7 @@ Singleton {
     signal added(var dev)
     signal removed(var dev)
     signal failed(string what)
+    signal unmounted(var dev)   // an unmount done: a USB drive is powered off too, safe to pull out
 
     function glyphFor(d) {
         if (d.loop)
@@ -166,7 +167,7 @@ Singleton {
             ? ["bash", "-c", root.ejectScript, "_", dev.path]
             : dev.loop ? ["bash", "-c", 'udisksctl unmount -b "$1"; udisksctl loop-delete -b "$1"', "_", dev.path]
             : ["udisksctl", "unmount", "-b", dev.path];
-        const p = actProc.createObject(root, { "cmd": cmd, "cb": null });
+        const p = actProc.createObject(root, { "cmd": cmd, "cb": null, "dev": dev });
         p.running = true;
     }
     Component {
@@ -175,6 +176,7 @@ Singleton {
             id: proc
             property var cmd: []
             property var cb: null
+            property var dev: null      // the drive an unmount is for
             command: cmd
             stdout: StdioCollector { id: out }
             stderr: StdioCollector { id: err }
@@ -185,6 +187,8 @@ Singleton {
                     const why = /target is busy/i.test(e) ? "still in use" : /not authorized/i.test(e) ? "not allowed" : (e.split("\n").pop() || "it refused");
                     root.failed(why);
                     if (proc.cb) proc.cb("");
+                } else if (proc.dev) {
+                    root.unmounted(proc.dev);
                 } else if (proc.cb) {
                     const m = /\bat (.+?)\.?$/m.exec(o);   // a label may hold spaces
                     proc.cb(m ? m[1] : "");

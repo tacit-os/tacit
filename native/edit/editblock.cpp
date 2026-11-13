@@ -32,6 +32,15 @@ void EditBlock::apply(QQuickTextDocument *doc, const QVariantList &edits)
     c.endEditBlock();
 }
 
+QString EditBlock::text(QQuickTextDocument *doc) const
+{
+    if (!doc || !doc->textDocument())
+        return QString();
+    QString t = doc->textDocument()->toRawText();
+    t.replace(QChar::ParagraphSeparator, u'\n');   // the document's own break between blocks
+    return t;
+}
+
 QStringList EditBlock::commentMarkers(const QString &definitionName) const
 {
     static KSyntaxHighlighting::Repository repository;   // loads every definition once, on the first ask

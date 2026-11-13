@@ -79,6 +79,10 @@ Item {
     // area.text once per change: the line arithmetic below reads this instead, because every
     // read of area.text re-serialises the whole document.
     property string cached: ""
+    // The buffer as it holds it. area.text turns a non-breaking space into a space and U+2028 into "\n", so a save of
+    // it rewrote every one in the file; Tacit.Edit's text() keeps them. A Tacit.Edit built before it (an older copy in
+    // ~/.local/lib/qml) has no text(): then area.text, as before.
+    function bufferText() { return typeof Edit.text === "function" ? Edit.text(area.textDocument) : area.text; }
     // with lines wrapped a visual row is not a line, so the line is counted from the text (prose files are small)
     readonly property int line: doc.wrap ? (doc.cached.substring(0, area.cursorPosition).match(/\n/g) || []).length + 1
         : Math.round(area.cursorRectangle.y / doc.lineHeight) + 1
@@ -306,7 +310,7 @@ Item {
 
     // ── the typing ────────────────────────────────────────────────────────────
     readonly property var api: ({
-        text: () => area.text,
+        text: () => doc.bufferText(),
         insert: (pos, s) => area.insert(pos, s),
         remove: (a, b) => area.remove(a, b),
     })
@@ -372,7 +376,7 @@ Item {
         if (doc.problem.length || (doc.session && !doc.session.complete()) || doc.conflicted) return false;
         if (doc.missing && !force) { doc.missingOnSave(); return false; }
         doc.selfWrite = true;
-        doc.savingText = area.text;
+        doc.savingText = doc.bufferText();
         disk.setText(doc.eol === "\r\n" ? doc.savingText.replace(/\n/g, "\r\n") : doc.savingText);
         return !doc.dirty;
     }
@@ -605,7 +609,8 @@ Item {
             if (!doc.started) return;
             // a rewrite that is no longer UTF-8 must not reach the buffer: a save would write U+FFFD over the file
             if (!doc.validUtf8(disk.data())) { doc.problem = doc.notUtf8; return; }
-            if (doc.problem === doc.notUtf8) doc.problem = "";
+            if (doc.unkept(disk.text())) { doc.problem = doc.unkeptChars; return; }
+            if (doc.problem === doc.notUtf8 || doc.problem === doc.unkeptChars) doc.problem = "";
             doc.diskChanged(disk.text());
         }
         // only a vanished file is news; a read that failed while something rewrote the file is not
@@ -621,6 +626,9 @@ Item {
         onSaveFailed: err => { doc.selfWrite = false; doc.writeFailed(doc.reasonFor(err)); }
     }
     readonly property string notUtf8: "Not a UTF-8 text file."
+    // The buffer breaks the line at U+2029 (and at U+FDD0 and U+FDD1, its own marks), so a save would write "\n" there.
+    readonly property string unkeptChars: "Has a character Graphis can't keep (U+2029, U+FDD0 or U+FDD1)."
+    function unkept(t) { return /[\u2029\ufdd0\ufdd1]/.test(t); }
     // Well-formed UTF-8 by the bytes: U+FFFD in the decoded text can also be real text.
     function validUtf8(buf) {
         const b = new Uint8Array(buf), n = b.length;
@@ -690,6 +698,7 @@ Item {
         if (raw.substring(0, 8000).includes("\u0000")) { doc.problem = "Not a text file."; doc.loaded = true; return; }
         // Latin-1 and the like decode with U+FFFD for each bad byte; a save would write those over the file.
         if (!doc.validUtf8(disk.data())) { doc.problem = doc.notUtf8; doc.loaded = true; return; }
+        if (doc.unkept(raw)) { doc.problem = doc.unkeptChars; doc.loaded = true; return; }
         const after = doc.fromDisk(raw);
         doc.kind = doc.kindOf(after);
         doc.indentUnit = doc.detectIndent(after);
@@ -817,7 +826,7 @@ Item {
             }
             onCursorRectangleChanged: flick.ensureVisible(cursorRectangle)
             onTextChanged: {
-                doc.cached = area.text;
+                doc.cached = doc.bufferText();
                 if (doc.loaded && !doc.session) doc.dirty = doc.cached.length !== doc.lastDisk.length || doc.cached !== doc.lastDisk;
                 if (doc.loaded) { doc.refreshMarks(); doc.edited(); }
                 doc.layoutTick++;

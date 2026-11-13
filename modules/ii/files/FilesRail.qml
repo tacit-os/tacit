@@ -24,6 +24,7 @@ Item {
     signal droppedOn(string path, var urls, int modifiers, bool internal)
     signal device(var dev)          // click: mount if needed, then enter
     signal eject(var dev)
+    signal deviceActions(var dev, real x, real y)   // a right click or the Menu key: open, and eject
     signal recent()                 // the timeline
     property bool recentShown: false
     signal shelf()                  // the parked files as a list
@@ -218,6 +219,8 @@ Item {
                     context: eject.visible ? "" : free
                     current: !rail.phoneShown && mounted && (rail.folder === modelData.mountpoint || rail.folder.startsWith(modelData.mountpoint + "/"))
                     onPicked: if (!eject.hovered) rail.device(modelData)   // the eject's own tap reaches the row too
+                    // the eject's other way: folded, the button is not drawn, and only a pointer resting on the row shows it
+                    onMenu: (x, y) => rail.deviceActions(modelData, x, y)
 
                     function readFree() { if (drive.mounted) freeProbe.running = true; }
                     Component.onCompleted: readFree()

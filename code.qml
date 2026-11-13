@@ -29,20 +29,29 @@ ApplicationWindow {
     property bool treeShown: true
     // Praxis's 300 on a wide window; a narrow one (tiled beside another) keeps more for the text
     readonly property int railWidth: Math.round(Math.max(232, Math.min(300, root.width * 0.28)))
-    property var ask: null         // { text, buttons: [{ label, run, accent }] }
+    property var ask: null         // { text, buttons: [{ label, run, accent }], doc: the file it is about }
     // a file's own question (changed on disk, couldn't save, gone from disk) arriving while another is asked waits here:
-    // it used to replace the one showing, and that file stayed in conflict with no question and a Save that did nothing
+    // it used to replace the one showing, and that file stayed in conflict with no question and a Save that did nothing.
+    // It is the same question only for the same file (two open index.js shared one, and the second never came), and
+    // one whose file was closed while it waited is dropped.
     property var waitingAsks: []
     function askLater(q) {
         if (root.ask === null) { root.ask = q; return; }
-        if (root.ask.text === q.text || root.waitingAsks.some(w => w.text === q.text)) return;
+        const same = w => w.doc === q.doc && w.text === q.text;
+        if (same(root.ask) || root.waitingAsks.some(same)) return;
         root.waitingAsks = root.waitingAsks.concat([q]);
     }
     function nextAsk() {
-        if (root.ask !== null || root.waitingAsks.length === 0) return;
-        const q = root.waitingAsks[0];
-        root.waitingAsks = root.waitingAsks.slice(1);
-        root.ask = q;
+        if (root.ask !== null) return;
+        const open = root.waitingAsks.filter(w => root.docs.some(d => d.doc === w.doc));
+        root.waitingAsks = open.slice(1);
+        if (open.length) root.ask = open[0];
+    }
+    // a file's name in its question: with its folder when another open file has the same name, as its tab shows it
+    function nameOf(rel) {
+        const parts = rel.split("/"), base = parts[parts.length - 1];
+        const twin = root.docs.some(d => d.rel !== rel && d.rel.split("/").pop() === base);
+        return twin && parts.length > 1 ? `${parts[parts.length - 2]}/${base}` : base;
     }
     property int askAt: 0          // the button the keyboard is on
     // what is true of the open file besides its name, in one line
@@ -522,12 +531,12 @@ ApplicationWindow {
             onMenuAt: (x, y) => root.textMenu(docItem, x, y)
             lsp: lspClient
             onOpenAt: (path, line, ch) => root.openAt(path, line, ch)
-            onConflict: root.askLater({ text: `${docItem.rel.split("/").pop()} changed on disk.`, buttons: [
+            onConflict: root.askLater({ doc: docItem, text: `${root.nameOf(docItem.rel)} changed on disk.`, buttons: [
                 { label: "Reload", accent: true, run: () => docItem.reloadFromDisk() },
                 { label: "Keep mine", run: () => docItem.keepMine() }] })
-            onWriteFailed: reason => root.askLater({ text: Voice.cant(`save ${docItem.rel.split("/").pop()} — ${reason}`), buttons: [
+            onWriteFailed: reason => root.askLater({ doc: docItem, text: Voice.cant(`save ${root.nameOf(docItem.rel)} — ${reason}`), buttons: [
                 { label: "OK", accent: true, run: () => {} }] })
-            onMissingOnSave: root.askLater({ text: `${docItem.rel.split("/").pop()} is no longer on disk.`, buttons: [
+            onMissingOnSave: root.askLater({ doc: docItem, text: `${root.nameOf(docItem.rel)} is no longer on disk.`, buttons: [
                 { label: "Save anyway", accent: true, run: () => docItem.save(true) },
                 { label: "Cancel", run: () => {} }] })
         }
