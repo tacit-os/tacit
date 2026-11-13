@@ -2,7 +2,7 @@
 # Files' job runner: one operation, detached from the shell, reporting to a JSON file that the
 # window and the notch read. Outlives the window, a shell reload and a crash.
 #
-#   job.sh <id> copy    <policy> <dest-dir> <src>...     policy: replace | keep | skip
+#   job.sh <id> copy    <policy> <dest-dir> <src>...     policy: replace | keep | skip | replace-for-good (see room_beside)
 #   job.sh <id> move    <policy> <dest-dir> <src>...
 #   job.sh <id> trash   <src>...
 #   job.sh <id> restore <trash-item>...                 (names under trash:///)
@@ -143,6 +143,19 @@ set_aside() {
     esac
     because "Could not replace $2" "$out"; return 1
 }
+# Replace keeps the old one on its own disk until the new one is whole, so the new one must fit beside it: the disk's free
+# space against the new one's size, plus 1 % and 16 MiB for what the filesystem takes. A nearly full stick failed with
+# "the disk is full" (1.2.14's cp over the file needed only the new one's room). Without room replace stops before
+# touching it ("not enough room to keep the old copy", which the window asks about) and replace-for-good removes the old
+# one first. A move within a disk is a rename and takes no room; free space not read: room, as before.
+room_beside() {   # $1 the source, $2 the target
+    local need avail
+    [ "$op" = move ] && [ "$(stat -c %m -- "$1" 2>/dev/null)" = "$(stat -c %m -- "$2" 2>/dev/null)" ] && return 0
+    need=$(du -sb -- "$1" 2>/dev/null | cut -f1)
+    avail=$(df -B1 --output=avail -- "$(dirname -- "$2")" 2>/dev/null | tail -1 | tr -d ' ')
+    [[ $need =~ ^[0-9]+$ && $avail =~ ^[0-9]+$ ]] || return 0
+    [ "$avail" -ge $((need + need / 100 + 16 * 1024 * 1024)) ]
+}
 put_back() {   # $1 the target, $2 its old_back: the old one goes back where it was, when nothing is there now
     local file=${2%%$'\t'*} rec=""
     [ -n "$2" ] && [ ! -e "$1" ] && [ -e "$file" ] || return 1
@@ -182,15 +195,19 @@ copy|move)
             case "$policy" in
             skip)    done_=$((done_+1)); continue ;;
             keep)    target=$(keep_name "$dest" "$name") ;;
-            replace)
+            replace|replace-for-good)
                 # pasted onto itself: nothing to replace
                 if [ "$s" -ef "$target" ]; then done_=$((done_+1)); continue; fi
                 if [ -d "$target" ] || [ -d "$s" ]; then
                     case "$target/" in "$s"/*) error="Could not replace $name: it holds the one being put there"; finish_made failed ;; esac
                     case "$s/" in "$target"/*) error="Could not replace $name: it holds the one being put there"; finish_made failed ;; esac
                 fi
-                # the old one, file or folder, out of the way first, so it can come back
-                set_aside "$target" "$name" || finish_made failed ;;
+                # the old one, file or folder, out of the way first, so it can come back; with no room for both, gone
+                # for good once the person has said so
+                if room_beside "$s" "$target"; then set_aside "$target" "$name" || finish_made failed
+                elif [ "$policy" = replace ]; then error="not enough room to keep the old copy of $name"; finish_made failed
+                elif ! out=$(LC_ALL=C rm -rf -- "$target" 2>&1); then because "Could not replace $name" "$out"; finish_made failed
+                fi ;;
             esac
         fi
         # A move within a disk is a rename, done at once. Across disks mv copies and then deletes the source, so Stop or a

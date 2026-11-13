@@ -33,7 +33,8 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
   const Qt = { Key_Escape: 0x01000000, Key_Tab: 0x01000001, Key_Return: 0x01000004, Key_Enter: 0x01000005, Key_Down: 0x01000015, Key_Up: 0x01000013,
     Key_Left: 0x01000012, Key_Right: 0x01000014, Key_Space: 0x20, Key_Delete: 0x01000007, Key_F2: 0x01000031, Key_F10: 0x01000039, Key_Menu: 0x01000055,
     Key_Z: 0x5a, Key_V: 0x56, Key_3: 0x33, ShiftModifier: 0x02000000, ControlModifier: 0x04000000, AltModifier: 0x08000000, MetaModifier: 0x10000000,
-    KeypadModifier: 0x20000000 };
+    KeypadModifier: 0x20000000, Key_Backspace: 0x01000003, Key_2: 0x32, Key_Shift: 0x01000020, Key_Control: 0x01000021, Key_Meta: 0x01000022,
+    Key_Alt: 0x01000023, Key_CapsLock: 0x01000024, Key_NumLock: 0x01000025, Key_Super_L: 0x01000053, Key_Super_R: 0x01000054, Key_AltGr: 0x01001103 };
   const srcs = Object.fromEntries(["PermissionCard", "QuestionCard", "ChooseCard"].map(f => [f, read(`modules/claude/${f}.qml`)]));
   const left = Object.entries(srcs).filter(([, src]) => /\bShortcut\s*\{|\bsequences?:/.test(src)).map(([f]) => f);
   check("no card keeps a Shortcut of its own, and the choose card shows no key at its rows",
@@ -79,11 +80,11 @@ console.log("Praxis's cards (modules/claude/PermissionCard.qml, QuestionCard.qml
   const handler = m ? readExpression(boxSrc, m.index + m[0].length).expr : "e => {}";
   const press = (key, { text = "", typed = "", mods = 0, aside = false, card = true, held = false } = {}) => {
     const log = [];
-    const composer = { suggest: { items: [] }, aside, attachments: [], working: true, pick: 0,
+    // a box the person has clicked in since the card came up (carried-r1 [0], below, is the box not yet touched)
+    const composer = { suggest: { items: [] }, aside, attachments: [], working: true, pick: 0, touched: true,
       card: card ? { key: k => (log.push(`card ${k}`), true) } : null, submit: () => log.push("send"), stop: () => log.push("stop") };
     const scope = { composer, Qt, input: { text: typed }, pasteImage: {} };
-    const f = qmlFunction(boxSrc, "cardKey");
-    if (f) composer.cardKey = inScope(scope, f.params, f.body);
+    for (const name of ["cardKey", "arms"]) { const f = qmlFunction(boxSrc, name); if (f) composer[name] = inScope(scope, f.params, f.body); }
     const e = { key, text, modifiers: mods, accepted: false, isAutoRepeat: held };
     inScope(scope, "", `return (${handler});`)()(e);
     return log.join(",") + (e.accepted ? "" : " (to the text)");
@@ -159,6 +160,151 @@ Item {
   let tab = {};
   try { tab = logged(out, "TAB"); } catch (e) { tab = { error: e.message }; }
   check("a Tab in a TextArea stays there (Qt types it), so the box keeps the keyboard while a card waits", tab.focus === true && tab.text === "\t", JSON.stringify(tab));
+
+  // carried-r1 [0]: opening a session moves the keyboard into the box (Conversation's closeFind), and the first Enter
+  // there, pressed to go and type, allowed the Bash card waiting in it. The card's keys now arm only once the person has
+  // clicked in the box or typed a key there (not Enter, Esc or a digit) since the session opened or the card came up.
+  {
+    const app = read("claude.qml"), list = read("modules/claude/SessionList.qml");
+    const exprAfter = (src, re) => { const m = re.exec(src); return m ? readExpression(src, m.index + m[0].length).expr : ""; };
+    const changed = /\bonSessionChanged:\s*\{/.exec(conv), sessionBody = changed ? readExpression(conv, changed.index + changed[0].length - 1).expr.slice(1, -1) : "";
+    const cardChanged = exprAfter(boxSrc, /\bonCardChanged:\s*/);
+    // the text's own onPressed (a click in it), between `id: input` and its Keys.onPressed
+    const ti = boxSrc.indexOf("id: input"), tk = boxSrc.indexOf("Keys.onPressed", ti);
+    const pressRe = /\n\s*onPressed:\s*/g;
+    pressRe.lastIndex = ti;
+    const pm = pressRe.exec(boxSrc), clickLine = pm && pm.index < tk ? readExpression(boxSrc, pm.index + pm[0].length).expr : "";
+    const bash = () => {
+      const said = [];
+      const card = { pending: { tool: "Bash", input: { command: "rm -rf build" }, suggestions: [{}], request: "7" }, canAlways: true, keyed: true, sent: false,
+        answered: (...a) => said.push(a[0] ? "allowed" : "denied") };
+      Object.defineProperty(card, "buttons", { get: () => cardValue("buttons", card.pending) });
+      for (const name of ["key", "pick"]) { const q = qmlFunction(perm_src, name); card[name] = inScope({ card }, q.params, q.body); }
+      return { card, said };
+    };
+    // Praxis as one piece: the box, the conversation's onSessionChanged and opened(), the rail's move() and key(), its
+    // row click, claude.qml's choose(), openId(), onChosen and the notch's open(id), Alt+Down's Shortcut
+    const world = () => {
+      const log = [], a = bash(), b = bash();
+      const sA = { id: "a", tool: "claude", cwd: "/home/x/a" }, sB = { id: "b", tool: "codex", cwd: "/home/x/b" };
+      const input = { text: "" };
+      const composer = { suggest: { items: [] }, aside: false, attachments: [], working: true, locked: false, pick: 0, menu: "", needsStep: false,
+        card: null, cardUp: null, touched: false, text: "", stop: () => log.push("stop"), sendFn: t => (log.push(`send ${t}`), true),
+        isImage: () => false, focusInput: () => log.push("focus"), setDraft() {}, insertAtCursor: t => { input.text += t; } };
+      const scope = { composer, Qt, input, pasteImage: {} };
+      for (const name of ["cardKey", "arms", "submit"]) { const f = qmlFunction(boxSrc, name); if (f) composer[name] = inScope(scope, f.params, f.body); }
+      const keys = inScope(scope, "", `return (${handler});`)();
+      // the card on top as the conversation binds it: each session's own Bash card
+      const setCard = c => { composer.card = c; if (cardChanged) inScope(scope, "", cardChanged)(); };
+      const convObj = { session: sA, loadedKey: "a", shownSession: sA, drafts: {}, queued: [], findOnLoad: "", closeFind: () => composer.focusInput(), load() {} };
+      const convScope = { conv: convObj, composer };
+      for (const name of ["opened", "typeInto"]) { const f = qmlFunction(conv, name); if (f) convObj[name] = inScope(convScope, f.params, f.body); }
+      const onSession = inScope(convScope, "", sessionBody);
+      const rows = [sA, sB].map(s => ({ key: "s:" + s.id, type: "session", id: s.id, session: s }));
+      const root = { history: [sA, sB], allHistory: [sA, sB], loaded: true, wantedId: "", visible: true, reveal() {} };
+      Object.defineProperty(root, "selected", { get: () => convObj.session, set: s => {
+        if (s === convObj.session) return;   // QML sends no change for the same object
+        convObj.session = s; onSession(); setCard(s === sA ? a.card : b.card);
+      } });
+      const rail = { rows, currentId: "a", cursorKey: "s:a", openBy: "", rowOf: k => rows.find(r => r.key === k) ?? null,
+        indexOf: k => rows.findIndex(r => r.key === k), navigable: () => true, fold() {}, armDwell() {}, typed: e => convObj.typeInto(e) };
+      const appScope = { root, rail, conv: convObj, host: { live: {} }, Quickshell: { env: () => "" }, cove: { close() {} } };
+      for (const name of ["choose", "openId"]) { const f = qmlFunction(app, name); root[name] = inScope(appScope, f.params, f.body); }
+      const onChosen = inScope(appScope, "", `return (${exprAfter(app, /\bonChosen:\s*/)});`)();
+      rail.chosen = s => { onChosen(s); rail.currentId = s.id; };
+      const railScope = { rail, Qt, list: { forceActiveFocus() {}, positionViewAtIndex() {} } };
+      for (const name of ["move", "stepCursor", "key"]) { const f = qmlFunction(list, name); rail[name] = inScope(railScope, f.params, f.body); }
+      const ipcOpen = qmlFunction(app.slice(app.indexOf('target: "claudeapp"')), "open");
+      const notch = inScope(appScope, ipcOpen.params.replace(/:\s*\w+/g, ""), ipcOpen.body);
+      // where the person was: session A, its box clicked into while its card waited
+      setCard(a.card);
+      composer.touched = true;
+      const press = (key, text = "", mods = 0, held = false) => { const e = { key, text, modifiers: mods, accepted: false, isAutoRepeat: held }; keys(e); return e; };
+      const click = () => { if (clickLine) inScope(scope, "", clickLine)(); };
+      const ways = {
+        "a rail click": () => rail.chosen(rows[1].session),
+        "Down from the rail's search": () => inScope({ rail }, "", exprAfter(list, /Keys\.onDownPressed:\s*/))(),
+        "Down in the rail": () => { rail.cursorKey = "s:a"; rail.key({ key: Qt.Key_Down, text: "", modifiers: 0, accepted: false }); },
+        "Alt+Down": () => { press(Qt.Key_Alt, "", Qt.AltModifier); inScope(appScope, "", exprAfter(app, /sequence:\s*"Alt\+Down";\s*onActivated:\s*/))(); },
+        "the notch": () => notch("b"),
+      };
+      return { log, a, b, composer, input, press, click, ways, notch, setCard, on: () => convObj.session.id };
+    };
+    const enter = w => { w.log.length = 0; w.press(Qt.Key_Return, "\r"); return [...w.a.said, ...w.b.said, ...w.log].join(",") || "nothing"; };
+    const opened = {}, clicked = {};
+    for (const way of Object.keys(world().ways)) {
+      const w = world();
+      w.ways[way]();
+      w.press(Qt.Key_Return, "\r", 0, true);   // the repeats of a held Enter
+      opened[way] = `${w.on()}: ${enter(w)}`;
+      w.click();
+      clicked[way] = enter(w);
+    }
+    check("a session opened with a Bash card waiting, by a rail click, Down from the search or in the rail, Alt+Down or the notch: Enter in its box answers nothing and sends nothing",
+      Object.values(opened).every(v => v === "b: nothing"), JSON.stringify(opened));
+    check("then a click in the box, and Enter allows the card",
+      Object.values(clicked).every(v => v === "allowed"), JSON.stringify(clicked));
+    // the notch's way back to the session already open, the box touched before: the same
+    const back = world();
+    back.notch("a");
+    const backSaid = [`${back.on()}: ${enter(back)}`];
+    back.click();
+    backSaid.push(enter(back));
+    check("the notch's way back to the session already open: Enter answers nothing until the box is clicked",
+      JSON.stringify(backSaid) === '["a: nothing","allowed"]', JSON.stringify(backSaid));
+    // untouched, Esc stops nothing and denies nothing, a digit is typed; a modifier alone, a held key's repeats, Esc and
+    // a digit do not touch the box; a key typed there (Backspace in the empty box) does
+    const keysSaid = {};
+    {
+      const w = world();
+      w.ways["a rail click"]();
+      w.log.length = 0;
+      w.press(Qt.Key_Escape, "\u001b");
+      keysSaid.esc = [...w.b.said, ...w.log].join(",") || "nothing";
+      const two = w.press(Qt.Key_2, "2");
+      keysSaid.digit = w.b.said.join(",") || (two.accepted ? "taken" : "typed");
+      w.input.text = "";
+      w.press(Qt.Key_Shift, "", Qt.ShiftModifier); w.press(Qt.Key_Down, "", 0, true); w.press(Qt.Key_Escape, "\u001b"); w.press(Qt.Key_3, "3");
+      w.input.text = "";
+      keysSaid.untouched = enter(w);
+      w.press(Qt.Key_Backspace, "\b");
+      keysSaid.typed = enter(w);
+    }
+    check("until the box is touched Esc stops and denies nothing and a digit is not an answer; Shift, a held Down, Esc and 3 leave it untouched, Backspace touches it",
+      JSON.stringify(keysSaid) === '{"esc":"nothing","digit":"typed","untouched":"nothing","typed":"allowed"}', JSON.stringify(keysSaid));
+    // another card coming up in the session open takes the keys back from a box touched before it
+    {
+      const w = world(), c = bash();
+      w.setCard(c.card);
+      w.press(Qt.Key_Return, "\r");
+      const first = c.said.join(",") || "nothing";
+      w.click();
+      w.press(Qt.Key_Return, "\r");
+      check("a card that comes up after the box was touched answers Enter only after another click there",
+        first === "nothing" && c.said.join(",") === "allowed", `${first}, then ${c.said.join(",") || "nothing"}`);
+    }
+    // the click: Qt's TextArea inside its Flickable, as the box is, says pressed for a click in it (the tree's own line)
+    const out = runScene({ "tst_click.qml": `import QtQuick
+import QtQuick.Controls
+import QtTest
+Item {
+    id: composer
+    width: 400; height: 300
+    property bool touched: false
+    Flickable {
+        width: 300; height: 60
+        TextArea.flickable: TextArea { id: input; ${clickLine ? `onPressed: ${clickLine}` : ""} }
+    }
+    TestCase {
+        name: "click"; when: windowShown; visible: true
+        function test_click() { mouseClick(input, 20, 10); console.log("CLICK " + JSON.stringify({ touched: composer.touched, focus: input.activeFocus })) }
+    }
+}
+` });
+    let clickOut = {};
+    try { clickOut = logged(out, "CLICK"); } catch (e) { clickOut = { error: e.message }; }
+    check("a click in the box's text (a TextArea in its Flickable) touches it", clickOut.touched === true && clickOut.focus === true, JSON.stringify(clickOut));
+  }
 }
 
 // a Text's default (AutoText) draws a line that starts with a known tag as rich text: echo "<b>done</b>" showed "done"

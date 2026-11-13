@@ -27,6 +27,13 @@ Item {
     property bool working: false
     property bool locked: false        // the session belongs to a terminal
     property var card: null            // the card waiting on top (Conversation): see cardKey
+    // the person's own hand in the box since the session was opened (Conversation clears it) or the card on top came
+    // up: a click in the text or a key typed there (arms). Only then does a card answer to the box's keys: opening a
+    // session moves the keyboard here (a rail click, Down from the rail's search, Alt+Up/Down, the notch), and the
+    // first Enter, pressed to go and type, allowed the card waiting there.
+    property bool touched: false
+    property var cardUp: null
+    onCardChanged: if (composer.card && composer.card !== composer.cardUp) { composer.cardUp = composer.card; composer.touched = false; }
     property bool fresh: false         // a new session: the folder can still change
     property string folder: ""
     property var folders: []           // [{ path, name }] recent project folders
@@ -103,12 +110,23 @@ Item {
     // Enter its first answer, Esc its no, 1-9 its nth (the card's key()). With words in the box they are the box's:
     // Enter sends them, Esc stops the turn, a digit is typed. A held key's repeats are taken and do nothing: they come
     // to the box once its press has moved the keyboard here (the rail's Enter), and would answer this card and the next.
+    // Until the box is touched they are not the card's: Enter sends nothing (the box is empty), a digit is typed and
+    // Esc does nothing.
     function cardKey(e) {
         if (!composer.card || composer.aside || input.text.length > 0 || composer.attachments.length > 0) return false;
         if (e.modifiers & (Qt.ControlModifier | Qt.AltModifier | Qt.MetaModifier)) return false;
         const k = e.key === Qt.Key_Return || e.key === Qt.Key_Enter ? (e.modifiers & Qt.ShiftModifier ? null : "enter")
             : e.key === Qt.Key_Escape ? "esc" : /^[1-9]$/.test(e.text) ? Number(e.text) : null;
-        return k !== null && (e.isAutoRepeat || composer.card.key(k));
+        if (k === null) return false;
+        if (e.isAutoRepeat) return true;
+        return composer.touched ? composer.card.key(k) : k === "esc";
+    }
+    // a key that touches the box: any but a card's own (Enter, Esc, a digit), a modifier alone (the Alt of Alt+Down) and
+    // a held key's repeats (a key held on the rail repeats here once its press has moved the keyboard)
+    function arms(e) {
+        if (e.isAutoRepeat || e.key === Qt.Key_Return || e.key === Qt.Key_Enter || e.key === Qt.Key_Escape || /^[0-9]$/.test(e.text)) return false;
+        return ![Qt.Key_Shift, Qt.Key_Control, Qt.Key_Alt, Qt.Key_AltGr, Qt.Key_Meta, Qt.Key_Super_L, Qt.Key_Super_R,
+                 Qt.Key_CapsLock, Qt.Key_NumLock].includes(e.key);
     }
     signal stop()
     signal folderPicked(string path)
@@ -662,7 +680,9 @@ Item {
                 // a click into the text closes a chip's menu
                 onActiveFocusChanged: if (input.activeFocus && composer.menu !== "") composer.menu = ""
                 onCursorPositionChanged: if (composer.suggest.items.length) composer.refreshSuggest()
+                onPressed: composer.touched = true
                 Keys.onPressed: e => {
+                    if (composer.arms(e)) composer.touched = true;
                     const open = composer.suggest.items.length > 0;
                     if (open && (e.key === Qt.Key_Down || e.key === Qt.Key_Up)) {
                         composer.pick = (composer.pick + (e.key === Qt.Key_Down ? 1 : -1) + composer.suggest.items.length) % composer.suggest.items.length;

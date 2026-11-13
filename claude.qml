@@ -845,6 +845,7 @@ ApplicationWindow {
         function open(id: string): void {
             root.visible = true;
             root.openId(id);
+            conv.opened();
             if (root.wantedId !== id) root.reveal(id);
         }
         // Files' pick mode hands its choice back here

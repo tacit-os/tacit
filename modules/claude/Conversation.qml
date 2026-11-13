@@ -1199,6 +1199,7 @@ Item {
         }
         conv.closeFind();   // another session starts without the find
         conv.findOnLoad = "";
+        composer.touched = false;   // its waiting card's keys wait for the person's hand in the box (Composer.touched)
         composer.aside = false;   // or asking aside: the next message goes to this session as a message
         // The box's draft belongs to its session: it stayed in the box when another was opened, ready to be sent
         // there by mistake. Kept by session while the app runs; a pre-fill (a drop, a page) comes after this.
@@ -1668,6 +1669,9 @@ Item {
         composer.take(images.concat(files));
     }
     function focusComposer() { composer.focusInput(); }
+    // the notch's way back to the session already open: as another session's opening, its card's keys wait for the box
+    // to be touched
+    function opened() { composer.touched = false; }
     // Clicking a reply or a code block to read it moves the focus into that text, which then eats
     // what you type. Read-only text passes the key on, so it is caught here and typed into the box. The rail's keys
     // come here too. A waiting card's keys are not handed on: only a key pressed in the box answers it (Enter on the

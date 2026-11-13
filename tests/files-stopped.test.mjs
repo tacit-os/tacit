@@ -98,7 +98,7 @@ try {
     error: "", results: ["/home/u/Documents/a.txt"], undo: { op: "delete", paths: ["/home/u/Documents/a.txt"] } };
   {
     const f = qmlFunction(read("modules/ii/files/FilesWindow.qml"), "onJobFinished");
-    const win = { myJobs: { a: true }, undoJob: "", jobLine: "", folder: "/home/u", pendingTrash: [], askDelete() {}, reload() {},
+    const win = { myJobs: { a: true }, undoJob: "", jobLine: "", folder: "/home/u", pendingTrash: [], replacing: {}, askDelete() {}, reload() {},
       tryRevealEdit() {} };
     inScope({ win, Jobs: { label: () => "Stopped · 1 of 2 done" }, Files: { learnMove() {}, parent: p => p.replace(/\/[^/]*$/, "") },
       jobLineTimer: { restart() {} }, revealEdit: {} }, f.params, f.body)(stoppedJob);

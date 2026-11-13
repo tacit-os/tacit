@@ -75,6 +75,7 @@ typedef struct {
 typedef struct {
     Batch *batch;
     gchar *what;
+    gint out_fd;
     gint err_fd;
     GPid pid;
     guint timeout_id;
@@ -105,20 +106,56 @@ static gboolean child_too_slow(gpointer data) {
     return G_SOURCE_REMOVE;
 }
 
-/* qs exits 0 even when it prints "Target not found.", "Function not found." or an arity error, so
- * anything the child wrote to stderr counts as a failure as much as a non-zero exit does. */
-static void on_child_exit(GPid pid, gint wait_status, gpointer data) {
-    Call *call = data;
-    GIOChannel *err = g_io_channel_unix_new(call->err_fd);
+/* All one stream of the child, read once it is gone (so this cannot block), or NULL. */
+static gchar *read_all(gint fd) {
+    GIOChannel *channel = g_io_channel_unix_new(fd);
     gchar *text = NULL;
     gsize len = 0;
 
+    g_io_channel_set_close_on_unref(channel, TRUE);
+    g_io_channel_set_encoding(channel, NULL, NULL);   /* bytes as they are: made valid below */
+    g_io_channel_read_to_end(channel, &text, &len, NULL);
+    g_io_channel_unref(channel);
+    return text;
+}
+
+/* qs's own words for a call the shell did not take (Quickshell's src/io/ipccomm.cpp and src/ipc/ipc.cpp), as Settings
+ * reads them: Quickshell 0.3.2 prints them on stdout, as all its log lines, and exits 0. */
+static const gchar *const refusals[] = {
+    "Target not found", "Function not found", "Not ready to accept queries", "Unable to parse argument",
+    "arguments provided", "invalid IPC response", "Socket Error", "No running instances", NULL
+};
+
+/* The line of what qs printed on stdout that refuses the call, or NULL: a call the shell takes prints nothing, and
+ * one it refuses ("Not ready to accept queries yet." while it reloads, "Target not found.") still exits 0. */
+static gchar *refusal(const gchar *out) {
+    gchar **lines = g_strsplit(out ? out : "", "\n", -1);
+    gchar *found = NULL;
+
+    for (guint i = 0; lines[i] && !found; i++)
+        for (guint j = 0; refusals[j] && !found; j++)
+            if (strstr(lines[i], refusals[j]))
+                found = g_strdup(lines[i]);
+    g_strfreev(lines);
+    return found;
+}
+
+/* A refusal is a failure as much as a non-zero exit is, and so is anything the child wrote to stderr. */
+static void on_child_exit(GPid pid, gint wait_status, gpointer data) {
+    Call *call = data;
+    gchar *out = read_all(call->out_fd);
+    gchar *text = read_all(call->err_fd);
+
     if (call->timeout_id)
         g_source_remove(call->timeout_id);
-    g_io_channel_set_close_on_unref(err, TRUE);
-    g_io_channel_read_to_end(err, &text, &len, NULL);   /* the child is gone, so this cannot block */
-    g_io_channel_unref(err);
     g_spawn_close_pid(pid);
+
+    gchar *refused = refusal(out);
+    if (refused) {
+        g_free(text);
+        text = refused;
+    }
+    g_free(out);
 
     if (text) {
         /* qs says it in one line; keep the reply bounded and valid UTF-8 whatever the child wrote. */
@@ -160,12 +197,11 @@ static void tell_shell(const gchar *verb, gchar **paths, guint n, GDBusMethodInv
                                 "ipc", "call", "files", verb, paths[i], NULL };
         GError *error = NULL;
         GPid pid = 0;
-        gint err_fd = -1;
+        gint out_fd = -1, err_fd = -1;
 
         if (!g_spawn_async_with_pipes(NULL, (gchar **) argv, NULL,
-                                      G_SPAWN_SEARCH_PATH | G_SPAWN_STDOUT_TO_DEV_NULL |
-                                      G_SPAWN_DO_NOT_REAP_CHILD,
-                                      NULL, NULL, &pid, NULL, NULL, &err_fd, &error)) {
+                                      G_SPAWN_SEARCH_PATH | G_SPAWN_DO_NOT_REAP_CHILD,
+                                      NULL, NULL, &pid, NULL, &out_fd, &err_fd, &error)) {
             g_warning("could not reach the shell: %s", error->message);
             batch_done(batch, error->message);
             g_clear_error(&error);
@@ -175,6 +211,7 @@ static void tell_shell(const gchar *verb, gchar **paths, guint n, GDBusMethodInv
         Call *call = g_new0(Call, 1);
         call->batch = batch;
         call->what = g_strdup_printf("files %s %s", verb, paths[i]);
+        call->out_fd = out_fd;
         call->err_fd = err_fd;
         call->pid = pid;
         call->timeout_id = g_timeout_add_seconds(CHILD_SECONDS, child_too_slow, call);

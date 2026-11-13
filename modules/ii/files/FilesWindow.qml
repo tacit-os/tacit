@@ -1536,6 +1536,15 @@ FloatingWindow {
                 if (paths.length > 0)
                     win.askDelete(paths, "There is no trash on this disk.");
             }
+            // a Replace that stopped because the new one has no room beside the old one, kept until it is whole: ask
+            const replaced = win.replacing[job.id];
+            if (replaced) {
+                let r = Object.assign({}, win.replacing);
+                delete r[job.id];
+                win.replacing = r;
+                if (job.state === "failed" && (job.error + "").startsWith("not enough room to keep"))
+                    win.askRoom(replaced, job.results);
+            }
             // a new folder is named right away (the model may already show it, or not yet);
             // what was renamed, pasted or dropped into this folder is selected once it shows
             if (job.state === "done" && job.results.length > 0) {
@@ -1556,6 +1565,7 @@ FloatingWindow {
         }
     }
     property var pendingTrash: []
+    property var replacing: ({})      // job id -> { op, dest, list } of a Replace this window started (askRoom)
     Timer { id: jobLineTimer; interval: 60000; onTriggered: { win.jobLine = ""; win.undoJob = ""; } }
     // a path that should be selected and put into rename as soon as the model shows it
     QtObject {
@@ -1947,6 +1957,18 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         ];
         sheet.open();
     }
+    // Replace for good what the Replace did not get to: the one with no room for both goes before the new one comes, the
+    // rest keep their old ones in the trash where there is room
+    function askRoom(r, made) {
+        const rest = r.list.filter(x => !made.includes(`${r.dest}/${x.split("/").pop()}`));
+        sheet.title = "Not enough room to keep the old copy";
+        sheet.lines = ["Replace it for good?"];
+        sheet.buttons = [
+            { "label": "Replace", "tone": "error", "run": () => win.run(r.op, ["replace-for-good", r.dest].concat(rest)) },
+            { "label": "Cancel", "run": () => {} }
+        ];
+        sheet.open();
+    }
     function deleteSelection() {
         const paths = win.selectedPaths.filter(q => !win.isDriveTrash(q));
         if (paths.length > 0)
@@ -2017,7 +2039,12 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
     }
     function bringChecked(op, list, dest, clashes, fromClip) {
         const go = policy => {
-            win.run(op, [policy, dest].concat(list));
+            const id = win.run(op, [policy, dest].concat(list));
+            if (policy === "replace") {
+                let r = Object.assign({}, win.replacing);
+                r[id] = { "op": op, "dest": dest, "list": list };
+                win.replacing = r;
+            }
             if (op === "move")
                 Files.clip = null;
             // a cut is pasted once, as in GNOME Files: left on the clipboard, a second paste moved files already gone
