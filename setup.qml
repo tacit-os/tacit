@@ -95,6 +95,7 @@ ApplicationWindow {
         else if (m.ev === "wifi") { backend.wifi = m.wifi; backend.wired = m.wired === true; }
         else if (m.ev === "disk") { backend.disk = m.disk; backend.plan = m.plan; }
         else if (m.ev === "power") backend.power = m.power;
+        else if (m.ev === "answers") { if (typeof m.zone === "string") setup.zone = m.zone; }
         else if (m.ev === "join") {
             setup.joining = false;
             if (m.ok) { setup.joined = m.ssid; setup.joinError = ""; if (setup.page === "wifi") setup.go("where"); }
@@ -140,6 +141,7 @@ ApplicationWindow {
         property string partEfi: ""
         property string partBoot: ""
         property string otherSystem: ""        // Windows on another disk, still chosen with Space (tacit-install)
+        property var zone: null                // the time zone the installed system gets, "" for UTC; null until setupd says
         property string picture: "dune"
         property real installDone: 0
         property int installLeft: -1
@@ -670,7 +672,7 @@ ApplicationWindow {
                         text: root.shownPage === "almost" ? "Tacit is finishing on its own. Keep the computer on and the USB stick in."
                             : root.shownPage === "ready" ? ("Restart now. When the screen goes dark, take out the USB stick." + (setup.place === "next" && root.other !== "it" ? ` To use ${root.other}, hold the Space bar while the computer starts.`
                                                                                                                                 : setup.otherSystem !== "" ? ` To use ${setup.otherSystem}, hold the Space bar while the computer starts.` : "")
-                                + (setup.place === "next" || setup.place === "manual" ? " If it starts the old system instead, open the boot menu (often F12 or Esc) and choose Tacit." : "") + root.a11yNote)
+                                + (setup.place === "next" || setup.place === "manual" ? " If it starts the old system instead, open the boot menu (often F12 or Esc) and choose Tacit." : "") + root.zoneNote + root.a11yNote)
                             : setup.installUntouched ? "Nothing on the disk was changed, so the computer starts as before. You can try again."
                             : setup.place === "next" ? `Tacit stopped partway. ${root.other === "it" ? "What was on the disk" : root.other} should start as before${root.other === "Windows" ? ", after it checks its disk" : ""}. You can try again.`
                             : "Tacit stopped partway, after the disk was erased. You can try again."
@@ -834,6 +836,8 @@ ApplicationWindow {
     property Item pwFieldRef: null
     // the bottom of what the page above the buttons holds, 0 where it is short; only the disk page can grow past them
     readonly property real flowBottom: shownPage === "where" ? wherePage.endY : 0
+    // no time zone found while Setup ran (never online): the installed system keeps UTC, and nothing else would say so
+    readonly property string zoneNote: setup.zone === "" ? " Time zone: UTC; set it in Settings once online." : ""
     // the accessibility button's choices are Setup's own: the installed desktop starts at normal size and motion
     readonly property string a11yNote: {
         const on = [Look.text > 1 ? "Text size" : "", Look.lessMotion ? "Reduce motion" : ""].filter(t => t !== "");

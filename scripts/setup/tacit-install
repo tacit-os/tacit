@@ -369,12 +369,19 @@ def image():
     return found[0]
 
 
-def local_clock():
+def windows_clock():
     """Windows keeps the computer's clock in local time and Linux in UTC, so after Tacit Windows showed the time hours off
-    (VIProto, 2026-10-26). With Windows on the computer Tacit keeps it in local time too, as Ubuntu's installer does;
-    this is the file timedatectl set-local-rtc writes, which does not work inside the install's chroot."""
+    (VIProto, 2026-10-26). With Windows on the computer Tacit keeps it in local time too, as Ubuntu's installer does, unless
+    Windows was set to keep it in UTC (RealTimeIsUniversal in its registry, which windows-utc reads from its partition):
+    then in UTC, as both had it. This is the file timedatectl set-local-rtc writes, which does not work inside the
+    install's chroot."""
+    try:
+        utc = subprocess.run(["python3", "-I", os.path.join(os.path.dirname(os.path.abspath(__file__)), "windows-utc")],
+                             capture_output=True, timeout=300).returncode == 0
+    except (OSError, subprocess.SubprocessError):
+        utc = False
     with open(f"{TARGET}/etc/adjtime", "w") as f:
-        f.write("0.0 0 0\n0\nLOCAL\n")
+        f.write("0.0 0 0\n0\n" + ("UTC" if utc else "LOCAL") + "\n")
 
 
 def windows_elsewhere(disk):
@@ -527,11 +534,13 @@ def install(disk, place, keep, manual=None):
     # a new machine id at the first start
     with open(f"{TARGET}/etc/machine-id", "w") as f:
         f.write("uninitialized\n")
-    # NVIDIA's driver only where there is an NVIDIA display card it drives (PCI vendor 0x10de, class 03xx, Turing and
-    # newer); an older card is left to nouveau, which nvidia-utils blacklists
-    if not nvidia_present() and subprocess.run(["arch-chroot", TARGET, "pacman", "-Q", "nvidia-open"], capture_output=True).returncode == 0:
+    # NVIDIA's driver where there is an NVIDIA display card it drives, and kept as the image has it on a laptop whose older
+    # NVIDIA card sits beside other graphics; out where there is none, or an older one is the only display card, which
+    # nouveau then drives (nvidia-utils blacklists it)
+    driver = nvidia_driver()
+    if driver == "remove" and subprocess.run(["arch-chroot", TARGET, "pacman", "-Q", "nvidia-open"], capture_output=True).returncode == 0:
         chroot("pacman", "-Rns", "--noconfirm", "nvidia-open", "nvidia-utils")
-    elif nvidia_present() and os.path.exists(f"{TARGET}/usr/lib/systemd/system/nvidia-suspend.service"):
+    elif driver == "keep" and os.path.exists(f"{TARGET}/usr/lib/systemd/system/nvidia-suspend.service"):
         # its video memory kept across sleep by NVIDIA's own services, as tacit-session sets it on an update (off,
         # Hyprland could die on waking: an RTX 4050 laptop, 2026-10-20)
         with open(f"{TARGET}/etc/modprobe.d/tacit-nvidia-sleep.conf", "w") as f:
@@ -587,7 +596,7 @@ def install(disk, place, keep, manual=None):
     if elsewhere:
         state["other"] = "Windows"
     if elsewhere or (place != "instead" and os.path.isfile(f"{TARGET}{esp}/EFI/Microsoft/Boot/bootmgfw.efi")):
-        local_clock()
+        windows_clock()
     progress(0.92, "keys")
     chroot("pacman-key", "--init")
     chroot("pacman-key", "--populate", "archlinux", "tacit")
@@ -640,17 +649,28 @@ def make_default(place, disk, esp, efi, suffix):
     boot_entry(disk, efi, suffix)
 
 
-def nvidia_present():
+def nvidia_driver():
+    """What becomes of NVIDIA's driver (nvidia-open, nvidia-utils), from the display cards (PCI class 03xx): "keep" where
+    one is NVIDIA's Turing or newer, which it drives; "leave" where an older NVIDIA card sits beside another maker's
+    graphics (a hybrid laptop's: those draw the screen, and the NVIDIA card stays off as before); "remove" where there is
+    no NVIDIA card, or an older one is the only display card, which nouveau then drives (kept with a GTX 1060 alone, the
+    pair left it with no driver at all)."""
     # Turing and newer are PCI devices 0x1e00 on (the TITAN RTX, 0x1e02, is the first nvidia-open takes; Volta's last is
-    # 0x1df6): kept with a GTX 1060 alone, the pair left it with no driver at all
+    # 0x1df6)
+    new = old = other = False
     for d in glob.glob("/sys/bus/pci/devices/*"):
         try:
-            if open(f"{d}/vendor").read().strip() == "0x10de" and open(f"{d}/class").read().strip().startswith("0x03") \
-                    and int(open(f"{d}/device").read(), 16) >= 0x1e00:
-                return True
+            if not open(f"{d}/class").read().strip().startswith("0x03"):
+                continue
+            if open(f"{d}/vendor").read().strip() != "0x10de":
+                other = True
+            elif int(open(f"{d}/device").read(), 16) >= 0x1e00:
+                new = True
+            else:
+                old = True
         except (OSError, ValueError):
             pass
-    return False
+    return "keep" if new else "leave" if old and other else "remove"
 
 
 def username(name, taken=()):

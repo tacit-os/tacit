@@ -1,0 +1,98 @@
+#!/usr/bin/env python3
+# windows-utc [partition...]: whether Windows on this computer keeps the hardware clock in UTC, for tacit-install and
+# tacit-session's update step. Windows keeps it in local time unless RealTimeIsUniversal is set in its registry
+# (HKLM\SYSTEM\CurrentControlSet\Control\TimeZoneInformation), which is read here from each NTFS partition's
+# Windows/System32/config/SYSTEM with ntfscat (ntfsprogs, on the stick for "next to Windows"): nothing is mounted, and a
+# hibernated Windows reads too. Every NTFS partition lsblk lists, or the ones given; run as root.
+# Exit 0: a Windows was read and each one read keeps UTC. 1: one keeps local time, or none could be read (BitLocker, no
+# Windows), which is Windows's own default. 2: it cannot look (no ntfscat or lsblk).
+import shutil, subprocess, sys
+
+SYSTEM_HIVE = ("Windows/System32/config/SYSTEM", "Windows/system32/config/SYSTEM")
+
+
+def hive_value(data, path, name):
+    """The data of value `name` under key `path` (key names from the hive's root, matched without case) in a registry
+    hive file (regf), as bytes; None where there is none."""
+    def u16(o):
+        return int.from_bytes(data[o:o + 2], "little")
+
+    def u32(o):
+        return int.from_bytes(data[o:o + 4], "little")
+
+    def cell(off):      # cell offsets count from the first hive bin, after the 4096-byte base block; the size comes first
+        return 4096 + off + 4
+
+    def same(raw, ascii, want):
+        return raw.decode("latin-1" if ascii else "utf-16-le").lower() == want.lower()
+
+    if data[:4] != b"regf":
+        return None
+    nk = cell(u32(0x24))
+    for want in path:
+        found, lists, seen = None, [u32(nk + 0x1C)] if u32(nk + 0x14) else [], set()
+        while lists and found is None:
+            off = lists.pop()
+            if off in seen:
+                continue
+            seen.add(off)
+            at = cell(off)
+            kind, n = data[at:at + 2], u16(at + 2)
+            if kind not in (b"lf", b"lh", b"li", b"ri"):
+                continue
+            offs = [u32(at + 4 + (8 if kind in (b"lf", b"lh") else 4) * i) for i in range(n)]
+            if kind == b"ri":       # a list of subkey lists
+                lists += offs
+                continue
+            found = next((k for k in map(cell, offs) if data[k:k + 2] == b"nk"
+                          and same(data[k + 0x4C:k + 0x4C + u16(k + 0x48)], u16(k + 2) & 0x20, want)), None)
+        if found is None:
+            return None
+        nk = found
+    values = cell(u32(nk + 0x28))
+    for i in range(u32(nk + 0x24)):
+        vk = cell(u32(values + 4 * i))
+        if data[vk:vk + 2] != b"vk" or not same(data[vk + 0x14:vk + 0x14 + u16(vk + 2)], u16(vk + 0x10) & 1, name):
+            continue
+        size = u32(vk + 4)
+        if size & 0x80000000:       # four bytes or fewer, kept in the offset field itself
+            return data[vk + 8:vk + 8 + (size & 0x7FFFFFFF)]
+        at = cell(u32(vk + 8))
+        return data[at:at + size]
+    return None
+
+
+def keeps_utc(hive):
+    """RealTimeIsUniversal set, as a DWORD or a QWORD other than 0, in the control set Windows starts with (Select's
+    Current; CurrentControlSet exists only while Windows runs)."""
+    current = hive_value(hive, ["Select"], "Current")
+    if not current:
+        return False
+    v = hive_value(hive, [f"ControlSet{int.from_bytes(current, 'little'):03d}", "Control", "TimeZoneInformation"],
+                   "RealTimeIsUniversal")
+    return bool(v) and int.from_bytes(v, "little") != 0
+
+
+def main():
+    if not shutil.which("ntfscat") or not (sys.argv[1:] or shutil.which("lsblk")):
+        return 2
+    parts = sys.argv[1:] or [l.split()[0] for l in subprocess.run(["lsblk", "-nrpo", "NAME,FSTYPE"], capture_output=True,
+                                                                  text=True).stdout.splitlines() if l.split()[1:] == ["ntfs"]]
+    read = []
+    for part in parts:
+        for path in SYSTEM_HIVE:
+            try:
+                r = subprocess.run(["ntfscat", part, path], capture_output=True, timeout=60)
+            except (OSError, subprocess.SubprocessError):
+                break
+            if r.returncode == 0 and r.stdout[:4] == b"regf":
+                try:
+                    read.append(keeps_utc(r.stdout))
+                except (IndexError, ValueError, UnicodeDecodeError):
+                    pass        # a damaged hive is one not read
+                break
+    return 0 if read and all(read) else 1
+
+
+if __name__ == "__main__":
+    sys.exit(main())

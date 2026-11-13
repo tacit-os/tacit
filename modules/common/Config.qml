@@ -129,13 +129,16 @@ Singleton {
         // where it is the layout in use.
         // The old Settings > Hyprland page also wrote that "us" over the installed layout when it opened, as a line in
         // shellOverrides/main.lua, which hyprland.lua reads last: the keyboard stayed US after the update. That exact
-        // line goes where /etc/vconsole.conf names another layout, and Hyprland reloads into it.
+        // line goes where /etc/vconsole.conf names another layout, and Hyprland reloads into it. Not for English's UK
+        // layout (gb with an en_GB system), which Setup gave English before it gave the US one: there the line is also
+        // what Settings > Keyboard writes for a person who chose US over it (OYINOS, 2026-11-12), and the keyboard types
+        // on as it does.
         if (from < 5 && root.options.hyprland.input.kbLayout === "us") {
             root.options.hyprland.input.kbLayout = "";
             Quickshell.execDetached(["bash", "-c",
-                'grep -qxF "$4" "$1" && l=$(. "$2"; printf %s "$XKBLAYOUT") && [ -n "$l" ] && [ "$l" != us ] && python3 "$3" --file "$1" --reset input:kb_layout && hyprctl reload',
+                'grep -qxF "$4" "$1" && l=$(. "$2"; printf %s "$XKBLAYOUT") && [ -n "$l" ] && [ "$l" != us ] && ! { [ "$l" = gb ] && [ "$(. "$5"; printf %s "${LANG%%.*}")" = en_GB ]; } && python3 "$3" --file "$1" --reset input:kb_layout && hyprctl reload',
                 "kb-layout", FileUtils.trimFileProtocol(`${Directories.config}/hypr/hyprland/shellOverrides/main.lua`), "/etc/vconsole.conf",
-                Quickshell.shellPath("scripts/hyprland/hyprconfigurator.py"), 'hl.config({ input = { kb_layout = "us" } })']);
+                Quickshell.shellPath("scripts/hyprland/hyprconfigurator.py"), 'hl.config({ input = { kb_layout = "us" } })', "/etc/locale.conf"]);
         }
         // v5 too: the palette's file search goes as deep and skips what PaletteFiles was written for (c961ce5: depth 8,
         // 12 results, build and cache folders skipped), which this file never said, so every file held 6, 20 and three

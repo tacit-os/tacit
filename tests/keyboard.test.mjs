@@ -1,7 +1,8 @@
-// The keyboard layout an updated computer types with, and the one Settings' Layout row writes. Config.migrate() is run
-// under node on 1.2.13's settings file, and the command it starts is run by bash on a pretend shellOverrides/main.lua
-// and /etc/vconsole.conf, with the tree's own hyprconfigurator.py and a pretend hyprctl first on PATH; the row's own
-// bindings are run under node on the layouts Hyprland reports.
+// The keyboard layout an updated computer types with, the one a new install with English gets, and the one Settings'
+// Layout row writes. Config.migrate() is run under node on 1.2.13's settings file and on a new install's, and the
+// command it starts is run by bash on a pretend shellOverrides/main.lua, /etc/vconsole.conf and /etc/locale.conf, with the
+// tree's own hyprconfigurator.py and a pretend hyprctl first on PATH; Setup's languages come from setupd.py under python
+// and its pickLanguage() runs under node; the row's own bindings are run under node on the layouts Hyprland reports.
 import { spawnSync } from "child_process";
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
@@ -25,15 +26,16 @@ const NUMLOCK = "hl.config({ input = { numlock_by_default = true } })";
 
 console.log("The keyboard layout after the update (modules/common/Config.qml)");
 
-// A settings file as it comes to migrate(), the overrides file and vconsole.conf as given: what the overrides file holds
-// afterwards, and whether Hyprland was told to reload.
-function update(settings, overrides, vconsole) {
+// A settings file as it comes to migrate(), the overrides file, vconsole.conf and locale.conf (none when null) as given:
+// what the overrides file holds afterwards, and whether Hyprland was told to reload.
+function update(settings, overrides, vconsole, locale = null) {
   const dir = mkdtempSync(join(tmpdir(), "tacit-keyboard-"));
   try {
     const main = join(dir, "config", "hypr", "hyprland", "shellOverrides", "main.lua");
     mkdirSync(dirname(main), { recursive: true });
     if (overrides !== null) writeFileSync(main, overrides);
     writeFileSync(join(dir, "vconsole.conf"), vconsole);
+    if (locale !== null) writeFileSync(join(dir, "locale.conf"), locale);
     const bin = join(dir, "bin");
     mkdirSync(bin);
     writeFileSync(join(bin, "hyprctl"), `#!/bin/bash\necho "$*" >> "${join(dir, "hyprctl.log")}"\n`);
@@ -46,7 +48,7 @@ function update(settings, overrides, vconsole) {
     const m = qmlFunction(config, "migrate");
     inScope({ root, Quickshell, Directories, FileUtils }, m.params, m.body)();
     for (const args of started.filter(a => a[0] === "bash"))
-      spawnSync("bash", args.slice(1).map(a => (a === "/etc/vconsole.conf" ? join(dir, "vconsole.conf") : a)),
+      spawnSync("bash", args.slice(1).map(a => (a.startsWith("/etc/") ? join(dir, a.slice(5)) : a)),
         { env: { ...process.env, PATH: `${bin}:${process.env.PATH}` }, stdio: "pipe" });
     return {
       kbLayout: root.options.hyprland.input.kbLayout,
@@ -91,6 +93,42 @@ const says = r => `kbLayout ${JSON.stringify(r.kbLayout)}, main.lua ${JSON.strin
   now.configVersion = version;
   const r = update(now, `${OLD_LINE}\n`, "XKBLAYOUT=de\n");
   check(`US chosen in a version ${version} file stays`, r.kbLayout === "us" && r.overrides === `${OLD_LINE}\n` && !r.reloaded, says(r));
+}
+
+// installed with English before Setup gave it the US layout: Setup wrote gb, and the US line is what the old page wrote
+// or what Settings > Keyboard writes for a person who chose US over it; either way the keyboard types US, and goes on to
+{
+  const r = update(structuredClone(file1213), `${NUMLOCK}\n${OLD_LINE}\n`, "KEYMAP=uk\nXKBLAYOUT=gb\n", "LANG=en_GB.UTF-8\n");
+  check("installed with English and its UK layout, US chosen since: the line stays and nothing reloads",
+    r.overrides === `${NUMLOCK}\n${OLD_LINE}\n` && !r.reloaded, says(r));
+}
+// a UK keyboard chosen with another language is that person's layout, as German is
+{
+  const r = update(structuredClone(file1213), `${OLD_LINE}\n`, "XKBLAYOUT=gb\n", "LANG=sv_SE.UTF-8\n");
+  check("installed with Swedish and the UK layout: the US line goes, so UK is back", r.overrides === "" && r.reloaded, says(r));
+}
+// a new install with English: Setup gives the US layout (setupd's languages, Setup's own pickLanguage), tacit-install writes
+// it to vconsole.conf, and the new settings file leaves it to that
+{
+  const setupd = join(tree, "scripts/setup/setupd.py");
+  const py = spawnSync("python3", ["-I", "-c", "import importlib.util, json, sys\n"
+    + "s = importlib.util.spec_from_file_location('setupd', sys.argv[1]); m = importlib.util.module_from_spec(s); s.loader.exec_module(m)\n"
+    + "print(json.dumps(m.LANGUAGES))", setupd], { encoding: "utf8" });
+  const languages = py.status === 0 ? JSON.parse(py.stdout).map(([code, name, layout]) => ({ code, name, layout })) : [];
+  const english = languages.find(l => l.name === "English");
+  check("Setup's English is the language en_GB with the US keyboard", english?.code === "en_GB" && english?.layout === "us",
+    JSON.stringify(english ?? py.stderr.trim().split("\n").pop()));
+  check("and it is the first language offered", languages[0]?.name === "English", JSON.stringify(languages[0]));
+  const setupQml = read("setup.qml");
+  const pick = qmlFunction(setupQml, "pickLanguage");
+  const kb = setupQml.match(/readonly property string kbLayout:\s*([^\n]*)/)?.[1];
+  const setup = { language: "sv_SE", layout: "se", layoutPicked: false, nonLatin: [] };
+  inScope({ setup }, pick.params, pick.body)(english ?? {});
+  const kbLayout = inScope({ paired: false, layout: setup.layout }, "", `return (${kb});`)();
+  check("Swedish, then English: the keyboard Setup installs with is US", setup.language === "en_GB" && kbLayout === "us",
+    `language ${setup.language}, layout ${kbLayout}`);
+  const r = update(loadInto(defaults, {}), null, `XKBLAYOUT=${kbLayout}\n`, "LANG=en_GB.UTF-8\n");
+  check("the new install's settings file leaves the layout to vconsole.conf's US", r.kbLayout === "" && r.overrides === null && !r.reloaded, says(r));
 }
 
 // Settings > Keyboard & touchpad > Layout, on the layouts Hyprland reports: the layout the row names, and what a pick writes

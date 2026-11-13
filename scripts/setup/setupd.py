@@ -40,8 +40,9 @@ def run(*cmd, timeout=10):
         return ""
 
 # ------------------------------------------------------------------ languages and keyboards
-# the five offered first, then the rest; names in their own language
-LANGUAGES = [("en_GB", "English", "gb"), ("sv_SE", "Svenska", "se"), ("so_SO", "Soomaali", "us"), ("ar_SA", "العربية", "ara"),
+# the five offered first, then the rest; names in their own language. English is British English with the US keyboard,
+# the one most English speakers have (a US keyboard on the UK layout put " on Shift+2: Discord, OYINOS, 2026-11-12)
+LANGUAGES = [("en_GB", "English", "us"), ("sv_SE", "Svenska", "se"), ("so_SO", "Soomaali", "us"), ("ar_SA", "العربية", "ara"),
              ("de_DE", "Deutsch", "de"), ("en_US", "English (US)", "us"), ("fr_FR", "Français", "fr"), ("es_ES", "Español", "es"),
              ("it_IT", "Italiano", "it"), ("nl_NL", "Nederlands", "nl"), ("nb_NO", "Norsk bokmål", "no"), ("da_DK", "Dansk", "dk"),
              ("fi_FI", "Suomi", "fi"), ("pl_PL", "Polski", "pl"), ("pt_PT", "Português", "pt"), ("pt_BR", "Português (Brasil)", "br"),
@@ -638,7 +639,8 @@ def act(req):
             install["answers"] = {k: v for k, v in req.items() if k != "op"}
             install["answers"]["timezone"] = zone["name"]
             send_answers()
-            emit({"ev": "answers", "ok": True})
+            # the zone the installed system gets: "" is UTC, which the Ready page says
+            emit({"ev": "answers", "ok": True, "zone": zone["name"]})
             return
         # practice: kept for review only, never the password
         a = {k: v for k, v in req.items() if k not in ("op", "password")}

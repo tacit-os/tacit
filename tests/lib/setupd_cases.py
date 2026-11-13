@@ -98,7 +98,8 @@ def reuse():
 
 
 def zone():
-    """The time zone handed to tacit-install: looked up again as the answers go when the first lookup found none."""
+    """The time zone handed to tacit-install: looked up again as the answers go when the first lookup found none, and
+    told to Setup with the answer ("" for none: the Ready page says the clock is on UTC)."""
     import time
     answers = {"op": "answers", "name": "Sam", "password": "pw", "language": "sv_SE", "layout": "se"}
     for name, online_at, want, asks in [
@@ -122,7 +123,7 @@ def zone():
         online[0] = online_at in ("hello", "answers")
         m.act(answers)
         got = m.install.get("answers", {}).get("timezone")
-        check(name, got == want and asks in (None, len(asked)) and m.sent[-1] == {"ev": "answers", "ok": True},
+        check(name, got == want and asks in (None, len(asked)) and m.sent[-1] == {"ev": "answers", "ok": True, "zone": want},
               f"timezone {got!r}, {len(asked)} lookups, last sent {m.sent[-1]}")
 
 
