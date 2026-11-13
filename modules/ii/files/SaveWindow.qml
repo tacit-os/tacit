@@ -2,6 +2,7 @@ import QtQuick
 import QtQuick.Layouts
 import Qt.labs.folderlistmodel
 import Quickshell
+import Quickshell.Io
 import Quickshell.Wayland
 import qs
 import qs.services
@@ -66,7 +67,7 @@ PanelWindow {
 
     FolderListModel {
         id: here
-        folder: "file://" + win.folder.split("/").map(encodeURIComponent).join("/")
+        folder: FileUtils.folderUrl(win.folder)   // a #, ? or %XX in a name otherwise lists another folder
         showDirs: true
         showDirsFirst: true
         showDotAndDotDot: false
@@ -125,7 +126,41 @@ PanelWindow {
         else if (win.taken)
             win.asking = true;
         else
-            win.answer([win.target]);
+            win.answerFree(win.target, false);
+    }
+    function keepBoth() {
+        win.answerFree((win.folder === "/" ? "" : win.folder) + "/" + win.keepName(win.trimmed), true);
+    }
+    // A name goes back only once the disk says it is free: the list is the folder model's, which still holds the last
+    // folder's names while a slow one is read and none where Files can't list it (Files.cantList), and the app writes
+    // over whatever is at the path it is given. A name found taken joins the list's: Save asks Replace / Keep both,
+    // Keep both takes its next number.
+    function answerFree(path, keeping) {
+        if (onDisk.running)
+            return;
+        onDisk.path = path;
+        onDisk.keeping = keeping;
+        onDisk.running = true;
+    }
+    Process {
+        id: onDisk
+        property string path: ""
+        property bool keeping: false
+        command: ["bash", "-c", '[ -d "$1" ] && exit 2; { [ -e "$1" ] || [ -L "$1" ]; } && exit 1; exit 0', "_", onDisk.path]
+        onExited: (code, status) => {
+            if (code === 0) {
+                win.answer([onDisk.path]);
+                return;
+            }
+            const nm = onDisk.path.slice(onDisk.path.lastIndexOf("/") + 1);
+            win.names = Object.assign({}, win.names, { [nm]: true });
+            if (code === 2)
+                win.dirs = Object.assign({}, win.dirs, { [nm]: true });
+            if (onDisk.keeping)
+                win.keepBoth();
+            else
+                win.asking = code !== 2;
+        }
     }
 
     Component.onCompleted: {
@@ -395,7 +430,7 @@ PanelWindow {
                     color: Appearance.colors.colOnLayer1
                 }
                 Pill { label: "Cancel"; onClicked: win.asking ? (win.asking = false) : win.answer([]) }
-                Pill { visible: win.asking; label: "Keep both"; onClicked: win.answer([(win.folder === "/" ? "" : win.folder) + "/" + win.keepName(win.trimmed)]) }
+                Pill { visible: win.asking; label: "Keep both"; onClicked: win.keepBoth() }
                 Pill { visible: win.asking; label: "Replace"; main: true; onClicked: win.answer([win.target]) }
                 Pill { visible: !win.asking; label: "Save"; main: true; enabledPill: win.ready; onClicked: win.accept() }
             }
@@ -503,7 +538,7 @@ PanelWindow {
                             dim: !fileIsDir
                             onClicked: {
                                 if (fileIsDir)
-                                    win.go(filePath);
+                                    win.go(FileUtils.listedPath(filePath));
                                 else if (!win.forFolder) {
                                     win.name = fileName;
                                     focusTimer.restart();

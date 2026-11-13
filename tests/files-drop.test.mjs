@@ -34,6 +34,7 @@ Window {
                 required property int index
                 required property string modelData
                 readonly property bool fileIsDir: modelData === "Projects"
+                readonly property bool takesDrops: fileIsDir   // as FilesRow's own, outside the Trash
                 signal droppedInto(int index, var urls, int modifiers, bool internal)
                 onDroppedInto: (i, urls, mods, internal) => win.dropIn(urls, mods, internal, win.folder + "/" + modelData)
                 width: 400; height: 40

@@ -90,7 +90,8 @@ finish() { state=$1; ended=$(date +%s%3N); current=""; write; rm -f "$cancel"; e
 cancelled() { [ -e "$cancel" ]; }
 
 # What went wrong, in words: "Could not delete a.txt" + the tool's complaint -> the reason when it is
-# one a person can act on. $1 is the sentence, $2 what the tool said.
+# one a person can act on. $1 is the sentence, $2 what the tool said, in English: the tools whose words are read here
+# run with LC_ALL=C, or gio and coreutils said them in the person's language and nothing matched.
 because() {
     local r=""
     case "$2" in
@@ -130,7 +131,7 @@ set_aside() {
     local before rec out
     old_back=""
     before=$(trash_records "$1")
-    if out=$(gio trash -- "$1" 2>&1); then
+    if out=$(LC_ALL=C gio trash -- "$1" 2>&1); then
         rec=$(comm -13 <(printf '%s\n' "$before") <(trash_records "$1") | tail -1)
         [ -n "$rec" ] && old_back="$(dirname -- "$(dirname -- "$rec")")/files/$(basename -- "$rec" .trashinfo)"$'\t'"$rec"
         return 0
@@ -205,7 +206,7 @@ copy|move)
         fi
         if [ -n "$copying" ]; then
             # progress: the target growing, sampled while the copy runs
-            cp -a -- "$s" "$target" 2>"$report.err" &
+            LC_ALL=C cp -a -- "$s" "$target" 2>"$report.err" &
             pid=$!
             while kill -0 "$pid" 2>/dev/null; do
                 if cancelled; then kill "$pid" 2>/dev/null; wait "$pid" 2>/dev/null; rm -rf -- "$target"; put_back "$target" "$old_back"; finish_made cancelled; fi
@@ -218,7 +219,7 @@ copy|move)
                 finish_made failed
             fi
             # the copy is whole: a move's source goes now. If it cannot, the copy stays, as mv left it.
-            if [ "$op" = move ] && ! rm -rf -- "$s" 2>"$report.err"; then
+            if [ "$op" = move ] && ! LC_ALL=C rm -rf -- "$s" 2>"$report.err"; then
                 because "Could not move $name" "$(cat "$report.err")"; rm -f "$report.err"; finish_made failed
             fi
         fi
@@ -234,7 +235,7 @@ unreplace)   # triples: <path> <old file in the trash> <its record>, "-" "-" for
     total=$(( $# / 3 )); args=("$@"); write
     for ((i = 0; i + 2 < ${#args[@]}; i += 3)); do
         p=${args[i]}; current=$(basename -- "$p"); write
-        if [ -e "$p" ] && ! out=$(gio trash -- "$p" 2>&1); then because "Could not move $current to the trash" "$out"; finish failed; fi
+        if [ -e "$p" ] && ! out=$(LC_ALL=C gio trash -- "$p" 2>&1); then because "Could not move $current to the trash" "$out"; finish failed; fi
         if [ "${args[i+1]}" != - ] && ! put_back "$p" "${args[i+1]}"$'\t'"${args[i+2]}"; then error="Could not put $current back"; finish failed; fi
         results+=("$p"); done_=$((done_+1)); write
     done
@@ -243,7 +244,7 @@ trash)
     total=$#; write
     for s in "$@"; do
         current=$(basename -- "$s"); write
-        if ! out=$(gio trash -- "$s" 2>&1); then
+        if ! out=$(LC_ALL=C gio trash -- "$s" 2>&1); then
             # no trash on this filesystem (a stick, /tmp): the UI asks about deleting for good
             case "$out" in *"not supported"*|*"trash"*"directory"*|*"Unable to find or create"*) error="no trash on this disk" ;; *) because "Could not move $(basename -- "$s") to the trash" "$out" ;; esac
             finish failed
@@ -288,7 +289,7 @@ restore)   # names in the home trash, or paths in a drive's (<top>/.Trash-UID/fi
 rename)
     src=$1; new=$2; total=1; dir_=$(dirname -- "$src"); target="$dir_/$new"; current=$new; write
     if [ -e "$target" ]; then error="$new is already here"; finish failed; fi
-    if ! out=$(mv -- "$src" "$target" 2>&1); then because "Could not rename" "$out"; finish failed; fi
+    if ! out=$(LC_ALL=C mv -- "$src" "$target" 2>&1); then because "Could not rename" "$out"; finish failed; fi
     results+=("$target"); done_=1
     undo=$(jq -nc --arg from "$target" --arg to "$src" '{op:"move-back", from:[$from], to:[$to]}')
     finish done ;;
@@ -408,7 +409,7 @@ delete)
     tdir="${XDG_DATA_HOME:-$HOME/.local/share}/Trash"
     for s in "$@"; do
         current=$(basename -- "$s"); write
-        if ! out=$(rm -rf -- "$s" 2>&1); then because "Could not delete $(basename -- "$s")" "$out"; finish failed; fi
+        if ! out=$(LC_ALL=C rm -rf -- "$s" 2>&1); then because "Could not delete $(basename -- "$s")" "$out"; finish failed; fi
         # "Delete for good" inside the trash: the record goes with the file, or a later "put back"
         # of a same-named file matches a record whose file is gone. Only the trash's own top level
         # has records; a file inside a trashed folder is covered by that folder's one.

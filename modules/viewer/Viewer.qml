@@ -158,11 +158,12 @@ Item {
         const dir = path.replace(/\/[^\/]*$/, "") || "/";
         wantPath = path;
         loadOrigins();
-        // the folder as a path, not as a QUrl: its string is the decoded form, which never equals urlOf's
+        // the folder as a path, not as a QUrl: its string is the decoded form, which never equals folderUrl's
         const same = folder === dir;
         folder = dir;
-        if (same) { if (entriesFor.status === FolderListModel.Ready) relist(); }
-        else entriesFor.folder = urlOf(dir);
+        if (!same) entriesFor.folder = FileUtils.folderUrl(dir);   // a #, ? or %XX in a name otherwise lists another folder
+        // where Qt's model can't list it (folderUrl ""), the framed file alone
+        if (same && entriesFor.status === FolderListModel.Ready || entriesFor.folder.toString() === "") relist();
     }
     FolderListModel {
         id: entriesFor
@@ -191,7 +192,7 @@ Item {
             const kn = nameOf(keep);
             let at = -1, after = total;
             for (let i = 0; i < total && at < 0; i++) {
-                const p = entriesFor.get(i, "filePath") + "";
+                const p = FileUtils.listedPath(entriesFor.get(i, "filePath"));
                 if (p === keep) at = i;
                 else if (after === total && nameOf(p) > kn) after = i;
             }
@@ -200,7 +201,7 @@ Item {
         }
         const list = [];
         for (let i = from; i < to; i++) {
-            const p = entriesFor.get(i, "filePath") + "";
+            const p = FileUtils.listedPath(entriesFor.get(i, "filePath"));
             list.push({ path: p, name: p.split("/").pop(), kind: Info.kindOf(p), size: entriesFor.get(i, "fileSize"), at: entriesFor.get(i, "fileModified") });
         }
         let counted = total;
@@ -264,7 +265,7 @@ Item {
         const here = last ? listStart + entries.length >= listTotal : listStart === 0;
         if (here) { goTo(last ? entries.length - 1 : 0); return; }
         if (!folded && settle > 0) settle = 0;
-        aimPath = entriesFor.get(last ? entriesFor.count - 1 : 0, "filePath") + "";
+        aimPath = FileUtils.listedPath(entriesFor.get(last ? entriesFor.count - 1 : 0, "filePath"));
         relist();
     }
 

@@ -17,6 +17,31 @@ Singleton {
     }
 
     /**
+     * The url Qt's folder model (FolderListModel, 6.12) lists a folder from, or "" where it can't. The model turns
+     * the url into a path, then reads that path as a url again, so a #, ? or %XX in a name cuts or changes it: "C#"
+     * listed nothing (or "C"), "#2024" the folder above, "My%20Files" "My Files". Given as //<path>, the path is kept
+     * as it is (Qt takes "//first" for a host, and stat reads "//tmp" as "/tmp"); its rows' paths then start with
+     * "//" too (listedPath). The first name must read as a host for that: under a folder in / named otherwise, "".
+     * @param {string} path
+     * @returns {string}
+     */
+    function folderUrl(path) {
+        const s = String(path ?? "");
+        if (!/[#?]|%[0-9A-Fa-f]{2}/.test(s)) return root.fileUrl(s);
+        return /^\/[A-Za-z0-9._-]+\//.test(s) ? "file:///" + root.fileUrl(s).slice("file://".length) : "";
+    }
+
+    /**
+     * A path from a folder model's row as a plain path: folderUrl's form gives "//tmp/C#/x" for /tmp/C#/x.
+     * @param {string} path
+     * @returns {string}
+     */
+    function listedPath(path) {
+        const s = String(path ?? "");
+        return s.startsWith("//") ? s.slice(1) : s;
+    }
+
+    /**
      * Trims the File protocol off the input string
      * @param {string} str
      * @returns {string}

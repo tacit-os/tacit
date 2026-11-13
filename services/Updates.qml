@@ -79,7 +79,7 @@ Singleton {
     Process {
         id: restartDueProc
         command: ["bash", "-c", '[ "$(cat "$1" 2>/dev/null)" = "$(cat /proc/sys/kernel/random/boot_id)" ]', "_",
-            `${Directories.home}/.local/state/tacit/restart-needed`]
+            `${FileUtils.trimFileProtocol(Directories.home)}/.local/state/tacit/restart-needed`]   // home is a file:// url
         onExited: (code, status) => root.restartDue = code === 0
     }
     // Check now is the download too: the package list is otherwise only as fresh as the last timer run, so a check

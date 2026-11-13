@@ -96,7 +96,7 @@ Item {
                 height: strip.height
                 FolderListModel {
                     id: dir
-                    folder: FileUtils.fileUrl(col.modelData)    // encoded: '#', '?' or '%' in a name ended the url there
+                    folder: FileUtils.folderUrl(col.modelData)    // a '#', '?' or '%XX' in a name otherwise lists another folder
                     showDirsFirst: true
                     showDotAndDotDot: false
                     showHidden: columns.showHidden
@@ -108,7 +108,7 @@ Item {
                     interval: 0
                     onTriggered: {
                         for (let i = 0; i < dir.count; i++)
-                            if (dir.get(i, "filePath") === col.chosen) { lv.positionViewAtIndex(i, ListView.Contain); return; }
+                            if (FileUtils.listedPath(dir.get(i, "filePath")) === col.chosen) { lv.positionViewAtIndex(i, ListView.Contain); return; }
                     }
                 }
                 ListView {
@@ -127,16 +127,17 @@ Item {
                         required property string fileName
                         required property string filePath
                         required property bool fileIsDir
-                        readonly property var thing: Things.describe(line.filePath + (line.fileIsDir ? "/" : ""))
+                        readonly property string path: FileUtils.listedPath(line.filePath)
+                        readonly property var thing: Things.describe(line.path + (line.fileIsDir ? "/" : ""))
                         width: lv.width
                         focusable: false
                         glyph: line.thing.glyph
-                        picture: columns.pictureFor(line.filePath, line.fileIsDir)
+                        picture: columns.pictureFor(line.path, line.fileIsDir)
                         name: line.fileName
-                        selected: line.filePath === col.chosen
+                        selected: line.path === col.chosen
                         // a file here: its folder opens with the file chosen
-                        onClicked: line.fileIsDir ? columns.goTo(line.filePath) : columns.revealIn(line.filePath)
-                        onActivated: line.fileIsDir ? columns.goTo(line.filePath) : columns.revealIn(line.filePath)
+                        onClicked: line.fileIsDir ? columns.goTo(line.path) : columns.revealIn(line.path)
+                        onActivated: line.fileIsDir ? columns.goTo(line.path) : columns.revealIn(line.path)
                         K.Symbol {
                             visible: line.fileIsDir
                             x: line.width - width - K.Kit.tokens.space.m

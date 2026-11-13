@@ -1,8 +1,8 @@
-// Pinax's Columns view never lists another folder in an ancestor's column when the ancestor's name holds '#', '?' or
-// '%' (modules/ii/files/FilesColumns.qml): the column's own FolderListModel block runs under qmltestrunner offscreen,
-// with FileUtils' own fileUrl, on folders named "C# stuff", "Why?", "Sale %40 off" and "100%". Qt 6.12's
-// FolderListModel cannot list the first three at all (its resolvePath reads the decoded path as a URL again, so '#'
-// starts a fragment and '%40' is decoded twice): their column is empty, as Pinax's own list is there.
+// Pinax's Columns view lists an ancestor's own folder in its column when the ancestor's name holds '#', '?' or '%'
+// (modules/ii/files/FilesColumns.qml): the column's own FolderListModel block runs under qmltestrunner offscreen, with
+// FileUtils' own functions, on folders named "C# stuff", "Why?", "Sale %40 off" and "100%". Qt 6.12's FolderListModel
+// reads the decoded path as a URL again ('#' starts a fragment, '%40' is decoded twice), so the first three need
+// FileUtils.folderUrl's form; given the plain url they listed nothing.
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
@@ -10,9 +10,11 @@ import { logged, module, objectWith, runScene } from "./lib/qtscene.mjs";
 import { qmlFunction } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
-console.log("== the Columns view lists no other folder for a name with # ? or % (FilesColumns.qml)");
+console.log("== the Columns view lists the folder itself for a name with # ? or % (FilesColumns.qml)");
 const block = objectWith(read("modules/ii/files/FilesColumns.qml"), "id: dir");
-const fileUrl = qmlFunction(read("modules/common/functions/FileUtils.qml"), "fileUrl");
+const utils = read("modules/common/functions/FileUtils.qml");
+// the tree's own; one an older tree lacks gives nothing
+const fns = ["fileUrl", "folderUrl", "listedPath"].map(n => { const f = qmlFunction(utils, n); return f ? `function ${n}(${f.params}) {${f.body}}` : ""; });
 const root = mkdtempSync(join(tmpdir(), "tacit-columns-"));
 try {
   const names = ["C# stuff", "Why?", "Sale %40 off", "100%"];
@@ -43,12 +45,10 @@ Item {
     }
 }
 `;
-    const stubs = module("qs.modules.common.functions", { FileUtils: `QtObject { function fileUrl(${fileUrl.params}) {${fileUrl.body}} }` });
+    const stubs = module("qs.modules.common.functions", { FileUtils: `QtObject { id: root; ${fns.join("\n")} }` });
     try {
       const got = logged(runScene({ "tst_column.qml": scene, ...stubs }), "COLUMN");
-      const own = got.join() === "inside,notes.txt";
-      if (n === "100%") check(`the column for "${n}" lists that folder`, own, `it lists ${JSON.stringify(got)}`);
-      else check(`the column for "${n}" lists nothing from another folder`, own || got.length === 0, `it lists ${JSON.stringify(got)}`);
+      check(`the column for "${n}" lists that folder`, got.join() === "inside,notes.txt", `it lists ${JSON.stringify(got)}`);
     } catch (e) {
       check(`the scene for "${n}" ran`, false, String(e.message ?? e));
     }

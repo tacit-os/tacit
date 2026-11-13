@@ -706,7 +706,7 @@ FloatingWindow {
             for (let i = 0; i < listed; i++) {
                 const name = raw.get(i, "fileName") + "";
                 const isDir = raw.get(i, "fileIsDir");
-                const row = { "fileName": name, "filePath": raw.get(i, "filePath"), "fileIsDir": isDir,
+                const row = { "fileName": name, "filePath": FileUtils.listedPath(raw.get(i, "filePath")), "fileIsDir": isDir,
                               "fileSize": raw.get(i, "fileSize"), "fileModified": raw.get(i, "fileModified"),
                               "kind": isDir ? "Folders" : win.kindGroup(Things.kindOf(name)) };
                 row.mtime = row.fileModified.getTime();
@@ -732,8 +732,10 @@ FloatingWindow {
     }
     FolderListModel {
         id: raw
-        // a folder back after it was gone is read afresh: the model let go of it, and the same address is not news
-        folder: win.fileUrl(win.folder) + (win.reloads % 2 === 1 ? "/" : "")
+        // a folder back after it was gone is read afresh: the model let go of it, and the same address is not news.
+        // FileUtils.folderUrl: a #, ? or %XX in a name otherwise lists another folder
+        readonly property string url: FileUtils.folderUrl(win.folder)
+        folder: url.length > 0 ? url + (win.reloads % 2 === 1 ? "/" : "") : ""
         showDotAndDotDot: false
         showHidden: win.showHidden
         caseSensitive: false
@@ -1184,7 +1186,9 @@ FloatingWindow {
     // with "/" is under the folder shown, and "." and ".." are walked. "Downloads" went to go() as it was and was shown
     // as moved or deleted, and "~bob" became <home>bob.
     function typedPath(t) {
-        if (t === "~" || t.startsWith("~/")) t = win.home + t.substring(1);
+        const address = /^file:\/\/(?:localhost)?(\/.*)$/.exec(t);   // pasted from a browser or another app: encoded
+        if (address) t = win.decodePath(address[1]);
+        else if (t === "~" || t.startsWith("~/")) t = win.home + t.substring(1);
         else if (!t.startsWith("/")) t = win.folder + "/" + t;
         const out = [];
         for (const part of t.split("/")) {
@@ -1483,7 +1487,8 @@ FloatingWindow {
     function uriList(i) {
         const p = win.pathAt(i);
         const paths = win.selectedMap[p] ? win.selectedPaths : [p];
-        return paths.map(x => win.fileUrl(x)).join("\r\n");
+        // a drive's trash, at the Trash's root, is the drive's: dragged out, its whole trash went without its records
+        return paths.filter(x => !win.isDriveTrash(x)).map(x => win.fileUrl(x)).join("\r\n");
     }
 
     // ------------------------------------------------------------------ changing things
@@ -1962,16 +1967,17 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         }
     }
     function copySelection(cutting) {
-        if (win.selectedPaths.length === 0)
+        const paths = win.selectedPaths.filter(q => !win.isDriveTrash(q));   // a drive's trash is not cut or copied, as in uriList
+        if (paths.length === 0)
             return;
-        Files.clip = { "op": cutting ? "cut" : "copy", "paths": win.selectedPaths.slice(), "at": Date.now() };
+        Files.clip = { "op": cutting ? "cut" : "copy", "paths": paths, "at": Date.now() };
         // A cut goes out as x-special/gnome-copied-files, whose first line is the verb:
         // text/uri-list carries none, so another file manager pasted our cut as a copy.
-        const urls = win.selectedPaths.map(x => win.fileUrl(x));
+        const urls = paths.map(x => win.fileUrl(x));
         const body = cutting ? ["cut"].concat(urls).join("\n") : urls.join("\r\n");
         const type = cutting ? "x-special/gnome-copied-files" : "text/uri-list";
         Quickshell.execDetached(["bash", "-c", `printf '%s' '${StringUtils.shellSingleQuoteEscape(body)}' | wl-copy --type ${type}`]);
-        win.reason = `${cutting ? "Cut" : "Copied"} ${Voice.count(win.selectedPaths.length, "item")}`;
+        win.reason = `${cutting ? "Cut" : "Copied"} ${Voice.count(paths.length, "item")}`;
         reasonTimer.restart();
     }
     // Paste, or a drop: into a folder (this one, a folder row, a place), with the collisions
@@ -2072,8 +2078,10 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         const paths = urls.map(u => FileUtils.trimFileProtocol(win.decodePath(u.toString()))).filter(x => x.length > 0);
         if (paths.length === 0)
             return;
-        if (dest === win.trashDir) {   // the Trash row: a drop there is a trash, so the record Put back needs is written
-            const out = paths.filter(x => x !== win.trashDir && !x.startsWith(win.trashDir + "/"));
+        // the Trash, a folder in it or a drive's trash: a drop there is a trash, so the record Put back needs is written
+        // (as a move into the folder it would come back with that folder, or not at all); what is in a trash stays
+        if (win.trashOf(dest).length > 0) {
+            const out = paths.filter(x => win.trashOf(x).length === 0);
             if (out.length > 0) {
                 win.pendingTrash = out;
                 win.run("trash", out);
@@ -2884,6 +2892,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                 // only a list row has a field, and only while the list is the view
                                 editing: win.editingFile === filePath && win.view === "list" && !win.searching
                                 cut: win.cutMap[filePath] === true
+                                takesDrops: fileIsDir && !win.inTrash   // a drop anywhere in the Trash is a trash (dropIn)
                                 offer: win.offerFor(filePath)
                                 onOfferTaken: i => { const o = win.offerFor(win.pathAt(i)); if (o) o.run(); }
                                 onOfferDismissed: i => win.dismissOffer(win.pathAt(i))

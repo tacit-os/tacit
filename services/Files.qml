@@ -326,10 +326,11 @@ Singleton {
         const i = p.lastIndexOf("/");
         return i <= 0 ? "/" : p.substring(0, i);
     }
-    // Qt's folder model (6.12) can't list a folder whose path holds # or ?: it reads the path as a url again, where a #
-    // or ? ends it, and lists another folder or none. What Files' lists say there instead of rows, or "" when it can.
+    // Qt's folder model (6.12) lists a folder whose path holds #, ? or %XX only as FileUtils.folderUrl gives it, which
+    // can't serve one under a folder in / with such a name: there it lists another folder or none. What Files' lists
+    // say there instead of rows, or "" when it can.
     function cantList(path) {
-        return /[#?]/.test(path ?? "") ? "Files can't list a folder with # or ? in its name yet" : "";
+        return (path ?? "").length > 0 && FileUtils.folderUrl(path) === "" ? "Files can't list a folder with #, ? or % in its path yet" : "";
     }
 
     // ------------------------------------------------------------------ where to open

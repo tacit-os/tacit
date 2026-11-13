@@ -35,6 +35,7 @@ Item {
     property bool editing: false     // the name is a field (F2); the window's binding sets it, never assign it here (that drops the binding for good)
     property bool hidden: false      // the filter keeps the row in the model, off the screen
     property bool cut: false         // waiting to be pasted elsewhere: drawn faint
+    property bool takesDrops: row.fileIsDir   // a folder is a place to drop into, but not in the Trash
     property bool taken: false       // the edited name is already here
     property var offer: null         // { label, glyph, run }: one thing the desktop suggests
     signal offerTaken(int index)
@@ -192,7 +193,7 @@ Item {
         DropArea {
             id: into
             anchors.fill: parent
-            enabled: row.fileIsDir
+            enabled: row.takesDrops
             keys: ["text/uri-list"]
             onDropped: drop => {
                 drop.accept();

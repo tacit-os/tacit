@@ -1,13 +1,14 @@
 // "Restart to finish the updates" until the restart: Apps' backend marks a Get X and the updates with this start's boot id
 // (stored.py install_ with pacman's run replaced: tests/lib/store_cases.py restart-mark), Apps says it on Your apps from
 // the backend's word (store.qml's own bindings under node), and the shell reads the same mark (Updates.qml's check under
-// bash, against this computer's own boot id) for the notch's mark at rest (IslandController's ambientGlyph binding).
+// bash, against this computer's own boot id, with Directories.home a file:// url as Qt gives it) for the notch's mark
+// at rest (IslandController's ambientGlyph binding).
 import { execFileSync, spawnSync } from "child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync, readFileSync } from "fs";
 import { tmpdir } from "os";
 import { dirname, join } from "path";
 import { fileURLToPath } from "url";
-import { inScope, matchBrace, qmlProperty, readExpression } from "./lib/qml.mjs";
+import { inScope, matchBrace, qmlFunction, qmlProperty, readExpression } from "./lib/qml.mjs";
 import { check, done, read, tree } from "./lib/check.mjs";
 
 console.log("== Restart to finish the updates, until the restart (stored.py, store.qml, Updates.qml, IslandController.qml)");
@@ -38,12 +39,15 @@ const updates = read("services/Updates.qml");
 const at = updates.indexOf("id: restartDueProc");
 const proc = at < 0 ? "" : updates.slice(updates.lastIndexOf("Process {", at), matchBrace(updates, updates.lastIndexOf("Process {", at) + "Process ".length) + 1);
 const tmp = mkdtempSync(join(tmpdir(), "tacit-restart-mark-"));
+const trim = qmlFunction(read("modules/common/functions/FileUtils.qml"), "trimFileProtocol");
+const trimFileProtocol = inScope({}, trim.params, trim.body);
 try {
   const due = mark => {
     rmSync(join(tmp, ".local"), { recursive: true, force: true });
     if (mark !== null) { mkdirSync(join(tmp, ".local/state/tacit"), { recursive: true }); writeFileSync(join(tmp, ".local/state/tacit/restart-needed"), mark); }
     if (!proc) return false;
-    const cmd = inScope({ Directories: { home: tmp } }, "", `return (${readExpression(proc, proc.indexOf("command:") + "command:".length).expr});`)();
+    // as QtCore's StandardPaths gives it: Directories.home is "file:///home/<you>"
+    const cmd = inScope({ Directories: { home: `file://${tmp}` }, FileUtils: { trimFileProtocol } }, "", `return (${readExpression(proc, proc.indexOf("command:") + "command:".length).expr});`)();
     const code = spawnSync(cmd[0], cmd.slice(1)).status;
     const root = { restartDue: null };
     inScope({ root }, "", `return (${readExpression(proc, proc.indexOf("onExited:") + "onExited:".length).expr});`)()(code, 0);

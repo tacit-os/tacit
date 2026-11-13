@@ -50,11 +50,14 @@ try {
 
   // ---- the window
   const ran = [];
+  // FileUtils' own, which cantList and the window's rows ask
+  const fileUtils = {};
+  for (const name of ["fileUrl", "folderUrl", "listedPath"]) { const f = fn(read("modules/common/functions/FileUtils.qml"), name); if (f) fileUtils[name] = inScope({ root: fileUtils }, f.params, f.body); }
   const win = { trashDir: F.trashDir, home, folder: F.trashDir, selectedPaths: [], cursorPath: "", run: (op, items) => ran.push([op, items]), clearSelection() {} };
   const Files = { ...F, parent: inScope({ root: { trim: p => p.replace(/\/+$/, "") } }, fn(files, "parent").params, fn(files, "parent").body),
     placeName: p => p.split("/").pop(), driveOf: F.driveOf ?? (() => null),
-    cantList: fn(files, "cantList") ? inScope({}, fn(files, "cantList").params, fn(files, "cantList").body) : () => "" };
-  const wscope = { win, Files, Devices, Things: { kindOf: () => "image" } };
+    cantList: fn(files, "cantList") ? inScope({ FileUtils: fileUtils }, fn(files, "cantList").params, fn(files, "cantList").body) : () => "" };
+  const wscope = { win, Files, Devices, FileUtils: fileUtils, Things: { kindOf: () => "image" } };
   const bindWin = () => {
     if (fn(win_, "trashOf")) win.trashOf = inScope(wscope, fn(win_, "trashOf").params, fn(win_, "trashOf").body);
     const inTrash = inScope(wscope, "", `return (${qmlProperty(win_, "inTrash")});`), trashRoot = qmlProperty(win_, "trashRoot");
