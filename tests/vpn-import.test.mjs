@@ -91,8 +91,23 @@ function vpn() {
     return r.status;
   };
   const wg = exitOf("mullvad-se-got-wg-001.conf", "[Interface]\nPrivateKey = x\n"), notes = exitOf("notes.conf", "just notes\n");
-  rmSync(dir, { recursive: true });
   check("the import script exits 1 for a WireGuard file nmcli refuses, 2 for a file that is no VPN", wg === 1 && notes === 2, `${wg}, ${notes}`);
+  // OpenVPN is not offered: no networkmanager-openvpn, and nowhere to type the user name and password its files ask for
+  notch.parked.length = notch.said.length = 0;
+  const ovpn = exitOf("work.ovpn", "client\nremote vpn.example.com 1194\nauth-user-pass\n");
+  const inConf = exitOf("work.conf", "client\nremote vpn.example.com 1194\n");
+  rmSync(dir, { recursive: true });
+  check("an OpenVPN file typed into Settings is refused, not handed to nmcli, and the notch says which kind can be added",
+    ovpn === 1 && inConf === 1 && notch.parked.length === 0 && notch.said[0] === "Couldn't add the VPN · only WireGuard .conf files can be added",
+    `${ovpn}, ${inConf}, ${JSON.stringify(notch.said)}`);
+}
+// what a drop on the notch takes as a VPN (Vpn.isVpnFile), and what the panel and Settings invite
+{
+  const f = untyped(qmlFunction(src, "isVpnFile"));
+  const isVpn = inScope({}, f.params, f.body);
+  check("a dropped .conf is a VPN to add, a dropped .ovpn a file like any other", isVpn("file:///home/a/se.conf") === true && isVpn("file:///home/a/work.ovpn") === false);
+  const said = read("modules/ii/sidebarRight/vpn/VpnSection.qml") + read("modules/ii/settings/pages/NetworkConfig.qml");
+  check("the panel and Settings ask for a WireGuard .conf and never an .ovpn", !/\.ovpn/.test(said.replace(/^\s*(\/\/|\*).*$/gm, "")) && /WireGuard \.conf file on the notch/.test(said));
 }
 // a file that is neither (the script's exit 2): parked on the shelf, as before
 {

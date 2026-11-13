@@ -67,6 +67,9 @@ Singleton {
             return;
         root.firstRun = false;
         Quickshell.execDetached(["bash", "-c", 'k="$HOME/.config/Kvantum/kvantum.kvconfig"; [ -e "$k" ] || { mkdir -p "${k%/*}" && printf "[General]\\ntheme=MaterialAdw\\n" > "$k"; }']);
+        // the notch's Claude Code hooks (needs you, done, what a terminal session is doing), merged into the person's
+        // ~/.claude/settings.json once, where they can remove them for good
+        Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/praxis/claude_hooks.py"), `${Directories.tacitBin}/notch-session`]);
         // the names first, saved at once, and the look after: the wallpaper switcher rewrites the settings file several
         // times while it works, and names set meanwhile were lost (the VM install test, 2026-10-17: no name anywhere)
         nameProc.running = true;

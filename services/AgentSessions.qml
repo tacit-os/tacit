@@ -13,7 +13,8 @@ import Quickshell.Wayland
  * The Claude Code sessions on this machine, as the notch sees them: which terminal window,
  * idle / working / waiting / done, what each is doing right now, and the last thing it said.
  *
- * Sources: the hooks in ~/.claude/settings.json run ~/.local/bin/notch-session, which reports
+ * Sources: the hooks in ~/.claude/settings.json (an account's first start writes them:
+ * scripts/praxis/claude_hooks.py) run notch-session, which reports
  * over IPC (`sessions update|activity|last|end`) and keeps state files for a restart; the
  * official roster (`claude agents --json`) supplies names and statuses every five seconds.
  * The notch (IslandController) asks for the peeks; the sheet (IslandContent) draws the rows.
@@ -260,8 +261,9 @@ Singleton {
                         s.name = r.name;
                         changed = true;
                     }
-                    // a session no hook reports on (an install has no notch-session hooks in ~/.claude/settings.json)
-                    // follows the roster: adopted busy, it read "working" for good and raised "Quiet" peeks.
+                    // a session no hook reports on (an account from before 1.2.15, or one that removed them, has
+                    // no notch-session hooks) follows the roster: adopted busy, it read "working" for good and
+                    // raised "Quiet" peeks.
                     // One a hook reports on keeps the hook's state: the roster has no "waiting" or "done".
                     if (s.adopted) {
                         const now = r.status === "busy" ? "working" : "idle";

@@ -423,12 +423,6 @@ ContentPage {
                     onSwitched: (value) => { Config.options.lock.useHyprlock = value }
                 }
                 ConfigSwitch {
-                    buttonIcon: "account_circle"
-                    text: Translation.tr("Launch on startup")
-                    checked: Config.options.lock.launchOnStartup
-                    onSwitched: (value) => { Config.options.lock.launchOnStartup = value }
-                }
-                ConfigSwitch {
                     buttonIcon: "widgets"
                     enabled: WM.compositor !== "niri"
                     text: Translation.tr("Show Widgets")
@@ -445,12 +439,6 @@ ContentPage {
                         text: Translation.tr("Require password to power off/restart")
                         checked: Config.options.lock.security.requirePasswordToPower
                         onSwitched: (value) => { Config.options.lock.security.requirePasswordToPower = value }
-                    }
-                    ConfigSwitch {
-                        buttonIcon: "key_vertical"
-                        text: Translation.tr("Also unlock keyring")
-                        checked: Config.options.lock.security.unlockKeyring
-                        onSwitched: (value) => { Config.options.lock.security.unlockKeyring = value }
                     }
                 }
             }

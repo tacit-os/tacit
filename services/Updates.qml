@@ -25,6 +25,19 @@ Singleton {
     property bool lastCheckFailed: false
     property bool asked: false          // this download was asked for in Settings: its failure is shown
     property bool fetchFailed: false
+    // what stopped the last check, and the download before a restart, from what pacman said (failureCause): Settings
+    // and the notch name it, where they used to say "check the connection" for every failure
+    property string checkCause: ""
+    property string restartCause: ""
+    function failureCause(log: string): string {
+        const t = log + "";
+        if (/^tacit: live USB/m.test(t)) return "live";
+        if (/^tacit: busy|unable to lock database|could not lock database/m.test(t)) return "busy";
+        if (/conflict|could not satisfy dependencies|breaks dependency|unable to satisfy dependency/i.test(t)) return "conflict";
+        if (/failed retrieving file|failed to synchronize|could not resolve|download library error|timed out|couldn't connect|network is unreachable/i.test(t))
+            return "offline";
+        return "";
+    }
     property bool ending: false         // the download is over and its list is being read: the progress stays till then
     readonly property bool ready: root.count > 0 && root.downloaded
     // A check, from the press (2026-10-20, Discord: "Check for updates" said "Looking now" for minutes with nothing to
@@ -60,6 +73,7 @@ Singleton {
         root.phase = "looking";
         root.lastCheckFailed = false;
         root.fetchFailed = false;
+        root.checkCause = "";
         root.asked = true;
         root.progress = 0;
         fetchProc.running = true;
@@ -138,11 +152,16 @@ Singleton {
     }
     Process {
         id: restartProc
-        command: ["bash", "-c", "systemctl start tacit-update@now.service || exit 1; systemctl reboot || { systemctl start tacit-update@cancel.service; exit 3; }"]
+        // a download that failed leaves pacman's words in tacit-update's download.log
+        command: ["bash", "-c", "systemctl start tacit-update@now.service || { tail -n 40 /var/lib/tacit/download.log 2>/dev/null; exit 1; }; systemctl reboot || { systemctl start tacit-update@cancel.service; exit 3; }"]
+        stdout: StdioCollector { id: restartOut }
         onExited: (code, status) => {
             if (code !== 0) {
                 root.restartFailed = code === 3 ? "reboot" : "prepare";
-                IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : "Couldn't download the update · check the connection" }, 65);
+                root.restartCause = code === 3 ? "" : root.failureCause(restartOut.text);
+                const why = ({ "busy": "the package manager is busy", "conflict": "a conflicting update", "live": "on the live USB",
+                               "offline": "check the connection" })[root.restartCause];
+                IslandController.request("note", { "icon": "error", "text": code === 3 ? "Couldn't restart" : why ? `Couldn't download the update · ${why}` : "Couldn't download the update" }, 65);
             }
         }
     }
@@ -319,11 +338,14 @@ Singleton {
         // a oneshot is "activating" while it runs, never "active", and one waiting to start is "inactive" with a job queued
         command: ["bash", "-c", "a=0; systemctl is-active tacit-fetch-updates-now.service tacit-fetch-updates.service | grep -qxE 'activating|active' && a=1; "
             + "[ -n \"$(systemctl list-jobs --no-legend tacit-fetch-updates-now.service tacit-fetch-updates.service)\" ] && a=1; "
-            + "echo \"active $a\"; echo \"result $(systemctl show -P Result tacit-fetch-updates-now.service)\"; "
-            + (full ? "echo \"waiting $(pacman -Qu 2>/dev/null | grep -vc ' \\[ignored\\]$')\"; pacman -Sup --print-format '%s %l' 2>/dev/null | grep -v '^:'" : "true")]
+            + "echo \"active $a\"; r=$(systemctl show -P Result tacit-fetch-updates-now.service); echo \"result $r\"; "
+            + (full ? "echo \"waiting $(pacman -Qu 2>/dev/null | grep -vc ' \\[ignored\\]$')\"; pacman -Sup --print-format '%s %l' 2>/dev/null | grep -v '^:'" : "true")
+            // a check that failed: what it said (tacit-fetch-updates' fetch.log), for what stopped it
+            + "; [ \"$r\" = success ] || { echo ---log; tail -n 40 /var/lib/tacit/fetch.log 2>/dev/null; }"]
         stdout: StdioCollector {
             onStreamFinished: {
-                const lines = text.split("\n");
+                const [watched, log = ""] = text.split("---log\n");
+                const lines = watched.split("\n");
                 const active = lines.some(l => l === "active 1");
                 const waiting = parseInt((lines.find(l => l.startsWith("waiting ")) ?? "waiting 0").split(" ")[1]) || 0;
                 let total = 0, done = 0;
@@ -351,6 +373,7 @@ Singleton {
                     root.quietTicks = 0;
                     // offline, the asked-for download fails at once: say so rather than show the old list
                     root.fetchFailed = root.asked && !lines.includes("result success");
+                    root.checkCause = root.fetchFailed ? root.failureCause(log) : "";
                     root.asked = false;
                     root.lastChecked = Date.now();
                     // the phase ends with the new list read, not before (the old "to download" showed for a second)

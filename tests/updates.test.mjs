@@ -88,6 +88,63 @@ esac
   }
 }
 
+// what stopped a check or a download, from pacman's words (LC_ALL=C), said in Settings' row and the notch's note; every
+// failure used to read "Check that this computer is online"
+{
+  const PACMAN = {
+    busy: "error: failed to init transaction (unable to lock database)\nerror: could not lock database: File exists\n",
+    offline: ":: Synchronizing package databases...\nerror: failed retrieving file 'core.db' from mirror.example : Could not resolve host: mirror.example\nerror: failed to synchronize all databases (download library error)\n",
+    conflict: ":: hyprland-0.57.1-1 and hyprland-git-r1-1 are in conflict. Remove hyprland-git? [y/N]\nerror: unresolvable package conflicts detected\nerror: failed to prepare transaction (conflicting dependencies)\n",
+    live: "tacit: live USB\n",
+  };
+  const f = /function failureCause\(log(?::\s*string)?\)(?::\s*string)?\s*\{/.exec(src);
+  const cause = f ? inScope({}, "log", src.slice(f.index + f[0].length, matchBrace(src, f.index + f[0].length - 1))) : () => undefined;
+  const got = Object.fromEntries(Object.entries(PACMAN).map(([k, t]) => [k, cause(t)]));
+  check("pacman's words name the cause: busy, offline, a conflict, the live USB", Object.entries(got).every(([k, v]) => k === v), JSON.stringify(got));
+  check("and words it does not know name none", cause("error: failed to commit transaction (invalid or corrupted package)\n") === "");
+
+  // the watch's own command after a check that failed offline: the unit's result and what fetch.log holds
+  const bin = mkdtempSync(join(tmpdir(), "tacit-updates-"));
+  try {
+    writeFileSync(join(bin, "fetch.log"), PACMAN.offline);
+    writeFileSync(join(bin, "systemctl"), "#!/bin/bash\ncase \"$1\" in is-active) for u in \"${@:2}\"; do echo inactive; done ;; show) echo exit-code ;; esac\n");
+    writeFileSync(join(bin, "pacman"), "#!/bin/bash\nexit 0\n");
+    for (const n of ["systemctl", "pacman"]) chmodSync(join(bin, n), 0o755);
+    const cmd = inScope({ full: false }, "", `return (${readExpression(src, after("watchProc", "command").at).expr});`)()
+      .map(a => a.replaceAll("/var/lib/tacit/fetch.log", join(bin, "fetch.log")));
+    const out = execFileSync(cmd[0], cmd.slice(1), { encoding: "utf8", env: { ...process.env, PATH: `${bin}:${process.env.PATH}` } });
+    const u = updates();
+    Object.assign(u.root, { asked: true, phase: "looking", quietTicks: 2, failureCause: cause });
+    u.watch(out);
+    check("a check that failed offline ends failed, with offline as its cause", u.root.fetchFailed === true && u.root.checkCause === "offline",
+      `failed ${u.root.fetchFailed}, cause "${u.root.checkCause}"`);
+  } finally {
+    rmSync(bin, { recursive: true, force: true });
+  }
+
+  // Settings' row, its description binding with the check failed for each cause
+  const settings = read("tacit-settings.qml");
+  const at = settings.indexOf('description: Updates.phase === "looking"');
+  const desc = at < 0 ? null : readExpression(settings, at + "description:".length).expr;
+  const cl = /function causeLine\(cause\)\s*\{/.exec(settings);
+  const causeLine = cl ? inScope({}, "cause", settings.slice(cl.index + cl[0].length, matchBrace(settings, cl.index + cl[0].length - 1))) : null;
+  const row = (c, restartFailed = "") => desc && String(inScope({ Updates: { phase: "", lastCheckFailed: restartFailed === "", checkCause: c, restartCause: c, restartWarning: "" },
+    updatesGroup: { causeLine, restarting: false, restartFailed, tonight: false, ready: false, waiting: 0, checkedText: "" } }, "", `return (${desc});`)());
+  const lines = Object.keys(PACMAN).map(c => row(c));
+  check("Settings says each in its own line", new Set(lines).size === 4 && row("offline") === "Check that this computer is online, then try again"
+    && /package manager is busy/.test(row("busy")) && /conflict/.test(row("conflict")) && /live USB/.test(row("live")), JSON.stringify(lines));
+  check("and the download before a restart the same", row("busy", "prepare") === "Couldn't finish the download · the package manager is busy, try again once it is done",
+    row("busy", "prepare"));
+
+  // the notch's note when the download before a restart fails
+  const ex = readExpression(src, after("restartProc", "onExited").at).expr;
+  const notes = [];
+  const exited = inScope({ root: { failureCause: cause }, restartOut: { text: PACMAN.conflict },
+    IslandController: { request: (k, d) => notes.push(d.text) } }, "", `return (${ex});`)();
+  exited(1, 0);
+  check("the notch says it too", notes[0] === "Couldn't download the update · a conflicting update", JSON.stringify(notes));
+}
+
 // before 7c58cc0 every later read copied a failed check back, and Settings said it failed for good
 {
   const u = updates();

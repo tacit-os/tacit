@@ -376,7 +376,7 @@ MouseArea {
                     if (root.armedPower === LockContext.ActionEnum.Reboot)
                         return Translation.tr("Press again to restart");
                     if (GlobalStates.screenUnlockFailed)
-                        return Translation.tr("Incorrect password");
+                        return Faillock.failure;
                     if (root.context.refusedAction.length)
                         return Translation.tr("%1 failed").arg(root.context.refusedAction);
                     // what the password will do once armed: it no longer only unlocks

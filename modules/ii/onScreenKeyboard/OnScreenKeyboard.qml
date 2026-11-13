@@ -140,7 +140,7 @@ Scope { // Scope
                         }
                         StyledText {
                             Layout.fillWidth: true
-                            text: `${oskContent.currentLayout.name_short}, ${oskContent.currentLayout.description.split(" - ")[0]}`
+                            text: oskContent.heading
                             font.pixelSize: 14
                             color: Appearance.colors.colSubtext
                         }

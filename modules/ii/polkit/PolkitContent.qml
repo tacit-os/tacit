@@ -74,6 +74,7 @@ Item {
             if (!PolkitService.interactionAvailable)
                 return;
             if (root.submitted) {
+                Faillock.read();
                 root.failed = true;
                 shake.restart();
             }
@@ -218,7 +219,7 @@ Item {
                         // read-only, not disabled: a disabled field drops the keyboard focus, and Esc must
                         // still cancel while PAM is slow to answer
                         readOnly: !PolkitService.interactionAvailable
-                        placeholderText: root.failed ? Translation.tr("Incorrect password") : PolkitService.cleanPrompt
+                        placeholderText: root.failed ? Faillock.failure : PolkitService.cleanPrompt
                         font.pixelSize: Appearance.font.pixelSize.large
                         echoMode: root.usePasswordChars ? TextInput.Password : TextInput.Normal
                         inputMethodHints: Qt.ImhSensitiveData
@@ -258,14 +259,40 @@ Item {
                     }
                 }
 
-                StyledText {
+                // Cancel as on the keyring sheet (KeyringContent.qml), so the request can be closed without a keyboard
+                RowLayout {
+                    Layout.fillWidth: true
                     Layout.bottomMargin: 14
-                    text: root.failed ? Translation.tr("Try again, or Esc to cancel") : Translation.tr("Enter allows · Esc cancels")
-                    font.pixelSize: Appearance.font.pixelSize.smaller
-                    color: root.failed ? Appearance.colors.colError : Appearance.colors.colSubtext
+                    spacing: 6
+                    StyledText {
+                        Layout.fillWidth: true
+                        text: root.failed ? Translation.tr("Try again, or Esc to cancel") : Translation.tr("Enter allows · Esc cancels")
+                        font.pixelSize: Appearance.font.pixelSize.smaller
+                        color: root.failed ? Appearance.colors.colError : Appearance.colors.colSubtext
+                    }
+                    TextAction { label: Translation.tr("Cancel"); onClicked: PolkitService.cancel() }
                 }
             }
         }
+    }
+
+    // The keyring sheet's text action (KeyringContent.qml).
+    component TextAction: Rectangle {
+        id: ta
+        property string label: ""
+        signal clicked
+        implicitWidth: tal.implicitWidth + 24
+        implicitHeight: 36
+        radius: 18
+        color: tama.containsMouse ? ColorUtils.transparentize(Appearance.colors.colOnLayer0, 0.92) : "transparent"
+        StyledText {
+            id: tal
+            anchors.centerIn: parent
+            text: ta.label
+            font.pixelSize: 14
+            color: Appearance.colors.colInkMain
+        }
+        MouseArea { id: tama; anchors.fill: parent; hoverEnabled: true; onClicked: ta.clicked() }
     }
 
     // The lock's confirm disc (LockSurface.qml:476-504), always filled.

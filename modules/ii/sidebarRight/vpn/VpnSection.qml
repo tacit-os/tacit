@@ -10,7 +10,7 @@ import Quickshell
  * VPN, unfolded inside the quick panel like Wi-Fi. Rows: one per NetworkManager VPN
  * profile; a click brings it up (and the one that is up, down). The connected row carries
  * its facts; a click on its actions line offers "On when not trusted" and Forget. Adding one
- * is dropping a .conf or .ovpn on the notch; the last row says so when there is none.
+ * is dropping a WireGuard .conf on the notch; the last row says so when there is none.
  */
 Item {
     id: root
@@ -139,8 +139,8 @@ Item {
                 topPadding: 8
                 bottomPadding: 8
                 text: Vpn.connections.length === 0
-                    ? Translation.tr("Drop a WireGuard .conf or an .ovpn file on the notch to add a VPN")
-                    : Translation.tr("Drop a .conf or .ovpn on the notch to add another")
+                    ? Translation.tr("Drop a WireGuard .conf file on the notch to add a VPN")
+                    : Translation.tr("Drop a WireGuard .conf on the notch to add another")
                 wrapMode: Text.Wrap
                 font.pixelSize: Appearance.font.pixelSize.smaller
                 color: Appearance.colors.colSubtext

@@ -395,7 +395,7 @@ ContentPage {
                         Layout.fillWidth: true
                         buttonIcon: "upload_file"
                         text: Vpn.connections.length === 0 ? Translation.tr("None yet · add from a file") : Translation.tr("Add from file")
-                        description: Translation.tr("A WireGuard .conf or an .ovpn; dropping one on the notch does the same")
+                        description: Translation.tr("A WireGuard .conf; dropping one on the notch does the same")
                         placeholderText: "~/Downloads/home.conf"
                         fieldHeight: 36
                     }

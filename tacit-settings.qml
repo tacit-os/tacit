@@ -3300,9 +3300,8 @@ ApplicationWindow {
             readonly property var shownAgents: accountsModel.agentOrder.filter(a => !!accountsModel.agents[a])
             readonly property string needsLine: accPage.shownAgents.filter(a => !accountsModel.readyAgents.includes(a))
                 .map(a => root.agentNeed(a, accountsModel.stepOf(a, ""))).filter(s => s.length > 0).join(" · ")
-            readonly property string lockedLine: Config.options.lock.security.unlockKeyring
-                ? "The keyring is locked; keys open when you unlock the screen"
-                : "The keyring is locked; Lock & sleep can open it when you unlock"
+            // PAM opens the keyring with the password the lock is given (pam_gnome_keyring); a fingerprint gives it none
+            readonly property string lockedLine: "The keyring is locked; keys open when you unlock the screen with your password"
 
             // Repeaters take these by id, and get a new list only when the ids change: a state push
             // keeps every row, with whatever is typed into it.
@@ -4679,13 +4678,6 @@ ApplicationWindow {
             }
             Group {
                 title: "Security"
-                SwitchRow {
-                    glyph: "login"
-                    label: "Lock when you log in"
-                    description: "For a login that does not ask for a password"
-                    checked: Config.options.lock.launchOnStartup
-                    onToggled: value => Config.options.lock.launchOnStartup = value
-                }
                 // Hidden: the lock is always Tacit's (held off, panelFamilies/IllogicalImpulseFamily.qml).
                 // hypridle.conf and keybinds.lua read this too: with it on, hyprlock took the screen everywhere.
                 SwitchRow {
@@ -4701,13 +4693,6 @@ ApplicationWindow {
                     label: "Ask for the password to shut down or restart"
                     checked: Config.options.lock.security.requirePasswordToPower
                     onToggled: value => Config.options.lock.security.requirePasswordToPower = value
-                }
-                SwitchRow {
-                    glyph: "key"
-                    label: "Unlock saved passwords with the session"
-                    description: "Opens the keyring when you unlock, so apps do not ask again"
-                    checked: Config.options.lock.security.unlockKeyring
-                    onToggled: value => Config.options.lock.security.unlockKeyring = value
                 }
             }
             Group {
@@ -5417,6 +5402,13 @@ ApplicationWindow {
                 readonly property bool restarting: Updates.restarting
                 readonly property bool busy: Updates.phase !== ""
                 readonly property bool ready: !busy && updatesGroup.state.ready === true
+                // what stopped a check or a download, in one line (Updates.failureCause)
+                function causeLine(cause) {
+                    return ({ "busy": "The package manager is busy, try again once it is done",
+                              "conflict": "The waiting updates conflict with what is installed; nothing was changed",
+                              "live": "Updates come once Tacit is installed, not on the live USB",
+                              "offline": "Check that this computer is online, then try again" })[cause] ?? "Try again later";
+                }
                 readonly property int waiting: updatesGroup.state.count ?? 0
                 // Date.now() is not a binding: this ticks the age of the last check while the page shows
                 property real now: Date.now()
@@ -5465,10 +5457,10 @@ ApplicationWindow {
                         : `${updatesGroup.waiting} ${updatesGroup.waiting === 1 ? "update" : "updates"} to download`
                     description: Updates.phase === "looking" ? "Asking for the newest list"
                         : Updates.phase === "downloading" ? (Updates.totalMB > 0 ? `${Updates.doneMB} of ${Updates.totalMB} MB` : "Starting")
-                        : Updates.lastCheckFailed ? "Check that this computer is online, then try again"
+                        : Updates.lastCheckFailed ? updatesGroup.causeLine(Updates.checkCause)
                         : updatesGroup.restarting ? "Getting ready to restart"
                         : Updates.restartWarning.length > 0 ? `${Updates.restartWarning} · restart anyway, or wait`
-                        : updatesGroup.restartFailed === "prepare" ? "Couldn't finish the download · check that this computer is online, then try again"
+                        : updatesGroup.restartFailed === "prepare" ? `Couldn't finish the download · ${updatesGroup.causeLine(Updates.restartCause).replace(/^./, c => c.toLowerCase())}`
                         : updatesGroup.restartFailed === "reboot" ? "Couldn't restart · someone else may be signed in on this computer"
                         : updatesGroup.tonight ? (Updates.nightSkipped.length > 0 ? `Didn't install last night: ${Updates.nightSkipped}`
                             : "Tonight at 03:00 if it's left on, plugged in and locked, with Caffeine off")

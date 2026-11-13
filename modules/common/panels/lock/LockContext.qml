@@ -1,5 +1,6 @@
 import qs
 import qs.modules.common
+import qs.services
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -201,12 +202,14 @@ Scope {
             root.authUnavailable = true;
         }
 
-        // pam_unix won't send any important messages so all we need is the completion status.
+        // pam_unix won't send any important messages so all we need is the completion status. A failure may be
+        // faillock's lockout, which the right password meets too: Faillock reads whether it is.
         onCompleted: result => {
             if (result == PamResult.Success) {
                 root.unlocked(root.targetAction);
                 stopFingerPam();
             } else {
+                Faillock.read();
                 root.clearText();
                 root.unlockInProgress = false;
                 GlobalStates.screenUnlockFailed = true;

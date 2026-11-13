@@ -12,6 +12,14 @@ if [ "${1:-}" = now ] && [ "$(systemctl is-active tacit-fetch-updates.service 2>
     timeout 60 systemctl stop tacit-fetch-updates.service
 fi
 
+# A check asked for in Settings keeps what stopped it in fetch.log, which Settings reads to say so (Updates.qml's
+# failureCause): a busy package manager, the live USB, or pacman's own words, in English whatever the system's language
+log=/dev/null
+if [ "${1:-}" = now ]; then
+    log=/var/lib/tacit/fetch.log
+    install -d /var/lib/tacit && : > "$log"
+fi
+
 # pacman at work: not now. A lock with nothing holding it is one a stopped pacman left (a restart in the middle of a
 # download), and kept every later download from starting. Who holds it is asked of the lock file itself (libalpm keeps
 # it open while it works), not of the name "pacman": the shell's own pacman -Qu and -Sup lookups carry that name too,
@@ -20,14 +28,14 @@ if [ -e /var/lib/pacman/db.lck ]; then
     # asked for in Settings: only the background download running is a check under way; anything else (an install in the
     # Store) means nothing was checked, and the unit must not end as a success
     if [ -n "$(find /proc/[0-9]*/fd -lname /var/lib/pacman/db.lck -print -quit 2>/dev/null)" ]; then
-        [ "${1:-}" = now ] && ! systemctl is-active --quiet tacit-fetch-updates.service && exit 75
+        [ "${1:-}" = now ] && ! systemctl is-active --quiet tacit-fetch-updates.service && { echo "tacit: busy" >> "$log"; exit 75; }
         exit 0
     fi
     rm -f /var/lib/pacman/db.lck
 fi
 
 # the unit's archiso condition skipped it as a success, which Settings read as a check that worked
-[ "${1:-}" = now ] && [ -e /run/archiso ] && exit 75
+[ "${1:-}" = now ] && [ -e /run/archiso ] && { echo "tacit: live USB" >> "$log"; exit 75; }
 
 on_mains=0 battery=""
 for d in /sys/class/power_supply/*; do
@@ -51,7 +59,9 @@ if [ "${1:-}" != now ] && nmcli -t -g GENERAL.METERED dev show 2>/dev/null | gre
 fi
 
 # -Syuw: refresh the list and download what the next update needs; nothing is installed or removed
-pacman -Syuw --noconfirm --noprogressbar || exit
+LC_ALL=C pacman -Syuw --noconfirm --noprogressbar 2>&1 | tee -a "$log"
+rc=${PIPESTATUS[0]}
+[ "$rc" = 0 ] || exit "$rc"
 # when the last look worked, whether or not anything had changed: pacman leaves a list it finds current untouched, and
 # Settings' "Checked at" (the lists' time) went back to when something last came
 install -d /var/lib/tacit && touch /var/lib/tacit/updates-checked

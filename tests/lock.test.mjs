@@ -36,6 +36,23 @@ function polkit(text) {
 check("an app's password request: an empty field is not answered", polkit("").length === 0, `answered ${JSON.stringify(polkit(""))}`);
 check("an app's password request: a typed password is", JSON.stringify(polkit("hunter2")) === '["hunter2"]');
 
+// the sheet's way out by pointer: its Cancel, pressed, and a press on the dim around it; what reached polkit
+{
+  const src = read("modules/ii/polkit/PolkitContent.qml");
+  const run = handler => {
+    const did = [];
+    inScope({ PolkitService: { cancel: () => did.push("cancel"), submit: () => did.push("submit") }, root: { submit: () => did.push("submit") },
+      field: { forceActiveFocus: () => did.push("focus") } }, "", handler)();
+    return did.join(",");
+  };
+  const cancel = /\bTextAction\s*\{\s*label:\s*Translation\.tr\("Cancel"\);\s*onClicked:\s*([^}\n]+?)\s*\}/.exec(src);
+  check("an app's password request has a Cancel to click, which cancels it", cancel !== null && run(cancel[1]) === "cancel",
+    cancel ? run(cancel[1]) : "no Cancel on the sheet");
+  const dim = /\/\/ WindowDialog's dim[\s\S]*?MouseArea\s*\{[\s\S]*?onPressed:\s*([^\n]+)/.exec(src);
+  check("a click on the dim around it still does nothing but give the field the keys", dim !== null && run(dim[1]) === "focus",
+    dim ? run(dim[1]) : "no dim");
+}
+
 // power() of a lock surface: the discs pressed in turn, each "S" (Shut down) or "R" (Restart); what ran
 const ActionEnum = { Unlock: 0, Poweroff: 1, Reboot: 2 };
 function press(file, presses, requirePasswordToPower = false) {

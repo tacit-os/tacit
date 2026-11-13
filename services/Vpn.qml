@@ -7,9 +7,10 @@ import Quickshell.Io
 
 /**
  * VPN as NetworkManager sees it: every wireguard or vpn connection profile, which one is up,
- * up/down/forget, and import from a file (a WireGuard .conf or an OpenVPN .ovpn is the
- * whole "add VPN" form). One rule: the VPN marked `autoVpn` comes up on a Wi-Fi network
- * that is not marked trusted, and goes down on one that is. Status follows `nmcli monitor`
+ * up/down/forget, and import from a file (a WireGuard .conf is the whole "add VPN" form; an
+ * OpenVPN .ovpn is not taken until networkmanager-openvpn is installed and a row asks for the
+ * user name and password nearly every one needs). One rule: the VPN marked `autoVpn` comes up
+ * on a Wi-Fi network that is not marked trusted, and goes down on one that is. Status follows `nmcli monitor`
  * (caelestia VPN.qml does the same); no provider daemons, no shell commands to configure.
  */
 Singleton {
@@ -86,7 +87,7 @@ Singleton {
         Persistent.states.network.autoVpn = (root.autoVpn === name) ? "" : name;
         root.applyRule();
     }
-    // A .conf with [Interface] is WireGuard; .ovpn is OpenVPN (needs networkmanager-openvpn).
+    // A .conf with [Interface] is WireGuard; an OpenVPN file (.ovpn, or client/remote lines) is refused in plain words.
     function importFile(path: string): void {
         // A dropped file arrives as a URL (a space is %20); a typed path is taken as it is.
         let p = path + "";
@@ -106,7 +107,7 @@ Singleton {
         const p = root.importQueue[0];
         root.importQueue = root.importQueue.slice(1);
         importProc.path = p;
-        importProc.exec(["bash", "-c", 'f="$1"; if grep -qi "^\\[Interface\\]" "$f"; then t=wireguard; elif [[ "$f" == *.ovpn ]] || grep -qiE "^(client|remote) " "$f"; then t=openvpn; else echo "not a VPN file" >&2; exit 2; fi; out=$(nmcli connection import type "$t" file "$f" 2>&1) || { echo "$out" >&2; exit 1; }; n=$(echo "$out" | sed -nE "s/.*Connection .([^\']+). .*/\\1/p"); [ -n "$n" ] && nmcli connection modify "$n" connection.autoconnect no >/dev/null 2>&1; echo "$n"', "_", p]);
+        importProc.exec(["bash", "-c", 'f="$1"; if grep -qi "^\\[Interface\\]" "$f"; then :; elif [[ "$f" == *.ovpn ]] || grep -qiE "^(client|remote) " "$f"; then echo openvpn >&2; exit 1; else echo "not a VPN file" >&2; exit 2; fi; out=$(nmcli connection import type wireguard file "$f" 2>&1) || { echo "$out" >&2; exit 1; }; n=$(echo "$out" | sed -nE "s/.*Connection .([^\']+). .*/\\1/p"); [ -n "$n" ] && nmcli connection modify "$n" connection.autoconnect no >/dev/null 2>&1; echo "$n"', "_", p]);
     }
     // nmcli's refusal without its "Error: failed to import '<path>': ", and the usual one in plain words: WireGuard
     // names the profile after the file, and that name must be one a network interface can take
@@ -114,10 +115,12 @@ Singleton {
         const said = (err + "").trim().split("\n").pop().replace(/^Error: (failed to import '.*': )?/, "").replace(/\.$/, "");
         if (/valid interface name/.test(said))
             return Translation.tr("the file's name must be 15 characters or fewer, with no spaces");
+        if (said === "openvpn")
+            return Translation.tr("only WireGuard .conf files can be added");
         return said;
     }
     function isVpnFile(path: string): bool {
-        return /\.(conf|ovpn)$/i.test(path + "");
+        return /\.conf$/i.test(path + "");
     }
 
     // ---- the rule: untrusted Wi-Fi -> auto VPN up; trusted or wired -> down

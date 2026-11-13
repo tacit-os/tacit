@@ -914,7 +914,7 @@ Item {
                 return;
             }
             if (drop.hasUrls) {
-                // a WireGuard .conf or an .ovpn is a VPN to add, not a file to park
+                // a WireGuard .conf is a VPN to add, not a file to park (an .ovpn is not taken: Vpn.qml)
                 const vpnFiles = drop.urls.filter(u => (u + "").startsWith("file://") && Vpn.isVpnFile(u));
                 for (const u of vpnFiles)
                     Vpn.importFile(u);

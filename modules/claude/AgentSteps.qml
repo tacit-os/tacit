@@ -229,14 +229,8 @@ Item {
         }
         case "locked":
             // the host reads the keyring again only when asked (or every ten minutes)
-            return { line: "The keyring is locked",
-                     sub: Config.options.lock.security.unlockKeyring ? "It opens when you unlock the screen"
-                                                                      : "Lock & sleep in Settings can open it when you unlock",
-                     actions: [
-                         { word: "Check again", run: () => m.check(steps.accountId) },
-                         Config.options.lock.security.unlockKeyring ? null
-                             : { word: "Lock & sleep", out: true, run: () => SettingsApp.open("lock") }
-                     ].filter(x => x) };
+            return { line: "The keyring is locked", sub: "It opens when you unlock the screen with your password",
+                     actions: [{ word: "Check again", run: () => m.check(steps.accountId) }] };
         case "notInstalled":
             return { line: "Not installed", sub: instFail !== null ? "The install didn't finish" : "", mono: instFail ?? "",
                      actions: [{ word: "Install", run: () => steps.install(false) }] };

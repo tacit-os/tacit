@@ -14,6 +14,7 @@ Singleton {
     id: root
     // You can read these
     property list<string> layoutCodes: []
+    property list<string> variantCodes: []     // each layout's variant, "" for none (the on-screen keyboard's labels)
     property var cachedLayoutCodes: ({})
     property string currentLayoutName: ""
     property string currentLayoutCode: ""
@@ -88,6 +89,7 @@ Singleton {
                 }
                 if (!hyprlandKeyboard)
                     return;
+                root.variantCodes = (hyprlandKeyboard["variant"] ?? "").split(",");
                 root.layoutCodes = hyprlandKeyboard["layout"].split(",");
                 root.currentLayoutName = hyprlandKeyboard["active_keymap"];
             }

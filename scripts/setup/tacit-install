@@ -697,10 +697,8 @@ def account(answers):
                        capture_output=True, timeout=120)
     except subprocess.TimeoutExpired:
         pass    # it was failing the whole install at its last step
-    # whether to send a report when something breaks, as answered in Setup, for the reporter to read
-    os.makedirs(f"{TARGET}/var/lib/tacit", exist_ok=True)
-    with open(f"{TARGET}/var/lib/tacit/reports", "w") as f:
-        f.write("send\n" if answers.get("reports") else "no\n")
+    # Setup does not ask about reports until a reporter exists to read the answer (setup.qml, after the "you" page);
+    # its answer goes to /var/lib/tacit/reports again then
     # Tacit's services for every person (the packages' user presets: dusk, focus, Files' D-Bus, the keyring, the
     # folders): Arch applies none of them by itself
     chroot("systemctl", "--global", "preset-all")

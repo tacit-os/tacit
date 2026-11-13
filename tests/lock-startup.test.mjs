@@ -5,7 +5,7 @@ import { execFileSync } from "child_process";
 import { chmodSync, mkdtempSync, rmSync, writeFileSync } from "fs";
 import { tmpdir } from "os";
 import { join } from "path";
-import { inScope, readExpression } from "./lib/qml.mjs";
+import { adapterDefaults, inScope, loadInto, readExpression, runMigrate } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
 console.log("== Lock when you log in (LockScreen.qml)");
@@ -31,5 +31,16 @@ try {
   check("a login nothing asked a password for is locked", locks({ marker: false, bootlock: false }));
 } finally {
   rmSync(tmp, { recursive: true, force: true });
+}
+
+// The switch is gone from Settings: Tacit's login always asks (the boot lock, or the login screen's password), so it
+// changed nothing. A value saved with it is kept, and the lock above still reads it.
+{
+  const bound = /checked:\s*Config\.options\.lock\.launchOnStartup/;
+  check("Settings and the old shell settings page have no row for it",
+    !bound.test(read("tacit-settings.qml")) && !bound.test(read("modules/ii/settings/pages/InterfaceConfig.qml")));
+  const config = read("modules/common/Config.qml");
+  const kept = runMigrate(config, loadInto(adapterDefaults(config), { lock: { launchOnStartup: true } })).options.lock.launchOnStartup;
+  check("a saved \"on\" is left as it is", kept === true, `became ${kept}`);
 }
 done();

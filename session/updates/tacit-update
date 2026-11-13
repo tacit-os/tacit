@@ -49,7 +49,8 @@ ready() {
 	if [ -e /var/lib/pacman/db.lck ] && [ -z "$(find /proc/[0-9]*/fd -lname /var/lib/pacman/db.lck -print -quit 2>/dev/null)" ]; then
 		rm -f /var/lib/pacman/db.lck
 	fi
-	pacman -Suw --noconfirm --noprogressbar > "$state/download.log" 2>&1
+	# in English whatever the system's language: the shell reads what stopped it from this (Updates.qml's failureCause)
+	LC_ALL=C pacman -Suw --noconfirm --noprogressbar > "$state/download.log" 2>&1
 }
 
 case "${1:-}" in

@@ -141,7 +141,6 @@ ApplicationWindow {
         property string partBoot: ""
         property string otherSystem: ""        // Windows on another disk, still chosen with Space (tacit-install)
         property string picture: "dune"
-        property bool reports: false
         property real installDone: 0
         property int installLeft: -1
         property bool installUntouched: true
@@ -166,7 +165,7 @@ ApplicationWindow {
         readonly property var lang: backend.languages.find(l => l.code === language) ?? null
         readonly property var layoutName: (backend.layouts.find(l => l.code === layout) ?? { name: layout }).name
     }
-    readonly property int step: ({ welcome: 1, languages: 1, keyboards: 1, wifi: 2, where: 3, disks: 3, erase: 3, parts: 3, eraseparts: 3, you: 4, privacy: 5, almost: 6, ready: 7, failed: 3 })[setup.page] ?? 1
+    readonly property int step: ({ welcome: 1, languages: 1, keyboards: 1, wifi: 2, where: 3, disks: 3, erase: 3, parts: 3, eraseparts: 3, you: 4, almost: 6, ready: 7, failed: 3 })[setup.page] ?? 1
 
     // a page switch: the new words come in where the old ones were, rising a little
     property string shownPage: "welcome"
@@ -217,7 +216,7 @@ ApplicationWindow {
 
             // while it installs: one quiet line at the top, on the dark sky
             T {
-                visible: setup.installing && ["you", "privacy", "almost"].includes(root.shownPage)
+                visible: setup.installing && ["you", "almost"].includes(root.shownPage)
                 x: (stage.width - width) / 2; y: Look.px(62)
                 text: setup.installLeft < 0 ? "Installing" : `Installing · about ${Math.max(1, Math.round(setup.installLeft / 60))} ${Math.round(setup.installLeft / 60) <= 1 ? "minute" : "minutes"} left`
                 font.pixelSize: Look.fs(17); color: Look.sec
@@ -640,13 +639,8 @@ ApplicationWindow {
                     }
                 }
 
-                // ── reports
-                Item {
-                    visible: root.shownPage === "privacy"
-                    anchors.fill: parent
-                    Headline { text: "Send a report when something breaks?" }
-                    Sentence { text: "If an update fails or an app closes by itself, Tacit can send the Tacit team a short report: what went wrong, the Tacit version and the computer model. It never includes your files, what you type or what you open." }
-                }
+                // "Send a report when something breaks?" is not asked while nothing reads the answer (no reporter yet):
+                // once one exists, its page comes back here, after "you", with tacit-install writing the answer again
 
                 // ── almost, ready, stopped
                 Item {
@@ -686,7 +680,7 @@ ApplicationWindow {
             // main action alone at the centre left the pair off it, 2026-10-17)
             Act {
                 id: primary
-                visible: root.shownPage !== "almost" && root.shownPage !== "privacy" && root.shownPage !== "languages" && root.shownPage !== "keyboards" && root.shownPage !== "disks"
+                visible: root.shownPage !== "almost" && root.shownPage !== "languages" && root.shownPage !== "keyboards" && root.shownPage !== "disks"
                 x: (stage.width - width + (otherWay.visible ? otherWay.width + Look.px(18) : 0)) / 2; y: Math.max(Look.px(720), root.flowBottom + Look.px(40))
                 text: root.primaryText
                 later: root.primaryLater
@@ -707,14 +701,6 @@ ApplicationWindow {
                 x: (stage.width - width) / 2; y: Look.px(724)
                 text: "Back"
                 onClicked: setup.back()
-            }
-            // a real choice: two equal rings either side of the centre
-            Row {
-                visible: root.shownPage === "privacy"
-                x: (stage.width - width) / 2; y: Look.px(720)
-                spacing: Look.px(18)
-                Act { width: Look.px(240); text: "Don't send"; onClicked: { setup.reports = false; root.afterQuestions(); } }
-                Act { width: Look.px(240); text: "Send reports"; onClicked: { setup.reports = true; root.afterQuestions(); } }
             }
 
             // accessibility, before any language is chosen
@@ -934,7 +920,7 @@ ApplicationWindow {
         case "erase": setup.startInstall(); break;
         case "parts": if (!root.primaryLater) setup.go("eraseparts"); break;
         case "eraseparts": setup.startManual(); break;
-        case "you": if (!root.primaryLater) setup.go("privacy"); break;
+        case "you": if (!root.primaryLater) root.afterQuestions(); break;
         case "ready": if (backend.practice) root.endPractice(); else backend.send({ op: "restart" }); break;
         // the disks are read again (a failed install may have changed them), and Back and Esc lead on from the page it shows
         case "failed": setup.installState = ""; setup.trail = ["welcome", "wifi"]; setup.page = "where"; backend.send({ op: "disks" }); break;
@@ -942,7 +928,7 @@ ApplicationWindow {
     }
     function afterQuestions() {
         backend.send({ op: "answers", language: setup.language, layout: setup.kbLayout, network: setup.joined || setup.network,
-                       place: setup.place, name: nameField.text.trim(), password: passField.text, picture: setup.picture, reports: setup.reports });
+                       place: setup.place, name: nameField.text.trim(), password: passField.text, picture: setup.picture });
         setup.go(setup.installState === "done" ? "ready" : "almost");
     }
     // Setup steps aside on the stick and says once how to come back: the launcher's Install Tacit (the ISO's
@@ -969,8 +955,7 @@ ApplicationWindow {
                 () => setup.back(),                                                         // erase -> where (back works)
                 () => { setup.place = "next"; root.forward(); },                            // where -> you (install starts)
                 () => { setup.back(); },                                                    // no way back once installing
-                () => { nameField.text = "Abdul"; passField.text = "abc12345"; againField.text = "abc1234"; console.info("WALK later", root.primaryLater); againField.text = "abc12345"; root.forward(); },
-                () => { setup.reports = false; root.afterQuestions(); },                    // privacy -> almost
+                () => { nameField.text = "Abdul"; passField.text = "abc12345"; againField.text = "abc1234"; console.info("WALK later", root.primaryLater); againField.text = "abc12345"; root.forward(); },    // you -> almost
             ];
             console.info("WALK page", setup.page, "install", setup.installState, Math.round(setup.installDone * 100) + "%");
             if (root.wi < steps.length) { steps[root.wi](); root.wi++; }
@@ -981,7 +966,7 @@ ApplicationWindow {
     // ── render harness: TACIT_SETUP_RENDER=<dir> draws each page once and saves it
     readonly property string renderDir: Quickshell.env("TACIT_SETUP_RENDER") ?? ""
     property var shots: [["1-welcome", "welcome"], ["1b-languages", "languages"], ["1c-keyboards", "keyboards"], ["2-internet", "wifi"],
-                         ["3-where", "where"], ["3c-disks", "disks"], ["3b-erase", "erase"], ["4-you", "you"], ["5-privacy", "privacy"], ["6-almost", "almost"],
+                         ["3-where", "where"], ["3c-disks", "disks"], ["3b-erase", "erase"], ["4-you", "you"], ["6-almost", "almost"],
                          ["7-ready", "ready"], ["8-failed", "failed"]]
     property int si: -1
     Timer { id: quitLater; interval: 1500; onTriggered: Qt.quit() }
@@ -998,7 +983,7 @@ ApplicationWindow {
             if (root.si >= root.shots.length) { quitLater.start(); return; }
             const pg = root.shots[root.si][1];
             if (pg === "wifi" && backend.wifi.length > 0) { setup.network = backend.wifi.find(w => w.secure && !w.inUse)?.ssid ?? setup.network; }
-            if (["you", "privacy", "almost"].includes(pg)) { setup.installState = "running"; setup.installLeft = 360; }
+            if (["you", "almost"].includes(pg)) { setup.installState = "running"; setup.installLeft = 360; }
             if (pg === "you") { nameField.text = "Abdul"; passField.text = "correct horse"; againField.text = "correct hors"; }
             setup.page = pg;
             renderStep.restart();

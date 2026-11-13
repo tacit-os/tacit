@@ -698,6 +698,9 @@ Singleton {
                 // The restart brief queues behind the greeting: a second beat, not a longer line.
                 root.requestBrief(root.briefParts(), 90);
             }
+            // a start on a network that wants its sign-in page: said once the first burst is over
+            if (Config.options.island.states.network)
+                root.requestPortal();
         }
     }
 
@@ -1085,6 +1088,31 @@ Singleton {
         function onWifiEnabledChanged() {
             root.requestNetwork();
         }
+
+        function onConnectivityChanged() {
+            root.requestPortal();
+        }
+    }
+
+    // A network that wants its sign-in page first (NetworkManager's connectivity "portal": a hotel's, a train's) looks
+    // joined, with a full signal, and pages just fail: a quiet line says so, once each time it starts wanting it, with
+    // the way to the page Settings' Wi-Fi row opens (Network.openPublicWifiPortal)
+    property bool portalSaid: false
+    function requestPortal() {
+        if (Network.connectivity !== "portal") {
+            root.portalSaid = false;
+            return;
+        }
+        if (root.portalSaid || !root.warmedUp)
+            return;
+        root.portalSaid = true;
+        root.request("window", {
+            "text": "Sign in to use this network",
+            "icon": "wifi_find",
+            "pill": "Open sign-in page",
+            "run": () => Network.openPublicWifiPortal(),
+            "hold": 15000
+        }, 50);
     }
 
     function requestNetwork() {
