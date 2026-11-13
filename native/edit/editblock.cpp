@@ -19,7 +19,10 @@ void EditBlock::apply(QQuickTextDocument *doc, const QVariantList &edits)
         const int a = l[0].toInt(), b = l[1].toInt();
         pieces.append({ std::min(a, b), std::max(a, b), l[2].toString() });
     }
-    std::sort(pieces.begin(), pieces.end(), [](const Piece &x, const Piece &y) { return x.start > y.start; });
+    // Last first, and of two at one offset the later first: each insert lands in front of what is already there, so an
+    // empty line's comment marks, [[at, at, "/* "], [at, at, " */"]], read "/*  */" and not " *//* ".
+    std::reverse(pieces.begin(), pieces.end());
+    std::stable_sort(pieces.begin(), pieces.end(), [](const Piece &x, const Piece &y) { return x.start > y.start; });
     QTextDocument *d = doc->textDocument();
     const int last = d->characterCount() - 1;   // the document's own closing separator is not text
     QTextCursor c(d);

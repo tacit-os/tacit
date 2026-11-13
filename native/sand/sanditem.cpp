@@ -80,6 +80,11 @@ private:
     float m_puff = PUFF, m_lift = LIFTL, m_ventRate = VRATE, m_ventWidth = 1.0f, m_hiss = HPUFF, m_shake = 3.0f;
     bool m_active = false, m_wasActive = false;
     float m_tv = 0;                 // video seconds since this listening began
+    // The sand's time against the clock's: a step of 1/60 s once that much has passed, at most one a frame, so a 120
+    // or 144 Hz screen runs it at the speed it was tuned at (it ran a step per frame, two or more times too fast).
+    QElapsedTimer m_wall;
+    qint64 m_wallAt = 0;            // ns on m_wall at the last frame
+    float m_due = 1.0f / 60.0f;     // seconds not yet run; the first frame of a listening steps at once
     float m_endAt = -1;             // when it stopped (m_tv), or -1
     bool m_settledSent = false;
     // smoothed bands (sandwind.py: low 0.08 s, mid 0.03 s, high 0.02 s), the low band's last second, the vents
@@ -294,8 +299,17 @@ void SandRenderer::render(QRhiCommandBuffer *cb)
     if (!m_active && m_wasActive) m_endAt = m_tv;
     m_wasActive = m_active;
     const bool running = m_active || (m_endAt >= 0 && m_tv < m_endAt + 1.2f);
-
     if (running) {
+        if (!m_wall.isValid()) m_wall.start();
+        const qint64 now = m_wall.nsecsElapsed();
+        // a long gap (the rest between listenings, a slow frame) is not made up afterwards
+        m_due = std::min(m_due + float(now - m_wallAt) * 1e-9f, 2.0f / 60.0f);
+        m_wallAt = now;
+    }
+    const bool step = running && m_due >= 1.0f / 60.0f;
+
+    if (step) {
+        m_due -= 1.0f / 60.0f;
         voiceStep();
         std::vector<Vent> vents = m_ventList;
         if (!vents.empty()) u->uploadStaticBuffer(m_vents, 0, qsizetype(vents.size()) * 16, vents.data());

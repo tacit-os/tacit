@@ -16,17 +16,20 @@ command -v gh >/dev/null || exit 0
 [ "$(busctl --user get-property org.freedesktop.secrets /org/freedesktop/secrets/collection/login \
 	org.freedesktop.Secret.Collection Locked 2>/dev/null)" = "b true" ] && exit 0
 gh auth status >/dev/null 2>&1 || exit 0
+# who you are, asked once; when that fails nothing is "review requested from you": a team's request has no login, and
+# an empty name matched it, so every pull request asking a team showed as asking you
+me=$(gh api user --jq .login 2>/dev/null)
 for repo in "$@"; do
 	timeout 30 gh pr list -R "$repo" --state all --limit 30 \
 		--json number,title,state,reviewRequests,statusCheckRollup,updatedAt,url 2>/dev/null \
-	| jq -c --arg repo "$repo" --arg me "$(gh api user --jq .login 2>/dev/null)" '
+	| jq -c --arg repo "$repo" --arg me "$me" '
 		.[] | {
 			repo: $repo, number, title, state, url, updated: .updatedAt,
 			checks: (if (.statusCheckRollup // []) | length == 0 then "none"
 				elif any(.statusCheckRollup[]; ((.conclusion // ""), (.state // "")) | IN("FAILURE", "ERROR", "CANCELLED", "TIMED_OUT", "STARTUP_FAILURE", "ACTION_REQUIRED")) then "failure"
 				elif any(.statusCheckRollup[]; (.status // "") == "IN_PROGRESS" or (.state // "") == "PENDING" or (.state // "") == "EXPECTED" or ((.status // "") != "" and (.conclusion // "") == "")) then "pending"
 				else "success" end),
-			review: (any((.reviewRequests // [])[]; (.login // "") == $me))
+			review: ($me != "" and any((.reviewRequests // [])[]; (.login // "") == $me))
 		}' 2>/dev/null
 done
 exit 0

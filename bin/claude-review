@@ -32,6 +32,14 @@ UNDO = os.path.join(os.environ.get("XDG_RUNTIME_DIR", "/tmp"), "claude-review")
 MAX_NEW_LINES = 400
 NET_TIMEOUT = 120   # seconds: the panel runs one action at a time, so a stuck push must end
 MAX_NEW_BYTES = 1 << 20   # a bigger new file is listed without its lines, not read
+# A project with no .gitignore has thousands of new files (node_modules, a build, a venv): the first ones are read,
+# up to these, and the rest only counted, so the panel is not left waiting on megabytes of JSON.
+MAX_NEW_FILES = 200
+MAX_NEW_TOTAL = 4 << 20
+# The diff parse() reads and git apply takes back, as git itself writes it whatever the person's config says:
+# diff.noprefix and diff.mnemonicPrefix change the a/ and b/ the names are cut from and git apply -R strips, and an
+# external diff or a textconv driver prints text that is not the file's.
+DIFF = ("diff", "--no-color", "--no-renames", "-U2", "--no-ext-diff", "--no-textconv", "--src-prefix=a/", "--dst-prefix=b/")
 
 
 def run(cmd, **kw):
@@ -118,9 +126,13 @@ def parse(diff):
 
 
 def untracked(repo, rel):
-    out = []
+    """The new files git does not track, and how many more there were than are listed."""
+    out, more, total = [], 0, 0
     names = git(repo, "ls-files", "--others", "--exclude-standard", "-z", "--", *rel).stdout.split("\0")
     for p in filter(None, names):
+        if len(out) >= MAX_NEW_FILES or total > MAX_NEW_TOTAL:
+            more += 1
+            continue
         try:
             path = os.path.join(repo, p)
             st = os.stat(path)
@@ -131,6 +143,7 @@ def untracked(repo, rel):
         except (UnicodeDecodeError, OSError):
             out.append({"path": p, "status": "U", "add": 0, "del": 0, "binary": True, "hunks": []})
             continue
+        total += st.st_size
         lines = text.split("\n")
         if lines and lines[-1] == "":
             lines.pop()
@@ -139,12 +152,13 @@ def untracked(repo, rel):
         out.append({"path": p, "status": "U", "add": len(lines), "del": 0, "binary": False,
                     "hunks": [{"id": hid(p, body), "line": 1, "body": body, "add": len(lines), "del": 0,
                                "cut": len(lines) > MAX_NEW_LINES}]})
-    return out
+    return out, more
 
 
 def repo_files(repo, rel):
-    files = parse(git(repo, "diff", "--no-color", "--no-renames", "-U2", base(repo), "--", *rel).stdout)
-    files += untracked(repo, rel)
+    files = parse(git(repo, *DIFF, base(repo), "--", *rel).stdout)
+    new, unlisted = untracked(repo, rel)
+    files += new
     for f in files:
         f["abs"] = os.path.join(repo, f["path"])
         f["repo"] = repo
@@ -153,13 +167,14 @@ def repo_files(repo, rel):
         for h in f["hunks"]:
             h.pop("head", None)
             h.pop("lines", None)
-    return files
+    return files, unlisted
 
 
 def hunks(d, paths):
     if not paths:
         repo = toplevel(d)
-        return {"repo": repo, "files": repo_files(repo, []) if repo else []}
+        files, unlisted = repo_files(repo, []) if repo else ([], 0)
+        return {"repo": repo, "files": files, "unlisted": unlisted}
     groups, outside, tops = {}, [], {}   # tops: a folder's repository, asked once per folder
     for p in paths:
         a = os.path.realpath(p)
@@ -171,10 +186,12 @@ def hunks(d, paths):
             groups.setdefault(repo, []).append(a)
         else:
             outside.append({"path": a, "abs": a, "repo": None, "status": "?", "add": 0, "del": 0, "hunks": [], "outside": True})
-    files = []
+    files, unlisted = [], 0
     for repo, members in groups.items():
-        files += repo_files(repo, inside(repo, members))
-    return {"repo": next(iter(groups), None), "files": files + outside}
+        got, more = repo_files(repo, inside(repo, members))
+        files += got
+        unlisted += more
+    return {"repo": next(iter(groups), None), "files": files + outside, "unlisted": unlisted}
 
 
 def locate(text, new, lines):
@@ -303,7 +320,7 @@ def revert(d, path, want):
     rel = inside(repo, [path])
     if not rel:
         sys.exit("that file is not in this repository")
-    for f in parse(git(repo, "diff", "--no-color", "--no-renames", "-U2", base(repo), "--", rel[0]).stdout):
+    for f in parse(git(repo, *DIFF, base(repo), "--", rel[0]).stdout):
         for h in f["hunks"]:
             if h["id"] != want:
                 continue

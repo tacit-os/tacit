@@ -7,8 +7,12 @@
 # open went to the other window. The probe, the single-launch lock, the poll and the failure notice
 # are tacit-app's, shared with code-file and claude-hand, so the two entry points cannot race.
 T_BIN=${TACIT_BIN:-$HOME/.local/bin}                          # Tacit's launchers (the package sets TACIT_BIN)
-d=$(realpath "${1:-$PWD}" 2>/dev/null || echo "$HOME")
+# a folder that cannot be found opens nothing (a missing parent folder used to open the home folder as the project)
+d=$(realpath "${1:-$PWD}" 2>/dev/null) || { echo "code-open: cannot find $1" >&2; exit 1; }
 top=$(git -C "$d" rev-parse --show-toplevel 2>/dev/null)
+# The launcher gives no folder and runs in the home folder, which can be a repository of dotfiles: that one is the
+# project only when asked for by name.
+[ -z "${1:-}" ] && [ "$top" = "$(realpath "$HOME")" ] && top=""
 # a folder asked for that is not in a git repository opens as itself (it opened nothing in a running Graphis);
 # with no folder the picker shows, as before
 [ -z "$top" ] && [ -n "${1:-}" ] && [ -d "$d" ] && top=$d

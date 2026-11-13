@@ -57,8 +57,9 @@ fi
 cmd="" file="" line="" root=""
 case "$class" in
     foot|footclient|kitty|Alacritty|com.mitchellh.ghostty)
-        # what the shell runs in the foreground (claude, make, nvim), not that program's helpers
-        sh=$(pgrep -P "$pid" | head -1)
+        # what the shell runs in the foreground (claude, make, nvim), not that program's helpers; nothing when the
+        # terminal process holds several shells (tabs, windows of one server), as focus-folder says
+        sh=$([ "$(pgrep -c -P "$pid" 2>/dev/null)" = 1 ] && pgrep -P "$pid")
         fg=$([ -n "$sh" ] && pgrep -P "$sh" | tail -1)
         [ -n "$fg" ] && cmd=$(cat "/proc/$fg/comm" 2>/dev/null) ;;
     graphis)

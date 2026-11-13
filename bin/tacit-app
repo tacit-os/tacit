@@ -75,10 +75,12 @@ ensure)
 		# -n: exit at once if an instance is somehow already up rather than run two, of which the
 		# second is invisible but takes every ipc call that arrives while both live.
 		setsid qs -n -p "$qml" >> "$log" 2>&1 &
+		started=$!
 		# A cold start (first after boot or an update, a loaded disk) can take well over 6 s; the wait is by the clock,
-		# as an `up` against a wedged app takes 3 s itself.
+		# as an `up` against a wedged app takes 3 s itself. It ends when qs does: an app that fails as it starts (a QML
+		# error, a missing module) used to keep every launcher click and file open waiting the whole 20 s.
 		end=$(( $(date +%s) + 20 ))
-		while [ "$(date +%s)" -lt "$end" ] && ! up; do sleep 0.1; done
+		while [ "$(date +%s)" -lt "$end" ] && kill -0 "$started" 2>/dev/null && ! up; do sleep 0.1; done
 	fi
 	flock -u 9
 	if ! up; then

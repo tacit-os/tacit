@@ -12,13 +12,17 @@ d=""
 case "$class" in
     foot|footclient|kitty|Alacritty|com.mitchellh.ghostty)
         # the shell is the terminal's first child, the foreground program the shell's; deeper
-        # children are that program's own helpers (an agent's tools run in scratch folders)
-        sh=$(pgrep -P "$pid" | head -1)
-        [ -n "$sh" ] || sh=$pid
-        fg=$(pgrep -P "$sh" | head -1)
-        for p in $fg $sh; do
-            c=$(readlink "/proc/$p/cwd" 2>/dev/null) && [ -d "$c" ] && { d=$c; break; }
-        done ;;
+        # children are that program's own helpers (an agent's tools run in scratch folders).
+        # A terminal process with several shells (kitty's tabs, ghostty's and footclient's windows) does not say which
+        # one is in front, so none is guessed: the first one's folder used to be given as the focused one's.
+        [ "$(pgrep -c -P "$pid" 2>/dev/null)" -le 1 ] 2>/dev/null && {
+            sh=$(pgrep -P "$pid" | head -1)
+            [ -n "$sh" ] || sh=$pid
+            fg=$(pgrep -P "$sh" | head -1)
+            for p in $fg $sh; do
+                c=$(readlink "/proc/$p/cwd" 2>/dev/null) && [ -d "$c" ] && { d=$c; break; }
+            done
+        } ;;
     graphis)
         d=$(timeout 2 qs -p "$TACIT_SHELL/code.qml" ipc call code root 2>/dev/null) ;;
     org.quickshell)

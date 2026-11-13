@@ -584,6 +584,10 @@ Item {
                 if (panel.writing !== null && panel.writing.hunk === h.id) out.push({ kind: "writing" });
             }
         }
+        // a project with no .gitignore has thousands of new files: claude-review lists the first ones and counts the rest
+        const unlisted = panel.review.unlisted ?? 0;
+        if (unlisted > 0)
+            out.push({ kind: "note", text: `${unlisted} more new ${unlisted === 1 ? "file" : "files"}` });
         if (outsideFiles.length)
             out.push({ kind: "more", text: panel.showOutside ? "Hide the files outside git"
                 : `${outsideFiles.length} more ${outsideFiles.length === 1 ? "file" : "files"} outside a git repository` });

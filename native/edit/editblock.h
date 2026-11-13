@@ -16,7 +16,8 @@ class EditBlock : public QObject
 public:
     using QObject::QObject;
     // edits: [[start, end, text], ...] in the document's current offsets, in any order and not overlapping; the
-    // range start..end is replaced by text. Applied last first, so every offset stays the one the caller read.
+    // range start..end is replaced by text. Applied last first, so every offset stays the one the caller read; two
+    // inserts at one offset come out in the order given.
     Q_INVOKABLE void apply(QQuickTextDocument *doc, const QVariantList &edits);
     // The document's text as it holds it, "\n" between its lines. TextEdit.text (QTextDocument::toPlainText) gives a
     // non-breaking space as a space and a line separator (U+2028) as "\n", so a save through it rewrote them.

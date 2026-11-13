@@ -6,5 +6,8 @@
 # apps' 100), at low priority, on the second core cluster only (cores 4-7), so the first stays
 # free for the desktop and the chip runs cooler. Without a user manager the command runs plainly.
 [ -S "${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/bus" ] || exec "$@"
+# cores 4-7 where it may run on them: with four cores or fewer taskset refuses, and the command never ran
+pin="taskset -c 4-7"
+taskset -c 4-7 true 2>/dev/null || pin=""
 exec systemd-run --user --scope --collect --quiet --slice=background.slice \
-    --unit="tacit-bg-$$" -- nice -n 10 taskset -c 4-7 "$@"
+    --unit="tacit-bg-$$" -- nice -n 10 $pin "$@"

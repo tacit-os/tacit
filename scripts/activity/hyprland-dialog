@@ -26,13 +26,17 @@ done
 [ "$title" = "Application Not Responding" ] || [ -n "${HL_EXEC_RULE_TOKEN:-}" ] || exec "$real" "${args[@]}"
 
 # The text names the window's title and class ("An application <title> - <class> is not responding." in English):
-# the window, and so its process, is the one whose class and title are both in it.
+# the window, and so its process, is the one whose class and title are both in it. When windows of more than one
+# process fit it as well (two terminals titled "foot"), which one is meant is not known: pid 0, so Close it leaves the
+# ending to Hyprland, which knows, and the shell's own kill after it cannot reach the healthy one.
 read -r pid cls wtitle < <(hyprctl clients -j 2>/dev/null | python3 -I -c '
 import json, sys
 text = sys.argv[1]
 cs = [c for c in json.load(sys.stdin) if c["class"] and c["class"] in text]
-m = sorted([c for c in cs if c["title"] and c["title"] in text], key=lambda c: -len(c["title"])) or cs
-print(m[0]["pid"], m[0]["class"], m[0]["title"]) if m else print(0, "", "")' "$text" 2>/dev/null)
+ts = sorted([c for c in cs if c["title"] and c["title"] in text], key=lambda c: -len(c["title"]))
+m = [c for c in ts if c["title"] == ts[0]["title"]] if ts else cs
+pid = m[0]["pid"] if len({c["pid"] for c in m}) == 1 else 0
+print(pid, m[0]["class"], m[0]["title"]) if m else print(0, "", "")' "$text" 2>/dev/null)
 
 IFS=';' read -r b1 b2 _ <<<"$buttons"
 fifo="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/tacit-anr-$$"
@@ -42,19 +46,28 @@ mkfifo -m 600 "$fifo" || exec "$real" "${args[@]}"
 head -n1 "$fifo" >"$fifo.answer" &
 reader=$!
 gone() {
-	kill "$reader" 2>/dev/null
+	kill "$reader" ${nap:+"$nap"} 2>/dev/null
 	qs -p "$shell" ipc call island notAnsweringGone "$$" >/dev/null 2>&1
 	rm -f "$fifo" "$fifo.answer"
 	exit 0
 }
 trap gone TERM INT HUP
-req=$(python3 -I -c 'import json, sys; print(json.dumps({"id": sys.argv[1], "cls": sys.argv[2], "title": sys.argv[3], "pid": int(sys.argv[4] or 0), "fifo": sys.argv[5], "buttons": [sys.argv[6], sys.argv[7]]}))' \
-	"$$" "$cls" "$wtitle" "${pid:-0}" "$fifo" "${b1:-Terminate}" "${b2:-Wait}")
+req=$(python3 -I -c 'import json, sys; print(json.dumps({"id": sys.argv[1], "cls": sys.argv[2], "title": sys.argv[3], "pid": int(sys.argv[4] or 0), "fifo": sys.argv[5], "buttons": [sys.argv[6], sys.argv[7]], "since": int(sys.argv[8])}))' \
+	"$$" "$cls" "$wtitle" "${pid:-0}" "$fifo" "${b1:-Terminate}" "${b2:-Wait}" "$(date +%s%3N)")
 if [ "$(qs -p "$shell" ipc call island notAnswering "$req" 2>/dev/null)" != "shown" ]; then
 	kill "$reader" 2>/dev/null
 	rm -f "$fifo" "$fifo.answer"
 	exec "$real" "${args[@]}"
 fi
-wait "$reader"
+# The shell holds the prompt only in memory, so a reload or restart while it was up (an update reloads it) lost it
+# while this went on waiting, and Hyprland asks nothing new while it waits: the prompt is offered again every 5 s
+# until it is answered (a shell that shows it or had it answered changes nothing), and the answer is read as it comes.
+while :; do
+	sleep 5 & nap=$!
+	wait -n "$reader" "$nap"
+	kill -0 "$reader" 2>/dev/null || break
+	timeout 2 qs -p "$shell" ipc call island notAnswering "$req" >/dev/null 2>&1
+done
+kill "$nap" 2>/dev/null
 cat "$fifo.answer"
 rm -f "$fifo" "$fifo.answer"

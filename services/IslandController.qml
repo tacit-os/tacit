@@ -1720,17 +1720,24 @@ Singleton {
     // button's own text and Hyprland acts on it: Terminate kills the app, Wait gives it more time.
     property var notAnswering: null     // {id, cls, title, pid, fifo, buttons, name, since}
     property int notAnsweringFor: 0     // seconds since Hyprland noticed
+    // The wrapper offers its prompt again every few seconds, as a reload or restart of the shell loses it: one shown
+    // or answered here already is left as it is.
+    property string notAnsweringDone: ""    // the id last answered
     function showNotAnswering(n) {
         if (!root.enabled || root.suppressed)
             return false;
+        if (n.id === root.notAnswering?.id || n.id === root.notAnsweringDone)
+            return true;
         // without a launcher entry, the class's last part: "Org.kde.krita isn't answering" for Krita (2026-10-17)
         const name = DesktopEntries.heuristicLookup(n.cls)?.name ?? n.cls.split(".").pop();
         n.name = name.charAt(0).toUpperCase() + name.slice(1);
-        n.since = Date.now();
+        n.since = n.since > 0 ? n.since : Date.now();     // the wrapper's: a prompt shown again still says how long
         // the earlier app's dialog still waits on its fifo: answer it Wait, it asks again if the app stays stuck
         const old = root.notAnswering;
-        if (old && old.id !== n.id)
+        if (old && old.id !== n.id) {
+            root.notAnsweringDone = old.id;
             Quickshell.execDetached(["sh", "-c", 'printf "%s\\n" "$2" > "$1"', "sh", old.fifo, old.buttons[1]]);
+        }
         root.notAnswering = n;
         root.notAnsweringFor = 0;
         root.closeRequested();      // an open sheet would hide it
@@ -1745,6 +1752,7 @@ Singleton {
         // Terminate is Hyprland's to carry out; an app that ignores it is killed 3 s later
         if (which === "close" && n.pid)
             Quickshell.execDetached(["sh", "-c", 'sleep 3; kill -0 "$1" 2>/dev/null && kill -KILL "$1"', "sh", String(n.pid)]);
+        root.notAnsweringDone = n.id;
         root.clearNotAnswering();
     }
     function notAnsweringDetails() {

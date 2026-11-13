@@ -11,7 +11,6 @@
 # It never answers anything on Claude's behalf: it only reports. The terminal window is found
 # by walking up from this process to the terminal that owns it; the result is cached per
 # session under $XDG_RUNTIME_DIR/notch-sessions.
-TACIT_SHELL=${TACIT_SHELL:-$HOME/.config/quickshell/tacit}  # the shell's folder (the package sets TACIT_SHELL)
 set -u
 input=$(cat)
 event=$(jq -r '.hook_event_name // empty' <<<"$input")
@@ -28,8 +27,14 @@ mkdir -p "$dir"
 quiet=${XDG_RUNTIME_DIR:-/run/user/$(id -u)}/notch-quiet-sessions
 [ -f "$quiet" ] && grep -qxF "$sid" "$quiet" && exit 0
 # Praxis's sessions run under agent-host, a login-scoped service started before the compositor: they have no
-# WAYLAND_DISPLAY, and without it `qs ipc` finds no shell. The user manager has it (the session imports it).
-[ -n "${WAYLAND_DISPLAY:-}" ] || export WAYLAND_DISPLAY=$(systemctl --user show-environment 2>/dev/null | sed -n 's/^WAYLAND_DISPLAY=//p')
+# WAYLAND_DISPLAY and no TACIT_SHELL, and without them `qs ipc` finds no shell (an installed system has no
+# ~/.config/quickshell/tacit to fall back on). The user manager has both (the session imports them).
+if [ -z "${WAYLAND_DISPLAY:-}" ] || [ -z "${TACIT_SHELL:-}" ]; then
+	manager=$(systemctl --user show-environment 2>/dev/null)
+	[ -n "${WAYLAND_DISPLAY:-}" ] || export WAYLAND_DISPLAY=$(sed -n 's/^WAYLAND_DISPLAY=//p' <<<"$manager")
+	[ -n "${TACIT_SHELL:-}" ] || TACIT_SHELL=$(sed -n 's/^TACIT_SHELL=//p' <<<"$manager")
+fi
+TACIT_SHELL=${TACIT_SHELL:-$HOME/.config/quickshell/tacit}  # the shell's folder (the package sets TACIT_SHELL)
 # Bounded: the hooks run synchronously, so a shell that is reloading or wedged used to hold
 # every prompt submit for the hook's own 20 s timeout. The notch losing one event costs
 # nothing; the keyboard stalling costs the session.
@@ -53,9 +58,27 @@ if [ -f "$dir/$sid.addr" ]; then
 fi
 if [ -z "$addr" ]; then
 	clients=$(hyprctl clients -j 2>/dev/null | jq -r '.[] | "\(.pid) \(.address)"' 2>/dev/null)
+	below=""
 	for pid in $chain; do
-		addr=$(awk -v p="$pid" '$1 == p {print $2; exit}' <<<"$clients")
-		[ -n "$addr" ] && { printf '%s %s\n' "$pid" "$addr" > "$dir/$sid.addr"; break; }
+		addrs=$(awk -v p="$pid" '$1 == p {print $2}' <<<"$clients")
+		if [ -n "$addrs" ] && [ "$(wc -l <<<"$addrs")" = 1 ]; then
+			addr=$addrs
+			printf '%s %s\n' "$pid" "$addr" > "$dir/$sid.addr"
+		elif [ -n "$addrs" ]; then
+			# One process with several windows (footclient's server, ghostty, kitty): the session's is known only as the
+			# one in front when the person acts in it, at a prompt or a start they typed; until then it has none, as the
+			# first one was another session's. Cached by the shell under the terminal, which is the window's own.
+			case "$event $(jq -r '.source // ""' <<<"$input")" in
+			"UserPromptSubmit "*|"SessionStart startup"|"SessionStart resume"|"SessionStart clear")
+				front=$(hyprctl activewindow -j 2>/dev/null | jq -r '"\(.pid) \(.address)"' 2>/dev/null)
+				if [ "${front% *}" = "$pid" ] && [ -n "$below" ] && grep -qxF -- "${front#* }" <<<"$addrs"; then
+					addr=${front#* }
+					printf '%s %s\n' "$below" "$addr" > "$dir/$sid.addr"
+				fi ;;
+			esac
+		fi
+		[ -n "$addrs" ] && break
+		below=$pid
 	done
 fi
 
@@ -122,7 +145,11 @@ PreToolUse)
 	Grep|Glob)  line="searching" ;;
 	WebFetch|WebSearch) line="browsing" ;;
 	Agent|Task) line="delegating" ;;
-	*)          line="$(tr 'A-Z' 'a-z' <<<"$tool")" ;;
+	TodoWrite|TaskCreate|TaskUpdate) line="planning" ;;
+	mcp__*)     # an MCP server's tool, by its server: "using github"
+		srv=${tool#mcp__}
+		line="using $(tr 'A-Z_-' 'a-z  ' <<<"${srv%%__*}")" ;;
+	*)          line="working" ;;   # Claude's own tools (ToolSearch, Skill, ...): their ids mean nothing to a person
 	esac
 	printf '%s' "$line" > "$dir/$sid.activity"
 	qs_call activity "$sid" "$line" ;;
