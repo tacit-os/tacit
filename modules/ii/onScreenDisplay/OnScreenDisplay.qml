@@ -18,12 +18,17 @@ Scope {
     // The island draws its own volume/brightness meters, the gamma meter and the sink-protection
     // warning, so those triggers are muted while it owns them - but only while it can actually
     // answer: transients are suppressed on the lock and session screens, where the OSD takes over.
+    // Nor on a screen Settings > Notch leaves without one (island.screenList): the OSD opens there.
+    readonly property bool focusedHasNotch: Config.options.island.screenList.length === 0
+        || Config.options.island.screenList.includes(Hyprland.focusedMonitor?.name)
     readonly property bool islandOwnsVolume: Config.options.island.enable
         && Config.options.island.states.volume
         && !IslandController.suppressed
+        && root.focusedHasNotch
     readonly property bool islandOwnsBrightness: Config.options.island.enable
         && Config.options.island.states.brightness
         && !IslandController.suppressed
+        && root.focusedHasNotch
 
     property string currentIndicator: "volume"
     property var indicators: [

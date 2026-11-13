@@ -19,9 +19,13 @@ Scope {
         return Config.options.bar.bottom ? "bottom" : "top"
     }
 
+    // what IllogicalImpulseFamily loads: with no bar there (the default), its edge gets its strip like the others
+    readonly property bool barLoaded: Config.options.bar.enable
+        && (Config.options.bar.vertical || !(Config.options.island.enable && Config.options.island.hideBar))
+
     function frameVisibleFor(side) {
         if (!Config.options.bar.showFrame) return false
-        if (Config.options.bar.cornerStyle === 0 && side === root.barPosition) {
+        if (root.barLoaded && Config.options.bar.cornerStyle === 0 && side === root.barPosition) {
             return root.centerOnly
         }
         return true

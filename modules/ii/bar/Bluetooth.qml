@@ -41,13 +41,13 @@ MouseArea {
         : Appearance.sizes.barHeight
 
     // Either button opens the section: the pointing-hand cursor and the accepted left button
-    // promised an action. The panel is opened here as well as in the handler, which does not
-    // exist while the sidebar is unloaded.
+    // promised an action. The panel opens on it as `sidebarRight openSound` opens on sound: the
+    // section is left in GlobalStates, where the panel's content takes it once it is there.
     // With click to show, a left click shows the popup (StyledPopup); the right button opens the section.
     onClicked: (mouse) => {
         if (Config.options.bar.tooltips.clickToShow && mouse.button === Qt.LeftButton) return;
+        GlobalStates.sidebarRightSection = "showBluetoothDialog";
         GlobalStates.sidebarRightOpen = true;
-        GlobalStates.requestBluetoothDialog();
     }
 
     Loader {

@@ -42,8 +42,10 @@ Item {
             type: Anim.DefaultEffects
         }
     }
+    // The error is kept while the section is folded: the pill and the "On when not trusted" rule
+    // connect with it folded, and opening it to see why the VPN is off wiped the reason. It goes
+    // with the next action, or once the VPN or an import gets through.
     onShownChanged: if (root.shown) {
-        root.clearError();
         refreshLater.restart();
     }
     Connections {
@@ -51,6 +53,13 @@ Item {
         function onBusyChanged() {
             if (!Vpn.busy)
                 root.errorText = Vpn.lastError;
+        }
+        function onConnectedChanged() {
+            if (Vpn.connected)
+                root.errorText = "";
+        }
+        function onImported() {
+            root.errorText = "";
         }
         function onImportFailed(path, reason) {
             root.errorText = reason.length > 0 ? reason : Translation.tr("Could not import that file");

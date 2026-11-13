@@ -153,7 +153,8 @@ Variants {
             return Wallpapers.previewPath || Wallpapers.confirmedPath || Config.options.background.wallpaperPath;
         }
 
-        property bool wallpaperIsVideo: bgRoot.effectiveWallpaperPath.endsWith(".mp4") || bgRoot.effectiveWallpaperPath.endsWith(".webm") || bgRoot.effectiveWallpaperPath.endsWith(".mkv") || bgRoot.effectiveWallpaperPath.endsWith(".avi") || bgRoot.effectiveWallpaperPath.endsWith(".mov")
+        // any case, as switchwall.sh starts mpvpaper for it: a phone's IMG_0001.MP4 was taken for a picture
+        property bool wallpaperIsVideo: /\.(mp4|webm|mkv|avi|mov)$/i.test(bgRoot.effectiveWallpaperPath)
         property string wallpaperPath: wallpaperIsVideo ? Config.options.background.thumbnailPath : bgRoot.effectiveWallpaperPath
         readonly property bool widgetsAboveVideo: bgRoot.wallpaperIsVideo && !GlobalStates.screenLocked
         readonly property Item widgetWallpaper: bgRoot.widgetsAboveVideo ? videoWidgetWallpaper : wallpaper

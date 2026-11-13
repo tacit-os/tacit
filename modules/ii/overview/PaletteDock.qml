@@ -177,6 +177,15 @@ Item {
             } else {
                 root.launching = "";
                 launchTimer.stop();
+                // nothing to start it with (removed in Apps): a closed pin opens its menu, "Remove from dock", where the
+                // click did nothing. Once the entries are read only, since every lookup fails before; the keys keep their place.
+                const app = root.programs.find(a => a.appId === appId);
+                if (app && app.pinned && app.toplevels.length === 0 && root.entryCount > 0) {
+                    const at = root.focusIndex;
+                    root.openMenu(app);
+                    root.focusIndex = at;
+                    return;
+                }
             }
         }
         root.opened();

@@ -272,8 +272,10 @@ ContentPage {
                             delegate: RowLayout {
                                 id: netRow
                                 required property var modelData
-                                readonly property bool current: (Network.active?.ssid ?? "") === modelData.name
-                                readonly property bool trusted: Network.isTrusted(modelData.name)
+                                // connected and trusted go by the network (its SSID), as the VPN rule asks; a profile
+                                // NetworkManager named "MyWifi 1" is still the network "MyWifi"
+                                readonly property bool current: (Network.active?.ssid ?? "") === modelData.ssid
+                                readonly property bool trusted: Network.isTrusted(modelData.ssid)
                                 readonly property bool never: !(modelData.lastUsed > 0)
                                 Layout.fillWidth: true
                                 spacing: 10
@@ -300,7 +302,7 @@ ContentPage {
                                     visible: !netRow.never
                                     checked: netRow.trusted
                                     onClicked: {
-                                        Network.setTrusted(netRow.modelData.name, !netRow.trusted);
+                                        Network.setTrusted(netRow.modelData.ssid, !netRow.trusted);
                                         checked = Qt.binding(() => netRow.trusted);
                                     }
                                     StyledToolTip {
