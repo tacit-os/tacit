@@ -1917,6 +1917,17 @@ Singleton {
     signal openRequested()
     signal closeRequested()
     signal foldRequested()      // like the pointer leaving: only a sheet a hover opened closes
+    // Super+M and the media corner: the sheet on the screen you are on, without the keyboard. keyboardScreen is
+    // otherwise the screen of the last key, which opened the sheet on that monitor and nothing on this one. A sheet
+    // holding the keyboard keeps its screen, as when a recording stops; a screen with no notch leaves it to them all.
+    function openMedia() {
+        if (!root.keyboard) {
+            const name = Hyprland.focusedMonitor?.name ?? "";
+            const list = Config.options.island.screenList;
+            root.keyboardScreen = !list || list.length === 0 || list.includes(name) ? name : "";
+        }
+        root.openRequested();
+    }
 
     // ------------------------------------------------------------------ ask (quick chat)
     // Super+Shift+Space, `island ask`, the palette's Claude row, a capture: the sheet opens as

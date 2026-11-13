@@ -240,8 +240,8 @@ Scope {
     // The island owns media day to day: the header's wings and the sheet's player are where what
     // is playing shows (modules/ii/island/states/IslandSheet.qml). So SUPER+M and `mediaControls
     // toggle/open` open the NOTCH, not this popup - one event, one surface, the way the
-    // notification popup stands down for the island's notification peek. openRequested() is the
-    // signal the island's own `open` IPC raises, so the notch opens exactly as SUPER+Space does.
+    // notification popup stands down for the island's notification peek. openMedia() opens it as
+    // SUPER+Space does, on the screen you are on, but leaves the keyboard alone.
     // The window below stays loadable: a kept bar still opens it from its media widget
     // (modules/ii/bar/Media.qml), and it is the whole surface when the notch is off.
     readonly property bool islandOwnsMedia: IslandController.ownsMedia
@@ -249,7 +249,7 @@ Scope {
     function toNotch(): bool {
         if (!root.islandOwnsMedia)
             return false;
-        IslandController.openRequested();
+        IslandController.openMedia();
         return true;
     }
 

@@ -87,7 +87,7 @@ Singleton {
         }
         // The media corner goes where SUPER+M goes: the notch, when it shows what is playing.
         if (name === "mediaControlsOpen" && IslandController.ownsMedia) {
-            IslandController.openRequested();
+            IslandController.openMedia();
             return;
         }
         root[name] = !root[name];
