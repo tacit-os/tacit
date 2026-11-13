@@ -54,6 +54,7 @@ ShellRoot {
         // the desktop is the one Tacit program that says config.json cannot be read (Config.reportsProblems)
         Config.reportsProblems = true
         Battery.suspends = true // the desktop alone suspends on a low battery; the lock and apps load Battery too
+        Audio.handsOver = true // ... and alone hands the output to a headset and back
         // ... and alone clears the cache and runtime folders of what the last session left
         Directories.cleanTemporary()
         MaterialThemeLoader.reapplyTheme()

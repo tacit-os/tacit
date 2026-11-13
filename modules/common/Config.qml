@@ -30,7 +30,7 @@ Singleton {
     // declares, so without a stamp on the file there is no way to tell a value that was never
     // set from one this build no longer knows the name of - and the next settings change writes
     // the loss to disk. migrate() carries a file with a lower stamp forward.
-    readonly property int currentConfigVersion: 6
+    readonly property int currentConfigVersion: 7
 
     function setNestedValue(nestedKey, value) {
         let keys = nestedKey.split(".");
@@ -157,6 +157,12 @@ Singleton {
         // app. Once, each role chosen gets the rest of its types, those never set one by one (default_apps.py migrate).
         if (from < 6)
             Quickshell.execDetached(["python3", Quickshell.shellPath("scripts/settings/default_apps.py"), "migrate"]);
+        // v7: the desktop keeps eight widgets, the ones Settings > Desktop > Widgets and the desktop menu list. The
+        // calendar, notes, to do, what is playing and the sound visualiser left both lists, but one turned on before (in
+        // the old settings panel, or by hand) stayed on the wallpaper with no switch anywhere to take it off. Off, once.
+        if (from < 7)
+            for (const k of ["calendar", "notes", "todo", "media", "visualizer"])
+                root.options.background.widgets[k].enable = false;
         // a file a newer build stamped is left as it is: lowered and rewritten here, that build ran its steps again over it
         if (from >= root.currentConfigVersion) return;
         root.options.configVersion = root.currentConfigVersion;

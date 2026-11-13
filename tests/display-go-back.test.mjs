@@ -1,6 +1,7 @@
 // Settings > Display & power after Go back (tacit-settings.qml): the old monitors.lua is put back and Hyprland reloads
 // it, and the page's next change must start from the screens as they are again, not as they were refused. The page's
-// own Hyprland handler, its hyprctl monitors reader and setMonitor() run under node on two pretend screens.
+// own Hyprland handler, its hyprctl monitors reader and setMonitor() run under node on two pretend screens. Closing
+// Settings while the Keep bar counts down goes back too: the window's onClosing and restoreDisplay() run under node.
 import { inScope, matchBrace, qmlFunction } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -59,6 +60,28 @@ console.log("Display & power after Go back (tacit-settings.qml)");
   s.hyprland.say("configreloaded");
   check("a reload while a write is landing leaves the read to the write's end", s.dp.screens[0].scale === 1,
     `the page read ${s.dp.screens[0].scale * 100}% while the write ran`);
+}
+
+// closing the window (its button, Super+Q) while the bar counts down: the countdown ends with the process
+{
+  const app = read("tacit-settings.qml");
+  const at = app.indexOf("{", app.indexOf("onClosing:"));
+  const closing = app.slice(at + 1, matchBrace(app, at));
+  const restore = qmlFunction(app, "restoreDisplay");
+  function close(left) {
+    const ran = [];
+    const root = { displayKeepLeft: left, displayBackupBase: 'b="${XDG_RUNTIME_DIR:-/tmp}/tacit-monitors"; ', pickDone: null };
+    const scope = { root, Directories: { shellFile: "shell.qml" }, Quickshell: { execDetached: c => ran.push(c.join(" ")) },
+      Qt: { quit: () => ran.push("quit") } };
+    root.restoreDisplay = inScope(scope, restore.params, restore.body);
+    inScope(scope, "", closing)();
+    return ran;
+  }
+  const ran = close(9);
+  const back = ran.findIndex(c => c.includes('cp -f "$b.previous" "$f"'));
+  check("closing Settings with 9 s left on the Keep bar puts the old monitors.lua back before it quits",
+    back >= 0 && back < ran.indexOf("quit"), JSON.stringify(ran));
+  check("closing it with nothing waiting on Keep leaves the screens alone", close(0).join() === "quit", JSON.stringify(close(0)));
 }
 
 done();

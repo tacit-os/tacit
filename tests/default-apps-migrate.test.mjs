@@ -17,7 +17,8 @@ const version = +(config.match(/currentConfigVersion:\s*(\d+)/)?.[1] ?? 0);
 const migrate = qmlFunction(config, "migrate");
 const started = from => {
   const calls = [];
-  const options = { configVersion: from, sidebar: { cornerOpen: {} }, background: {}, appearance: { transparency: { enable: true } }, dock: { pinnedApps: [] },
+  const options = { configVersion: from, sidebar: { cornerOpen: {} },
+    background: { widgets: { calendar: {}, notes: {}, todo: {}, media: {}, visualizer: {} } }, appearance: { transparency: { enable: true } }, dock: { pinnedApps: [] },
     audio: { protection: {} }, hyprland: { input: {} }, commandPalette: { files: {} } };
   const root = { options, currentConfigVersion: version, writeNow() {} };
   inScope({ root, Quickshell: { execDetached: c => calls.push(c), shellPath: p => `<shell>/${p}` }, Directories: { config: "<config>" }, FileUtils: { trimFileProtocol: p => p } },

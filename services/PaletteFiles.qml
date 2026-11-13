@@ -25,9 +25,14 @@ Singleton {
     id: root
 
     readonly property bool enable: Config.options.commandPalette?.files?.enable ?? true
+    // the folder set in Settings > Palette & search > Look in, or the home folder; a leading ~ is the home folder, as the
+    // row's placeholder ("Your home folder") invites: fd took "~/Documents" for a folder named ~ and found nothing
     readonly property string searchRoot: {
-        const configured = Config.options.commandPalette?.files?.root ?? "";
-        return FileUtils.trimFileProtocol(configured.length > 0 ? configured : Directories.home);
+        const configured = FileUtils.trimFileProtocol(Config.options.commandPalette?.files?.root ?? "");
+        const home = FileUtils.trimFileProtocol(Directories.home);
+        if (configured.length === 0 || configured === "~")
+            return home;
+        return configured.startsWith("~/") ? home + configured.slice(1) : configured;
     }
     readonly property int maxDepth: Config.options.commandPalette?.files?.maxDepth ?? 8
     readonly property int limit: Config.options.commandPalette?.files?.limit ?? 12

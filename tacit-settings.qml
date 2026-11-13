@@ -100,6 +100,9 @@ ApplicationWindow {
         // a Files window still open for a pick would answer a Settings that is gone: it is closed with us
         if (root.pickDone !== null)
             Quickshell.execDetached(["qs", "-p", Directories.shellFile, "ipc", "call", "files", "cancelpick", "settingsApp"]);
+        // a display change not kept yet goes back, as when the countdown ends: the countdown ends with this process
+        if (root.displayKeepLeft > 0)
+            root.restoreDisplay();
         Qt.quit();
     }
     property string query: ""
@@ -567,8 +570,9 @@ ApplicationWindow {
 
     // A sound device in plain words: "Built-in Audio Speaker playback" is Speakers, a bracketed
     // kind ("(echo cancelled)") goes to the second line, and the card's own device beside a tuned or
-    // echo-cancelled one says what it lacks.
-    function soundName(d) {
+    // echo-cancelled one says what it lacks. Only beside one: where no such chain is set up (only the
+    // Book4 Edge's package sets one up) the card's own device is all there is and lacks nothing.
+    function soundName(d, alone) {
         let s = (d.description || d.nickname || d.name || "").replace(/^Built-in Audio\s+/i, "");
         let line = "";
         const m = /\s*\(([^)]+)\)\s*$/.exec(s);
@@ -576,8 +580,11 @@ ApplicationWindow {
         s = s.replace(/\s+(playback|capture)$/i, "");
         if (/^speakers?$/i.test(s)) s = "Speakers";
         else if (/^(internal )?microphones?$/i.test(s)) s = "Microphones";
-        if (!line && /^alsa_output/.test(d.name ?? "") && s === "Speakers") line = "Without tuning";
-        if (!line && /^alsa_input/.test(d.name ?? "") && s === "Microphones") line = "Without echo cancelling";
+        // the chain: another device of the same name, not the card's, with a kind of its own ("Speakers (tuned)")
+        const chain = list => !alone && list.some(o => o !== d && !/^alsa_/.test(o.name ?? "")
+            && root.soundName(o, true).label === s && root.soundName(o, true).line !== "");
+        if (!line && /^alsa_output/.test(d.name ?? "") && s === "Speakers" && chain(Audio.outputDevices)) line = "Without tuning";
+        if (!line && /^alsa_input/.test(d.name ?? "") && s === "Microphones" && chain(Audio.inputDevices)) line = "Without echo cancelling";
         return { label: s, line: line };
     }
 
@@ -2481,7 +2488,8 @@ ApplicationWindow {
             // the Wi-Fi network you are on: with a cable up networkName may be the cable's profile, so
             // the scan's active access point names it then
             readonly property string wifiName: Network.ethernet ? (Network.active?.ssid ?? "") : Network.networkName
-            // what its trust is kept under: the network's own name, as the VPN's rule asks; wifiName can be the profile's
+            // what its trust is kept under and Forget forgets: the network's own name, as the VPN's rule and forgetWifiNetwork()
+            // ask; wifiName can be the profile's
             // ("MyWifi 1"), so that is looked up when the scan has not named the network
             readonly property string wifiSsid: Network.active?.ssid ?? Network.savedConnections.find(c => c.name === netPage.wifiName)?.ssid ?? netPage.wifiName
             // a computer with only a cable: the device list has been read and holds no Wi-Fi device. NetworkManager
@@ -2525,7 +2533,7 @@ ApplicationWindow {
                             { label: "Disconnect", run: () => Network.disconnectWifiNetwork() },
                             { label: "Trusted: home or work", checked: Network.isTrusted(netPage.wifiSsid),
                               run: () => Network.setTrusted(netPage.wifiSsid, !Network.isTrusted(netPage.wifiSsid)) },
-                            { label: "Forget this network", run: () => Network.forgetWifiNetwork(netPage.wifiName) }
+                            { label: "Forget this network", run: () => Network.forgetWifiNetwork(netPage.wifiSsid) }
                         ]
                     }
                 }
@@ -2678,7 +2686,7 @@ ApplicationWindow {
                     visible: installed
                     glyph: "drag_handle"
                     label: "Line on windows"
-                    description: "Carry a window by it to the notch to close, the dock to hide, or a side"
+                    description: "Carry a window by it to the notch to close, the dock to hide, or a side; the three-finger swipes need it too"
                     checked: lineRow.lineOn
                     onToggled: value => {
                         lineRow.lineOn = value;
@@ -3057,9 +3065,16 @@ ApplicationWindow {
                     onToggled: value => Config.options.search.sloppy = value
                 }
                 FieldRow {
+                    id: engineRow
                     label: "Web search address"
                     text: Config.options.search.engineBaseUrl
-                    onCommitted: value => Config.options.search.engineBaseUrl = value
+                    // the words are added to it as they are: with none, a web search opened nothing
+                    onCommitted: value => {
+                        if (value.length === 0)
+                            engineRow.revert();
+                        else
+                            Config.options.search.engineBaseUrl = value;
+                    }
                 }
             }
             // the characters that start a search in one section, rarely changed
@@ -3201,7 +3216,6 @@ ApplicationWindow {
                             return;
                         }
                         passwdProc.secret = `${nowField.text}\n${newField.text}\n`;
-                        nowField.text = newField.text = againField.text = "";
                         passwdProc.running = true;
                     }
                 }
@@ -3242,8 +3256,18 @@ ApplicationWindow {
                         onStreamFinished: {
                             const said = text.trim();
                             passwordRow.said = said === "changed" ? "Changed" : (said || "It did not change");
+                            // only what was refused is typed again (passwd.py's words): the one now, a try that counts
+                            // toward the lock-out like one at the lock screen, or the new one twice; all three otherwise
+                            const wrongNow = said === "That is not your password now";
+                            const wrongNew = said.startsWith("The new one");
+                            if (!wrongNew)
+                                nowField.text = "";
+                            if (!wrongNow)
+                                newField.text = againField.text = "";
                             if (said === "changed")
                                 passwordRow.asking = false;
+                            else if (wrongNew)
+                                newField.focusInput();
                             else
                                 nowField.focusInput();
                         }
@@ -4178,7 +4202,7 @@ ApplicationWindow {
                     glyph: "add"
                     asList: true
                     label: "Add a key"
-                    description: "For pi and opencode"
+                    description: "For your agents"
                     options: choices
                     current: ""
                     onPicked: value => accPage.goTo(`keys:${value}`)

@@ -138,6 +138,9 @@ Singleton {
     // chain (EQ, limiter, echo canceller). So a headset could connect, get a working sink, and
     // every app would carry on playing to the laptop speakers. Hand the output to a Bluetooth
     // sink when one appears, and give it back to whatever was playing before when it leaves.
+    // Only the shell hands it over (shell.qml sets handsOver): Settings loads this file too, and a copy that started
+    // with the headset already on had nothing memorised, so as it left it released the pin the shell had just put back.
+    property bool handsOver: false
     property PwNode sinkBeforeBluetooth: null
     readonly property var bluetoothSink: {
         for (const n of Pipewire.nodes.values)
@@ -146,6 +149,8 @@ Singleton {
         return null;
     }
     onBluetoothSinkChanged: {
+        if (!root.handsOver)
+            return;
         if (root.bluetoothSink) {
             // The pin reads null whenever its configured name resolves to no live node, so fall
             // back to the effective default; and never memorise a Bluetooth node, or one headset

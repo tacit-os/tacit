@@ -1,6 +1,8 @@
 // A Bluetooth headset arriving and leaving (services/Audio.qml): the file's own onBluetoothSinkChanged and
 // setDefaultSink() run under node on a pretend PipeWire, whose pin reads null once the node it names has gone, as
 // Quickshell's does. When the headset leaves, the output goes back to where it was only if nobody chose another since.
+// Settings loads Audio.qml too; only the shell's copy hands the output over, or Settings', opened while the headset was
+// on, released the pin as the headset left, over the shell's putting it back.
 import { inScope, matchBrace, qmlFunction } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -22,7 +24,7 @@ function desk() {
     set preferredDefaultAudioSink(n) { pin = n ? n.name : null; },
     get defaultAudioSink() { return live(pin) ?? speakers; },
   };
-  const root = { sinkBeforeBluetooth: null };
+  const root = { sinkBeforeBluetooth: null, handsOver: true }; // the shell's copy (shell.qml)
   Object.defineProperty(root, "bluetoothSink", { get: () => nodes.find(n => n.name.startsWith("bluez_output.")) ?? null });
   const scope = { root, Pipewire };
   const handler = inScope(scope, "", handlerBody);
@@ -57,5 +59,39 @@ function desk() {
   d.connect();
   d.leave();
   check("a second visit of the headset still hands the output back", d.out() === d.speakers.name, `it went to ${d.out()}`);
+}
+// the shell and Settings, each with its own Audio, on one PipeWire: a write lands a moment later, so both copies answer
+// the headset leaving from what PipeWire said before either write, and the last write to land wins
+{
+  const speakers = { name: "alsa_output.pci-0000_00_1f.3.analog-stereo" };
+  const headset = { name: "bluez_output.AC_80_0A_12_34_56.1" };
+  const nodes = [speakers, headset];
+  let pin = headset.name, writes = [];
+  const live = name => nodes.find(n => n.name === name) ?? null;
+  const Pipewire = {
+    get preferredDefaultAudioSink() { return live(pin); },
+    set preferredDefaultAudioSink(n) { writes.push(n ? n.name : null); },
+    get defaultAudioSink() { return live(pin) ?? speakers; },
+  };
+  const land = () => { for (const w of writes) pin = w; writes = []; };
+  const copy = shell => {
+    const root = { sinkBeforeBluetooth: null };
+    if (shell) root.handsOver = true;
+    Object.defineProperty(root, "bluetoothSink", { get: () => nodes.find(n => n.name.startsWith("bluez_output.")) ?? null });
+    return inScope({ root, Pipewire }, "", handlerBody);
+  };
+  const shell = copy(true);
+  pin = speakers.name;
+  shell();                                // the headset arrives: the shell hands it the output
+  land();
+  const settings = copy(false);
+  settings();                             // Settings is opened on Sound with the headset on
+  land();
+  nodes.splice(nodes.indexOf(headset), 1);
+  shell();                                // the headset leaves: the shell puts the speakers back,
+  settings();                             // and Settings' copy hears it too, its write landing last
+  land();
+  check("Settings open on Sound when the headset leaves: the output still goes back to the speakers", pin === speakers.name,
+    `the pin is ${pin}`);
 }
 done();

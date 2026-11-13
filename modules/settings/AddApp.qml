@@ -21,14 +21,17 @@ ColumnLayout {
     spacing: 0
 
     readonly property var taken: Shortcuts.apps.map(a => a.name)
-    readonly property var found: {
+    // every app that matches, by its name or by the words it answers to as in the palette ("browser" finds Thyris by its
+    // GenericName), those matched by name first; the list shows the first 8 and the help says when there are more
+    readonly property var matching: {
         const q = add.query.trim().toLowerCase();
+        const inName = e => e.name.toLowerCase().includes(q);
         return Array.from(DesktopEntries.applications.values)
             .filter(e => !e.noDisplay && !e.runInTerminal && e.command.length > 0 && !add.taken.includes(e.name)
-                && (q === "" || e.name.toLowerCase().includes(q)))
-            .sort((a, b) => a.name.localeCompare(b.name))
-            .slice(0, 8);
+                && (inName(e) || [e.genericName ?? "", ...(e.keywords ?? [])].some(w => w.toLowerCase().includes(q))))
+            .sort((a, b) => (inName(b) - inName(a)) || a.name.localeCompare(b.name));
     }
+    readonly property var found: add.matching.slice(0, 8)
     onOpenChanged: if (open) search.forceActiveFocus()
 
     // closed: a row like the others, with a plus
@@ -106,7 +109,9 @@ ColumnLayout {
         visible: add.open
         Layout.leftMargin: 2 * Tacit.space.l + Tacit.icon.row
         Layout.preferredHeight: Tacit.height.action - Tacit.space.s
-        text: add.found.length > 0 ? "Pick the app, then press the keys that open it." : "No app has that name."
+        text: add.found.length === 0 ? "No app has that name."
+            : add.matching.length > add.found.length ? "Pick the app, then press the keys that open it. Type to find more."
+            : "Pick the app, then press the keys that open it."
         font.pixelSize: Tacit.size.meta
         color: Tacit.inkMeta
     }
