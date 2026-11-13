@@ -226,6 +226,11 @@ Singleton {
         }
         return "notes";
     }
+    // the colour a copied hex paints as: Qt reads eight digits as #AARRGGBB, CSS and design tools write #RRGGBBAA
+    function swatch(text) {
+        const s = (text + "").trim();
+        return s.length === 9 ? `#${s.slice(7)}${s.slice(1, 7)}` : s;
+    }
 
     function label(item) {
         if (item.kind === "secret")

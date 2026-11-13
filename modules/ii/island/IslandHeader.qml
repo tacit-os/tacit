@@ -575,9 +575,10 @@ Item {
                 MaterialSymbol {
                     visible: Battery.available
                     anchors.verticalCenter: parent.verticalCenter
-                    text: Battery.isPluggedIn ? "bolt" : (Battery.percentage <= 0.2 ? "battery_alert" : "battery_full")
+                    // low at the level the low-battery warning uses (Settings: "Warn when the battery falls to")
+                    text: Battery.isPluggedIn ? "bolt" : (Battery.isLow ? "battery_alert" : "battery_full")
                     iconSize: 16
-                    color: !Battery.isPluggedIn && Battery.percentage <= 0.2 ? Tacit.inkMain : IslandController.subtextColor
+                    color: Battery.isLowAndNotCharging ? Tacit.inkMain : IslandController.subtextColor
                 }
                 WingText {
                     visible: Battery.available

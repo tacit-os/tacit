@@ -289,7 +289,7 @@ Item {
                         Behavior on scale { NumberAnimation { duration: 240; easing.type: Easing.OutBack; easing.overshoot: 1.3 } }
                         Behavior on opacity { NumberAnimation { duration: 160 } }
                         HoverHandler { id: chipArea }
-                        Image { id: chipThumb; visible: chip.thumb && chipThumb.status === Image.Ready; anchors.fill: parent; source: chip.thumb ? `file://${chip.modelData.path}` : ""; fillMode: Image.PreserveAspectCrop; sourceSize.height: 96; asynchronous: true }
+                        Image { id: chipThumb; visible: chip.thumb && chipThumb.status === Image.Ready; anchors.fill: parent; source: chip.thumb ? FileUtils.fileUrl(chip.modelData.path) : ""; fillMode: Image.PreserveAspectCrop; sourceSize.height: 96; asynchronous: true }
                         // still loading, or gone from disk: its glyph rather than a blank tile
                         MaterialSymbol { visible: chip.thumb && chipThumb.status !== Image.Ready; anchors.centerIn: parent; text: "image"; iconSize: 20; color: ask.dimColor }
                         Row {
@@ -385,7 +385,7 @@ Item {
                         visible: (row.modelData.thumb ?? false) && rowThumb.status === Image.Ready
                         anchors.centerIn: rowGlyph
                         width: 26; height: 26
-                        source: row.modelData.thumb ? `file://${row.modelData.path}` : ""
+                        source: row.modelData.thumb ? FileUtils.fileUrl(row.modelData.path) : ""
                         fillMode: Image.PreserveAspectCrop
                         sourceSize.height: 52
                         asynchronous: true

@@ -66,7 +66,7 @@ Item {
     // Another screen just took the keyboard: this notch's key-driven sheet is not the one being
     // typed into any more, so it does not stay open behind it.
     onKeyScreenChanged: if (!root.keyScreen && root.open && (root.view === "ask" || root.view === "address" || root.view === "record")) root.open = false;
-    // Locking destroys this window with the sheet still up, and the flag would stay set with
+    // Locking destroys this notch with the sheet still up, and the flag would stay set with
     // nothing left to clear it - Claude would never read its context again. An unplugged screen
     // does the same to the keyboard flag: the notch that comes back would take the keys on a hover.
     Component.onDestruction: {
@@ -648,9 +648,15 @@ Item {
         function onDropShelfOpenChanged() {
             if (!GlobalStates.dropShelfOpen)
                 return;
-            // only the notch of the screen the files were dropped on opens, and it clears the flag
-            if (GlobalStates.dropShelfScreen && root.screenData && GlobalStates.dropShelfScreen.name !== root.screenData.name)
+            // only the notch of the screen the files were dropped on opens, and it clears the flag. A screen Settings >
+            // Notch leaves without a notch has nobody to clear it, so any notch does, opening nothing: left set, no later
+            // drop could set it again and the shelf never opened until the next lock.
+            if (GlobalStates.dropShelfScreen && root.screenData && GlobalStates.dropShelfScreen.name !== root.screenData.name) {
+                const list = Config.options.island.screenList;
+                if (list && list.length > 0 && !list.includes(GlobalStates.dropShelfScreen.name))
+                    GlobalStates.dropShelfOpen = false;
                 return;
+            }
             GlobalStates.dropShelfOpen = false;
             // the files are on the shelf; the sign-in, Ask, the address and the recording's choice keep the sheet
             if (root.signinShown || root.signinStage !== "" || root.sheetHeld)
@@ -887,6 +893,9 @@ Item {
                 return true;
         return false;
     }
+    function hasFiles(drag) {
+        return drag.hasUrls && drag.urls.some(u => (u + "").startsWith("file://"));
+    }
     DropArea {
         anchors.fill: parent
         keys: ["text/uri-list", "text/plain"]
@@ -897,20 +906,23 @@ Item {
                 drag.accepted = false;
                 return;
             }
-            const text = !drag.hasUrls && drag.hasText;
-            drag.accepted = drag.hasUrls || text;
+            // a link or a picture dragged out of a browser comes as its https address beside its text: only file
+            // addresses are files for the shelf (DropShelf.addItems parks nothing else), the rest is text for Praxis
+            const files = root.hasFiles(drag);
+            const text = !files && drag.hasText;
+            drag.accepted = files || text;
             if (!drag.accepted)
                 return;
             leaveTimer.stop();
             hoverTimer.stop();
-            root.dragOver = drag.hasUrls;
+            root.dragOver = files;
             root.textDragOver = text;
             root.droppedThisDrag = false;
-            root.view = drag.hasUrls ? "shelf" : "home";
+            root.view = files ? "shelf" : "home";
             // Every other opening path snapshots the rows; without it the drag opens on the
             // rows the last open left behind - sessions that have ended, files that are gone.
             if (!root.open)
-                IslandController.snapshotRows(false, drag.hasUrls);
+                IslandController.snapshotRows(false, files);
             root.open = true;
         }
         onExited: {
@@ -928,7 +940,7 @@ Item {
                 drop.accepted = false;
                 return;
             }
-            if (drop.hasUrls) {
+            if (root.hasFiles(drop)) {
                 // a WireGuard .conf is a VPN to add, not a file to park (an .ovpn is not taken: Vpn.qml)
                 const vpnFiles = drop.urls.filter(u => (u + "").startsWith("file://") && Vpn.isVpnFile(u));
                 for (const u of vpnFiles)
@@ -1412,7 +1424,7 @@ Item {
                                 height: 16
                                 radius: 5
                                 visible: recentRow.item.kind === "color"
-                                color: visible ? recentRow.item.text.trim() : "transparent"
+                                color: visible ? Recents.swatch(recentRow.item.text) : "transparent"
                                 border.width: 1
                                 border.color: Appearance.colors.colOutlineVariant
                             }

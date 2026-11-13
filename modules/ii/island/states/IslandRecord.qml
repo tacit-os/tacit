@@ -50,6 +50,11 @@ Item {
     }
     function focusInput() {
     }
+    // The key S sits on, on a layout that types no Latin letter there (Russian, Greek, Arabic): Qt names a key by what the
+    // layout types, so it was never Key_S and the hint's S did nothing. 39 is that key's code (evdev KEY_S + 8).
+    function sKey(event) {
+        return event.nativeScanCode === 39 && !/^[a-z]$/i.test(event.text);
+    }
     // IslandContent hands its keys here while this sheet is up
     function keyPressed(event) {
         if (root.mode === "saved" && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
@@ -68,7 +73,7 @@ Item {
             root.pick = root.choices[(at + 2) % 3].what;
         } else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
             root.choose(root.pick);
-        } else if (event.key === Qt.Key_S) {
+        } else if (event.key === Qt.Key_S || root.sKey(event)) {
             root.nextSound();
         } else {
             return;

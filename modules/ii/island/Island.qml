@@ -10,7 +10,8 @@ import qs.modules.common
 /**
  * The Dynamic Island: one top-centre layer window per screen, holding the morphing container.
  * The window itself never moves or resizes - only IslandContent does - so the reserved zone stays
- * constant and windows never jitter.
+ * constant and windows never jitter. It stays mapped while the screen is locked too: only the notch
+ * inside it goes at lock and comes back at unlock.
  */
 Scope {
     id: island
@@ -27,7 +28,7 @@ Scope {
 
         LazyLoader {
             id: islandLoader
-            active: !GlobalStates.screenLocked
+            active: true
             required property ShellScreen modelData
 
             component: PanelWindow {
@@ -47,7 +48,7 @@ Scope {
                 // compositor refuses keyboard focus to windows (FocusState.cpp), so a click
                 // elsewhere cannot take the keyboard back: Escape at the sheet level
                 // (IslandContent) and the shortcut are the ways out.
-                WlrLayershell.keyboardFocus: (IslandController.keyboard && islandContent.open && islandContent.keyScreen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
+                WlrLayershell.keyboardFocus: (IslandController.keyboard && islandContent !== null && islandContent.open && islandContent.keyScreen) ? WlrKeyboardFocus.Exclusive : WlrKeyboardFocus.None
                 // Hyprland buries the Top layer under a fullscreen window. boring.notch's
                 // nowPlayingOnly: ride the Overlay layer while something plays in ANOTHER app, so a
                 // game or a film keeps the music's transport; the fullscreen window's own player (a
@@ -84,10 +85,10 @@ Scope {
                 implicitWidth: 860
                 implicitHeight: 540 + Config.options.island.topMargin
                 mask: Region {
-                    item: islandContent
+                    item: contentLoader
                     // the sign-in's hole: the page window under it takes the pointer there
                     Region {
-                        item: islandContent.holeItem
+                        item: islandContent?.holeItem ?? null
                         intersection: Intersection.Subtract
                     }
                 }
@@ -108,9 +109,16 @@ Scope {
                 // the keys. Not during a drag, nor the sign-in, which has its own way back (a pill) and a page in use. Ask and
                 // the address hold the keyboard, so a press outside is their only pointer way out besides Esc: it closes them
                 // as Esc does, but a wheel turn over the rest of the screen does not (a draft is not worth losing to a scroll).
-                readonly property bool clickAway: islandContent.open && !islandContent.draggingOut
+                readonly property bool clickAway: islandContent !== null && islandContent.open && !islandContent.draggingOut
                     && !islandContent.dragOver && !islandContent.textDragOver
                     && islandContent.view !== "signin"
+                // a press or a wheel turn on a catcher folds the sheet, as Esc does; a wheel turn leaves Ask and the address
+                function away(wheel) {
+                    if (wheel && (islandContent.view === "ask" || islandContent.view === "address"))
+                        return;
+                    islandContent.pinnedUntilVisit = false;
+                    islandContent.open = false;
+                }
                 PanelWindow {
                     id: awayCatcher
                     screen: islandRoot.screen
@@ -131,36 +139,64 @@ Scope {
                         width: awayCatcher.width
                         height: awayCatcher.height
                         Region {
-                            x: (awayCatcher.width - islandRoot.width) / 2 + islandContent.x
-                            y: islandContent.y
-                            width: islandContent.width
-                            height: islandContent.height
+                            x: (awayCatcher.width - islandRoot.width) / 2 + contentLoader.x
+                            y: contentLoader.y
+                            width: contentLoader.width
+                            height: contentLoader.height
                             intersection: Intersection.Subtract
                         }
                     }
                     MouseArea {
                         anchors.fill: parent
                         acceptedButtons: Qt.AllButtons
-                        onPressed: {
-                            islandContent.pinnedUntilVisit = false;
-                            islandContent.open = false;
+                        onPressed: islandRoot.away(false)
+                        onWheel: islandRoot.away(true)
+                    }
+                }
+                // While the sheet holds the keyboard, a click on a window on another screen cannot take it back either,
+                // and with nothing there to catch it the sheet stayed open and went on taking what was typed. So every
+                // other screen gets a catcher too while it holds them.
+                readonly property bool holdsKeys: islandRoot.WlrLayershell.keyboardFocus === WlrKeyboardFocus.Exclusive
+                Variants {
+                    model: islandRoot.clickAway && islandRoot.holdsKeys ? Quickshell.screens.filter(s => s.name !== islandRoot.screen?.name) : []
+                    PanelWindow {
+                        required property ShellScreen modelData
+                        screen: modelData
+                        WlrLayershell.namespace: "quickshell:islandAway"
+                        WlrLayershell.layer: islandRoot.WlrLayershell.layer
+                        WlrLayershell.keyboardFocus: WlrKeyboardFocus.None
+                        exclusionMode: ExclusionMode.Ignore
+                        anchors {
+                            top: true
+                            bottom: true
+                            left: true
+                            right: true
                         }
-                        onWheel: {
-                            if (islandContent.view === "ask" || islandContent.view === "address")
-                                return;
-                            islandContent.pinnedUntilVisit = false;
-                            islandContent.open = false;
+                        color: "transparent"
+                        MouseArea {
+                            anchors.fill: parent
+                            acceptedButtons: Qt.AllButtons
+                            onPressed: islandRoot.away(false)
+                            onWheel: islandRoot.away(true)
                         }
                     }
                 }
 
-                IslandContent {
-                    id: islandContent
-                    screenData: islandRoot.screen
+                // The notch goes at lock and is built again at unlock, the window holding it does not: unmapped, it took
+                // its reserved band with it, and every tiled window grew 38 px under the lock and shrank back after it.
+                // A Loader is a focus scope: it holds the window's focus so the notch's keys reach it as before.
+                Loader {
+                    id: contentLoader
+                    active: !GlobalStates.screenLocked
+                    focus: true
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
                     anchors.topMargin: Config.options.island.topMargin
+                    sourceComponent: IslandContent {
+                        screenData: islandRoot.screen
+                    }
                 }
+                readonly property IslandContent islandContent: contentLoader.item
             }
         }
     }
