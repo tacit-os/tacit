@@ -17,6 +17,10 @@ Item {
     // id -> { status, pid } for a turn the previous agent-host's process is still finishing: a host restart closes its
     // stdin, and Claude Code ends the turn before it exits. In an agent scope, so not a terminal (it read as one).
     property var leftovers: ({})
+    // The roster has answered since the socket last connected, or has not in 5 s: until then a turn the previous host's
+    // process is still finishing is not known, and its session looks idle (a message sent then waits: Conversation).
+    property bool rosterAnswered: false
+    Timer { id: rosterWait; interval: 5000; onTriggered: host.rosterAnswered = true }
     property int pollInterval: 10000
     property bool roster: true         // the notch has its own session list: it turns this off
     property var callbacks: ({})
@@ -142,7 +146,9 @@ Item {
             connected: true
             parser: SplitParser { onRead: line => host.receive(line) }
             onConnectedChanged: {
+                host.rosterAnswered = false;
                 if (connected) {
+                    rosterWait.restart();
                     retry.stop();
                     retry.tries = 0;
                     host.sayHello();
@@ -151,6 +157,7 @@ Item {
                     if (host.roster) { roster.running = false; roster.running = true; }
                     return;
                 }
+                rosterWait.stop();
                 host.helloSent = false;
                 host.greeted = false;
                 host.features = [];
@@ -204,9 +211,11 @@ Item {
             onStreamFinished: {
                 const at = this.text.indexOf("@@host@@");
                 const sc = this.text.indexOf("@@scoped@@");
-                let rows;
-                try { rows = JSON.parse(this.text.substring(0, sc >= 0 ? sc : at >= 0 ? at : this.text.length)); } catch (e) { return; }
-                if (!Array.isArray(rows)) return;   // a CLI that answers in another shape is a failure
+                let rows = null;
+                try { rows = JSON.parse(this.text.substring(0, sc >= 0 ? sc : at >= 0 ? at : this.text.length)); } catch (e) {}
+                // a CLI that answers in another shape is a failure; a run that got to its end has said all it can
+                // (one stopped part way, as the restart on connect stops a poll, has not)
+                if (!Array.isArray(rows)) { if (at >= 0) host.rosterAnswered = true; return; }
                 host.rosterFails = 0;
                 const own = at >= 0 ? this.text.substring(at + 8).trim().split(/\s+/).filter(x => x.length) : [];
                 const checked = own.length > 0;
@@ -220,6 +229,7 @@ Item {
                 if (JSON.stringify(left) !== JSON.stringify(host.leftovers)) host.leftovers = left;
                 // an unchanged roster keeps its object: a new one resets every list bound to it
                 if (JSON.stringify(t) !== JSON.stringify(host.terminals)) host.terminals = t;
+                if (at >= 0) host.rosterAnswered = true;
                 // A session open in a terminal that the host also holds, idle: the host's process no longer knows
                 // what the terminal does there, and a message sent to it would carry on from before and split the
                 // conversation. Closed, the next message from here resumes from the transcript as it then is.

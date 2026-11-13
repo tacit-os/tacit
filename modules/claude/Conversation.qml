@@ -242,6 +242,15 @@ Item {
     function openFind() { conv.finding = true; findField.forceActiveFocus(); findField.selectAll(); }
     function find(q) { conv.openFind(); findField.text = q; conv.findStep(1); }
     function closeFind() { conv.finding = false; conv.findQuery = ""; findField.text = ""; composer.focusInput(); }
+    // A search hit in the rail: the words are found once its conversation is read, marked and shown with the find bar
+    // open on them. The keyboard stays where it is (in the rail, while its keys walk the hits).
+    property string findOnLoad: ""
+    function findWhenRead(q) {
+        if (q.length < 2) return;
+        if (conv.loading || conv.shownSession !== conv.session) conv.findOnLoad = q;
+        else conv.findQuietly(q);
+    }
+    function findQuietly(q) { conv.finding = true; findField.text = q; conv.findStep(1); }
     function findStep(step) {
         // only the loaded part is searched: walking up past its first match, or a find with none in it, reads
         // the earlier part (a long session said "None" for words a few pages up, with no way to reach them)
@@ -909,6 +918,7 @@ Item {
         // A session started from here keeps what was chosen for it. Any other takes what it reports:
         // the full model value, so a resume runs the same model.
         const live = conv.session && !conv.session.fresh ? (conv.host.live[conv.session.id] ?? null) : null;
+        conv.reported = live ? { mode: live.mode ?? "", effort: live.effort ?? "" } : ({});
         if (!startedHere) {
             conv.chosenMode = conv.modeOf(live ? (live.mode ?? "") : "");
             conv.chosenModel = live?.model || conv.session?.model || "";
@@ -936,6 +946,8 @@ Item {
             loadTimeout.stop();
             conv.loadRetried = false;
             conv.readFailed = false;
+            const findQ = conv.findOnLoad;
+            conv.findOnLoad = "";
             if (m.ev !== "transcript") {
                 // a session started a moment ago has no file yet; for any other it is a read that failed
                 conv.swapIn([], 0, 0);
@@ -956,6 +968,7 @@ Item {
             conv.offset = m.offset;
             conv.settled = true;
             conv.applyCut();
+            if (findQ.length) conv.findQuietly(findQ);
         });
         conv.loadChanges();
         if (conv.live) conv.watch();
@@ -1010,13 +1023,14 @@ Item {
             if (conv.session && conv.session.id === id && list.length) conv.liveCommands = conv.commandsOf(list);
         });
     }
-    // when it stops, the next queued message goes
+    // When it stops, the next queued message goes: not into a dropped connection, nor before the roster has said whether
+    // the previous host's process is still finishing the turn (that answer sends it), and one refused stays first in line.
     function sendQueued() {
         if (conv.queued.length) conv.testLog(`sendQueued open=${conv.turnOpen} n=${conv.queued.length} locked=${conv.locked} sending=${conv.sendingNow}`);
-        if (conv.turnOpen || !conv.queued.length || conv.locked || conv.sendingNow) return;
+        if (conv.turnOpen || !conv.queued.length || conv.locked || conv.sendingNow || !conv.host.connected || !conv.host.rosterAnswered) return;
         const next = conv.queued[0];
         conv.queued = conv.queued.slice(1);
-        conv.send(next.text, next.images, next.files, true);
+        if (!conv.send(next.text, next.images, next.files, true)) conv.queued = [next].concat(conv.queued);
     }
     function loadChanges() {
         if (!conv.session || conv.session.fresh) return;
@@ -1114,8 +1128,10 @@ Item {
     // the list's 20 s refresh hands over a new copy of the same session: keep what is on screen
     property string loadedKey: ""
     property var drafts: ({})          // session key -> { text, files } typed there and not sent
-    // something typed and not sent, here or in another session: what a quit would throw away
+    // something typed and not sent, here or in another session, or a message queued behind the turn or still on its way
+    // (the queue lives only here): what a quit would throw away
     readonly property bool hasDraft: composer.text.trim().length > 0 || composer.attachments.length > 0 || Object.keys(conv.drafts).length > 0
+        || conv.queued.length > 0 || conv.sendingNow
     onSessionChanged: {
         const key = conv.session ? (conv.session.fresh ? `fresh:${conv.session.cwd}` : conv.session.id) : "";
         if (key === conv.loadedKey && key.length) {
@@ -1123,6 +1139,8 @@ Item {
             return;
         }
         conv.closeFind();   // another session starts without the find
+        conv.findOnLoad = "";
+        composer.aside = false;   // or asking aside: the next message goes to this session as a message
         // The box's draft belongs to its session: it stayed in the box when another was opened, ready to be sent
         // there by mistake. Kept by session while the app runs; a pre-fill (a drop, a page) comes after this.
         // Messages queued behind a working turn were never sent (load() empties the queue): they go into the
@@ -1282,7 +1300,10 @@ Item {
         const m = /margin-bottom:(\d+)px/.exec(html.substring(html.lastIndexOf("<p ")));
         return m ? Number(m[1]) : 0;
     }
+    // the mode and level the session's process last reported, as the chips show them: what a reconnect keeps
+    property var reported: ({})
     onLiveChanged: {
+        if (conv.live) conv.reported = { mode: conv.live.mode ?? "", effort: conv.live.effort ?? "" };
         if (conv.live && conv.session && conv.watching !== conv.session.id) conv.watch();
         if (conv.live && conv.session && !conv.session.fresh && conv.offset < 0 && !conv.loading && !conv.readFailed) conv.offset = 0;
         if (conv.live && conv.live.alive && conv.liveCommands === null) conv.loadCommands();
@@ -1417,12 +1438,23 @@ Item {
             conv.loading = false;
             if (conv.session && !conv.session.fresh) {
                 // load() starts the session over, queue included: messages typed while it worked
-                // were never sent, so they stay on screen and in line across the reconnect
-                const queued = conv.queued;
+                // were never sent, so they stay on screen and in line across the reconnect. So do the box's mode, model,
+                // level and account: a restarted host knows nothing of the session, load() put Auto and the default level
+                // back on the chips, and the next message resumed it with them.
+                const queued = conv.queued, reported = conv.reported;
+                const kept = { mode: reported.mode ? conv.modeOf(reported.mode) : conv.chosenMode, model: conv.chosenModel,
+                               effort: conv.chosenEffort || reported.effort || "", account: conv.chosenAccount };
                 conv.load();
                 conv.queued = queued;
+                conv.reported = reported;
+                conv.chosenMode = kept.mode;
+                conv.chosenModel = kept.model;
+                conv.chosenEffort = kept.effort;
+                conv.chosenAccount = kept.account;
             }
         }
+        // the roster has said what runs since the connect: what was queued across it goes, or waits for that turn
+        function onRosterAnsweredChanged() { if (conv.host.rosterAnswered) conv.sendQueued(); }
     }
 
     // ── sending ─────────────────────────────────────────────────────────────
@@ -1445,11 +1477,15 @@ Item {
             errorFade.restart();
             return false;
         }
-        if (!fromQueue && conv.turnOpen && !s.fresh) {
+        // Right after the socket connects, a session that looks idle may be a turn the previous host's process is still
+        // finishing (the roster has not answered yet): a resume then ran a second Claude Code on the same conversation.
+        // The message waits in the queue for that answer (sendQueued), and nothing is stopped for it.
+        const unknown = conv.live === null && conv.host.connected && !conv.host.rosterAnswered;
+        if (!fromQueue && (conv.turnOpen || unknown) && !s.fresh) {
             const echo = !conv.pendingUser.length && !conv.pendingImages.length;
             conv.queued = conv.queued.concat([{ text: text, images: images, files: files, shown: echo }]);
             if (echo) { conv.pendingUser = text; conv.pendingImages = images; }
-            conv.interruptTurn();
+            if (conv.turnOpen) conv.interruptTurn();
             return true;
         }
         if (!conv.host.connected) {

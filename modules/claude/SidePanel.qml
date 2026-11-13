@@ -33,7 +33,8 @@ Item {
     property color base: "transparent"  // the window's ground, solid under the panel when it is over
     signal closeRequested()
     signal showRequested()
-    signal sendRequested(string text)
+    property var sendFn: null           // the review's comments go through the conversation's send
+    property string agentName: "Claude Code"
     signal attachRequested(string path)   // Made: a file for the next message
     signal pictureRequested(string path)  // Agents: a step's picture, in the window's viewer
     signal restartHostRequested()         // Results: the background service has no Results
@@ -157,7 +158,8 @@ Item {
         onBackRequested: side.tab = "results"
         onTabPicked: key => side.tab = key
         onOpenRequested: (abs, line) => side.openFile(abs, line, "")
-        onSendRequested: text => side.sendRequested(text)
+        sendFn: side.sendFn
+        agentName: side.agentName
         onAttachRequested: path => side.attachRequested(path)
         onCloseRequested: side.closeRequested()
     }

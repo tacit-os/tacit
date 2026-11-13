@@ -119,6 +119,11 @@ ApplicationWindow {
     // draft); it used to stay running after every close (Discord, Axy). Sessions run in agent-host, so no agent stops.
     // Hidden or closed, this is where the window's shape is written, and where deletes still in their undo minute are sent.
     onClosing: close => { if (!conv.hasDraft) Qt.quit(); }
+    // closed with a message queued behind the turn or on its way, the instance stays to send it and ends once it has gone
+    Connections {
+        target: conv
+        function onHasDraftChanged() { if (!conv.hasDraft && !root.visible) Qt.callLater(() => { if (!conv.hasDraft && !root.visible) Qt.quit(); }); }
+    }
     onVisibleChanged: if (!root.visible) { root.rememberShape(); fm.flushDeletes(); }
     onActiveChanged: if (root.active) presence.refresh()
 
@@ -131,8 +136,9 @@ ApplicationWindow {
         // window is on screen and only quickens while it also has the keyboard.
         pollInterval: root.active ? 10000 : 20000
         // closed, the window only hides: the roster (a `claude` start every 10-20 s, 1.3 % of a core) is read
-        // while it is on screen, and at once when it is shown again
-        roster: root.visible
+        // while it is on screen, and at once when it is shown again; hidden, while a queued message waits to be sent
+        // (it waits for a turn the previous host's process is finishing, known from the roster alone)
+        roster: root.visible || conv.queued.length > 0
         onConnectedChanged: if (connected) root.refresh()
         onHistoryChanged: root.refresh()
     }
@@ -933,7 +939,8 @@ ApplicationWindow {
                 cove: cove
                 shellUp: fm.shellUp
                 saveFailed: fm.saveFailed
-                onChosen: s => root.choose(s)
+                // a transcript hit opens on the words found, as Ctrl+F finds them
+                onChosen: s => { root.choose(s); if (s?.snippet !== undefined) conv.findWhenRead(rail.query.trim()); }
                 onAct: (verb, arg, row) => root.act(verb, arg, row)
                 onRenameAsked: row => root.askRename(row)
                 onRenameRequested: (key, text) => root.renameRow(key, text)
@@ -1018,7 +1025,8 @@ ApplicationWindow {
             fresh: root.selected ? !!root.selected.fresh : true
             sessionId: root.selected ? (root.selected.id || "") : ""
             cwd: root.selected ? (root.selected.cwd || "") : ""
-            onSendRequested: text => conv.send(text)
+            sendFn: text => conv.send(text)
+            agentName: conv.agentName
             host: host
             agentsInfo: root.agentsInfo
             canStop: root.canStop

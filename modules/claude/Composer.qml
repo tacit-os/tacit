@@ -71,6 +71,8 @@ Item {
     // asking aside: the box sends a side question instead of a message (Conversation's AsideCard)
     property bool aside: false
     property bool canAside: false
+    // a new session (or one in a terminal) has no aside: left on, its chip hidden, Enter threw the message away
+    onCanAsideChanged: if (!composer.canAside) composer.aside = false
     signal asideAsked(string question)
     // Flow's dictation, when flowd runs: the mic taps its shortcut (as the Copilot key does), and
     // Flow types what you say into this box
@@ -81,10 +83,16 @@ Item {
         command: ["bash", "-c", "[ -S \"$XDG_RUNTIME_DIR/flow.sock\" ] && echo yes"]
         stdout: StdioCollector { onStreamFinished: composer.canDictate = this.text.trim() === "yes" }
     }
-    // flowd may start (or restart) after Praxis: look again each time the window gets the focus
+    // flowd may start (or restart) after Praxis: look again each time the window gets the focus. So may an agent's
+    // install or sign-in, done in a terminal: the host looks again only when asked (or every ten minutes), so it is
+    // asked while the box shows a step for its agent or the agent menu is open.
     Connections {
         target: composer.Window.window
-        function onActiveChanged() { if (composer.Window.window.active && !flowProbe.running) flowProbe.running = true; }
+        function onActiveChanged() {
+            if (!composer.Window.window.active) return;
+            if (!flowProbe.running) flowProbe.running = true;
+            if (composer.hasAccounts && (composer.needsStep || composer.menu === "agent")) composer.accounts.check("");
+        }
     }
     function dictate() {
         input.forceActiveFocus();

@@ -40,7 +40,9 @@ Item {
     property var items: []            // the conversation, for the files of the last turn
     property string sessionId: ""
     signal closeRequested()
-    signal sendRequested(string text)
+    // the conversation's send: false when the message could not go out (then the comments stay)
+    property var sendFn: null
+    property string agentName: "Claude Code"
     property var tabs: []             // in the side panel: its sections, shown in place of the title
     property string backLabel: ""     // in the side panel: where Back goes (Results), shown in place of the tabs
     signal backRequested()
@@ -127,7 +129,8 @@ Item {
         }
         const msg = lines.join("\n");
         if (panel.locked) { Quickshell.clipboardText = msg; panel.sentNote = "Copied: paste them into the terminal."; }
-        else { panel.sendRequested(msg); panel.sentNote = `Sent ${panel.comments.length === 1 ? "1 comment" : panel.comments.length + " comments"} to Claude.`; }
+        else if (!panel.sendFn || !panel.sendFn(msg)) { panel.sentNote = "Not sent: your comments are still here."; sentNoteFade.restart(); return; }
+        else panel.sentNote = `Sent ${panel.comments.length === 1 ? "1 comment" : panel.comments.length + " comments"} to ${panel.agentName}.`;
         panel.comments = [];
         sentNoteFade.restart();
     }
@@ -962,7 +965,7 @@ Item {
                 font.pixelSize: 14
                 color: Appearance.colors.colInkSecondary
             }
-            Pill { label: panel.locked ? "Copy for the terminal" : "Send to Claude"; onClicked: panel.sendComments() }
+            Pill { label: panel.locked ? "Copy for the terminal" : `Send to ${panel.agentName}`; onClicked: panel.sendComments() }
             Pill { label: "Clear"; onClicked: panel.comments = [] }
         }
         Rectangle { width: parent.width; height: 1; color: ColorUtils.transparentize(Appearance.m3colors.m3onSurface, 0.93); visible: panel.shownFiles.length > 0 }
