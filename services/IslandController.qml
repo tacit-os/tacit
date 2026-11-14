@@ -1716,16 +1716,19 @@ Singleton {
     // Hyprland notices (missed pings) and runs hyprland-dialog; ours (scripts/activity/hyprland-dialog,
     // in ~/.local/bin) brings that one dialog here. The answer goes back on the wrapper's fifo as the
     // button's own text and Hyprland acts on it: Terminate kills the app, Wait gives it more time.
-    property var notAnswering: null     // {id, cls, title, pid, fifo, buttons, name, since}
+    property var notAnswering: null     // {id, cls, title, pid, fifo, buttons, name, since, key}
     property int notAnsweringFor: 0     // seconds since Hyprland noticed
     // The wrapper offers its prompt again every few seconds, as a reload or restart of the shell loses it: one shown
-    // or answered here already is left as it is.
-    property string notAnsweringDone: ""    // the id last answered
+    // or answered here already is left as it is. A prompt is its id and since together: Thyris asks again under the same
+    // id (its pid) after Wait, with a since of its own, and that one is new.
+    property string notAnsweringDone: ""    // the id and since last answered
     function showNotAnswering(n) {
         if (!root.enabled || root.suppressed)
             return false;
-        if (n.id === root.notAnswering?.id || n.id === root.notAnsweringDone)
+        const key = `${n.id} ${n.since ?? ""}`;
+        if (n.id === root.notAnswering?.id || key === root.notAnsweringDone)
             return true;
+        n.key = key;
         // without a launcher entry, the class's last part: "Org.kde.krita isn't answering" for Krita (2026-10-17)
         const name = DesktopEntries.heuristicLookup(n.cls)?.name ?? n.cls.split(".").pop();
         n.name = name.charAt(0).toUpperCase() + name.slice(1);
@@ -1733,7 +1736,7 @@ Singleton {
         // the earlier app's dialog still waits on its fifo: answer it Wait, it asks again if the app stays stuck
         const old = root.notAnswering;
         if (old && old.id !== n.id) {
-            root.notAnsweringDone = old.id;
+            root.notAnsweringDone = old.key;
             Quickshell.execDetached(["sh", "-c", 'printf "%s\\n" "$2" > "$1"', "sh", old.fifo, old.buttons[1]]);
         }
         root.notAnswering = n;
@@ -1750,7 +1753,7 @@ Singleton {
         // Terminate is Hyprland's to carry out; an app that ignores it is killed 3 s later
         if (which === "close" && n.pid)
             Quickshell.execDetached(["sh", "-c", 'sleep 3; kill -0 "$1" 2>/dev/null && kill -KILL "$1"', "sh", String(n.pid)]);
-        root.notAnsweringDone = n.id;
+        root.notAnsweringDone = n.key;
         root.clearNotAnswering();
     }
     function notAnsweringDetails() {
