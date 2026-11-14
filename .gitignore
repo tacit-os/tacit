@@ -1,0 +1,12 @@
+# Local Finder and IDE settings
+.DS_Store
+.qtcreator/
+.idea/
+
+# Generated macOS mail preview
+/mocks/mail/mac-preview/build*/
+/mocks/mail/mac-preview/cmake-build*/
+/mocks/mail/mac-preview/__pycache__/
+
+# Local QML language server paths
+/mocks/mail/.qmlls.ini

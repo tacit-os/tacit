@@ -1,0 +1,322 @@
+[
+  {
+    "id": "seed-02",
+    "account_id": "work",
+    "conversation_id": "review",
+    "from": {
+      "name": "Mara Klein",
+      "email": "mara.klein@example.com"
+    },
+    "cc": [
+      {
+        "email": "nils.berger@example.com"
+      },
+      {
+        "email": "lena.fischer@example.com"
+      }
+    ],
+    "subject": "The Dusk and Moss pass",
+    "body_text": "Hi Lorenz,\n\nThe final design review is ready. I have attached our notes on the Dusk and Moss palettes.\n\nCould you take a look at the navigation and the message header before Thursday? The interface should stay quiet, with the content doing most of the talking.\n\nThanks,\nMara",
+    "mailbox": "Inbox",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-02T09:42:00.000Z",
+    "attachments": [
+      {
+        "id": "fixture-seed-02-review",
+        "filename": "Review summary.pdf",
+        "media_type": "application/pdf",
+        "asset": "mailbox/seed-02-review"
+      },
+      {
+        "id": "fixture-seed-02-header-notes",
+        "filename": "Header notes.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-02-header-notes"
+      }
+    ]
+  },
+  {
+    "id": "seed-03",
+    "account_id": "work",
+    "conversation_id": "seed-03",
+    "from": {
+      "name": "Tactical Studio",
+      "email": "tactical.studio@example.com"
+    },
+    "subject": "Monday notes, prototype review",
+    "body_text": "Good morning,\n\nThe prototype is ready for a short review. We have updated the keyboard map and the spacing in the header, as discussed on Monday.\n\nCould you try it this week and tell us what still feels slow?\n\nBest,\nTactical Studio\n\nThe ten notes in the review packet are attached.",
+    "mailbox": "Inbox",
+    "unread": true,
+    "flagged": false,
+    "date": "2026-11-02T08:42:00.000Z",
+    "attachments": [
+      {
+        "id": "fixture-seed-03-prototype-1",
+        "filename": "01 Overview.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-1"
+      },
+      {
+        "id": "fixture-seed-03-prototype-2",
+        "filename": "02 Navigation.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-2"
+      },
+      {
+        "id": "fixture-seed-03-prototype-3",
+        "filename": "03 Keyboard shortcuts.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-3"
+      },
+      {
+        "id": "fixture-seed-03-prototype-4",
+        "filename": "04 Layout and spacing.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-4"
+      },
+      {
+        "id": "fixture-seed-03-prototype-5",
+        "filename": "05 Dusk palette.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-5"
+      },
+      {
+        "id": "fixture-seed-03-prototype-6",
+        "filename": "06 Moss palette.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-6"
+      },
+      {
+        "id": "fixture-seed-03-prototype-7",
+        "filename": "07 Accessibility.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-7"
+      },
+      {
+        "id": "fixture-seed-03-prototype-8",
+        "filename": "08 Attachment previews.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-8"
+      },
+      {
+        "id": "fixture-seed-03-prototype-9",
+        "filename": "09 Review questions.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-9"
+      },
+      {
+        "id": "fixture-seed-03-prototype-10",
+        "filename": "10 Next steps.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-03-prototype-10"
+      }
+    ]
+  },
+  {
+    "id": "seed-04",
+    "account_id": "work",
+    "conversation_id": "seed-04",
+    "from": {
+      "name": "Nils Berger",
+      "email": "nils.berger@example.com"
+    },
+    "subject": "Train details for Friday",
+    "body_text": "Hi Lorenz,\n\nThe train leaves at 08:34 from platform 7. Our seats are in carriage 24. I have attached the ticket and the rest of the travel notes.\n\nSee you on Friday,\nNils",
+    "mailbox": "Inbox",
+    "unread": false,
+    "flagged": true,
+    "date": "2026-11-02T07:42:00.000Z",
+    "attachments": [
+      {
+        "id": "fixture-seed-04-ticket",
+        "filename": "Train ticket.pdf",
+        "media_type": "application/pdf",
+        "asset": "mailbox/seed-04-ticket"
+      },
+      {
+        "id": "fixture-seed-04-travel-1",
+        "filename": "Seat reservation.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-04-travel-1"
+      },
+      {
+        "id": "fixture-seed-04-travel-2",
+        "filename": "Friday itinerary.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-04-travel-2"
+      },
+      {
+        "id": "fixture-seed-04-travel-3",
+        "filename": "Transfer instructions.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-04-travel-3"
+      },
+      {
+        "id": "fixture-seed-04-travel-4",
+        "filename": "Hotel confirmation.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-04-travel-4"
+      },
+      {
+        "id": "fixture-seed-04-travel-5",
+        "filename": "Return journey.md",
+        "media_type": "text/markdown",
+        "asset": "mailbox/seed-04-travel-5"
+      },
+      {
+        "id": "fixture-seed-04-travel-cells",
+        "filename": "Cells.jpg",
+        "media_type": "image/jpeg",
+        "asset": "mailbox/seed-04-travel-cells"
+      },
+      {
+        "id": "fixture-seed-04-travel-moss",
+        "filename": "Moss.jpg",
+        "media_type": "image/jpeg",
+        "asset": "mailbox/seed-04-travel-moss"
+      },
+      {
+        "id": "fixture-seed-04-travel-terracotta",
+        "filename": "Terracotta.jpg",
+        "media_type": "image/jpeg",
+        "asset": "mailbox/seed-04-travel-terracotta"
+      },
+      {
+        "id": "fixture-seed-04-travel-review",
+        "filename": "Review summary.pdf",
+        "media_type": "application/pdf",
+        "asset": "mailbox/seed-04-travel-review"
+      }
+    ]
+  },
+  {
+    "id": "seed-05",
+    "account_id": "personal",
+    "conversation_id": "seed-05",
+    "from": {
+      "name": "Quiet Hours",
+      "email": "quiet.hours@example.com"
+    },
+    "subject": "Your weekly summary",
+    "body_text": "You made room for three focused sessions and kept two evenings free.\n\nTake a little time for yourself this week.",
+    "mailbox": "Inbox",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-02T06:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-06",
+    "account_id": "personal",
+    "conversation_id": "seed-06",
+    "from": {
+      "name": "Studio Newsletter",
+      "email": "studio.newsletter@example.com"
+    },
+    "subject": "A few things worth reading",
+    "body_text": "Quieter interfaces, thoughtful tools, and making software feel calm.\n\nThis week's reading list is ready.",
+    "body_html": "<style>.stories{width:100%;max-width:600px}.stories td{width:50%;padding:12px;vertical-align:top}@media(max-width:420px){.stories td{display:block;width:auto}}</style><h2>This week's reading list</h2><table class='stories' width='600' cellspacing='0'><tr><td><strong>Quieter interfaces</strong><p>How to make software feel calm.</p></td><td><strong>Thoughtful tools</strong><p>Small choices that help people focus.</p></td></tr></table>",
+    "mailbox": "Inbox",
+    "unread": true,
+    "flagged": false,
+    "date": "2026-11-02T05:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-07",
+    "account_id": "personal",
+    "conversation_id": "seed-07",
+    "from": {
+      "name": "Anna Richter",
+      "email": "anna.richter@example.com"
+    },
+    "subject": "A small question about Tuesday",
+    "body_text": "Hi Lorenz,\n\nWould Tuesday still work for you? I can make either 11:00 or 14:30.\n\nAnna",
+    "mailbox": "Inbox",
+    "unread": true,
+    "flagged": false,
+    "date": "2026-11-02T04:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-13",
+    "account_id": "personal",
+    "conversation_id": "seed-13",
+    "from": {
+      "name": "Lea Hoffmann",
+      "email": "lea.hoffmann@example.com"
+    },
+    "subject": "Feedback on the reading view",
+    "body_text": "The denser overview is much easier to scan. A little more room around the sender would help.\n\nThanks for sharing it!",
+    "mailbox": "Inbox",
+    "unread": true,
+    "flagged": false,
+    "date": "2026-11-02T03:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-book",
+    "account_id": "personal",
+    "conversation_id": "seed-book",
+    "from": {
+      "name": "Bookshop",
+      "email": "bookshop@example.com"
+    },
+    "subject": "Your reservation is ready",
+    "body_text": "The book you asked us to set aside has arrived.\n\nYou can collect it any time this week.",
+    "mailbox": "Inbox",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-02T02:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-11",
+    "account_id": "personal",
+    "conversation_id": "seed-11",
+    "from": {
+      "name": "Felix Braun",
+      "email": "felix.braun@example.com"
+    },
+    "subject": "Photos from the weekend",
+    "body_text": "Here are a few pictures from our walk. The light by the lake was lovely.",
+    "mailbox": "Inbox",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-02T01:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-lena",
+    "account_id": "work",
+    "conversation_id": "seed-lena",
+    "from": {
+      "name": "Lena Fischer",
+      "email": "lena.fischer@example.com"
+    },
+    "subject": "Re: The Dusk and Moss pass",
+    "body_text": "Here are the two palettes as we left them on Friday.",
+    "mailbox": "Archive",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-02T00:42:00.000Z",
+    "attachments": []
+  },
+  {
+    "id": "seed-colour",
+    "account_id": "personal",
+    "conversation_id": "seed-colour",
+    "from": {
+      "name": "Studio Newsletter",
+      "email": "studio.newsletter@example.com"
+    },
+    "subject": "Colour for calm software",
+    "body_text": "Three palettes that stay quiet on dark grounds.",
+    "mailbox": "Archive",
+    "unread": false,
+    "flagged": false,
+    "date": "2026-11-01T23:42:00.000Z",
+    "attachments": []
+  }
+]

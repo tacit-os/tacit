@@ -1,0 +1,38 @@
+--- a/Slab.qml
++++ b/Slab.qml
+@@ -70,10 +70,10 @@
+     readonly property bool down: area.pressed || previewState === "pressed"
+     readonly property int forwardHeight: large ? 50 : Kit.tokens.height.action
+     readonly property int quietHeight: large ? 44 : Kit.tokens.height.field
+-    readonly property string inkName: waiting ? "sec" : forward ? "main" : risky ? "risk" : hovered ? "main" : "sec"
++    readonly property string inkName: waiting ? "sec" : forward ? "onAccent" : risky ? "risk" : hovered ? "main" : "sec"
+ 
+-    readonly property real padding: forward ? (large ? 72 : 52) : (large ? 52 : 36)
+-    readonly property real natural: forward ? Math.max(large ? 190 : 104, row.implicitWidth + padding) : row.implicitWidth + padding
++    readonly property real padding: forward ? (large ? Kit.tokens.space.page : Kit.tokens.space.xl*2-Kit.tokens.space.s) : (large ? 52 : 36)
++    readonly property real natural: forward ? row.implicitWidth + padding : row.implicitWidth + padding
+     implicitWidth: maxWidth > 0 ? Math.min(natural, maxWidth) : natural
+     implicitHeight: forwardHeight
+     enabled: !waiting          // presses, keys and the Tab stop go; a screen reader hears it as disabled
+@@ -91,8 +91,10 @@
+         anchors.verticalCenter: parent.verticalCenter
+         radius: height / 2
+         // asking: a faint fill of the risk ink, so the press that acts reads at a glance as armed
+-        color: slab.shownAsking ? Qt.alpha(Kit.tokens.risk, 0.14) : Qt.alpha(Kit.tokens.inkMain, slab.hovered ? 0.05 : 0)
+-        border.width: slab.forward ? 1.5 : 1
++        color: slab.shownAsking ? Qt.alpha(Kit.tokens.risk, 0.14)
++             : slab.forward ? Qt.alpha(Kit.tokens.accent, slab.waiting ? Kit.tokens.wash.currentHover : 1)
++             : Qt.alpha(Kit.tokens.inkMain, slab.hovered ? Kit.tokens.wash.hover : 0)
++        border.width: slab.forward ? 0 : 1
+         border.color: slab.shownAsking ? Qt.alpha(Kit.tokens.risk, 0.85)
+                     : slab.waiting ? Kit.tokens.quiet
+                     : slab.forward ? Qt.alpha(Kit.tokens.accent, 0.75)
+@@ -119,7 +121,7 @@
+             elide: Text.ElideMiddle
+             width: slab.maxWidth > 0 ? Math.min(implicitWidth, Math.max(0, slab.maxWidth - slab.padding - (slab.risky ? row.spacing + warnSign.width : 0))) : implicitWidth
+             size: slab.forward && slab.large ? "body" : "row"
+-            weight: slab.forward ? "medium" : "regular"
++            weight: slab.forward ? "strong" : "regular"
+             ink: slab.inkName
+         }
+     }
