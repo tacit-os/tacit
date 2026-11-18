@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 
 import qs.modules.common
+import qs.modules.newbar
 import qs.modules.ii.background
 import qs.modules.ii.bar
 import qs.modules.ii.bluetooth
@@ -83,7 +84,11 @@ Scope {
     // The bar and the vertical bar have their own switch, bar.enable, off and in no Settings row: the
     // notch replaced them, and turning the notch off used to bring the end-4 bar back.
     PanelLoader { extraCondition: Config.options.bar.enable && !Config.options.bar.vertical && !(Config.options.island.enable && Config.options.island.hideBar); component: Bar {} }
-    PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
+    // Step 1: a full-width strip stands in for the notch. The 3-style demo in modules/demo/
+    // is saved but not loaded; restore the Island loader below to get the notch back.
+    // PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
+    // PanelLoader { component: DemoBar {} }
+    PanelLoader { component: NewBar {} }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: FilesPanel {} }
