@@ -10,8 +10,8 @@ import Quickshell.Io
 import Quickshell.Hyprland
 
 /**
- * Top right: what happened. ONE panel flush in the corner (DockedRect corner mode), the same
- * silhouette family as the notch and the controls.
+ * Under the bar: what happened. ONE panel hanging from the strip, centred on the bell button,
+ * wearing the bar's own material and the same silhouette family as the control panel.
  *
  *   arrivals   rows drop out of the corner as notifications come, and leave on their own
  *   centre     hover the panel (or the empty corner's edge, in ScreenCorners) 300ms, or click a row's edge: the panel
@@ -38,12 +38,10 @@ Scope {
             visible: true
             screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
 
-            property string position: {
-                const raw = Config.options.notifications.position ?? "top_right"
-                if (raw === "top") return "top_right"
-                if (raw === "bottom") return "bottom_right"
-                return raw
-            }
+            // The panel belongs to the bar now, like the control panel: it starts under the strip
+            // and is centred on its button, wherever the bar puts it. Config's corner no longer
+            // decides where it sits, but top is still the direction it grows in (reverse = false).
+            property string position: "top_center"
             property bool isTop: position.startsWith("top")
             property bool isBottom: position.startsWith("bottom")
             property bool isCenter: position.endsWith("center")
@@ -67,21 +65,33 @@ Scope {
             WlrLayershell.keyboardFocus: root.replying ? WlrKeyboardFocus.Exclusive
                 : (root.centerOpen || Notifications.popupList.some(n => n.hasInlineReply)) ? WlrKeyboardFocus.OnDemand
                 : WlrKeyboardFocus.None
-            // Ignore other layers' reserved zones (the notch reserves 38px at the top), so the
-            // panel really starts at the screen edge like the notch does.
+            // The bar reserves its strip at the top; this layer ignores reserved zones, so it needs
+            // the margin to start below the bar rather than at the screen edge.
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
 
-            // The panel's own corner, at a fixed size, not the whole screen: the compositor blends
+            // The bell button's centre, published by the bar. The panel is centred on it; the
+            // fallback is the right edge before any bar has published it.
+            readonly property real anchorX: {
+                const a = GlobalStates.notificationAnchor;
+                return a && a.screen === screen?.name ? a.x
+                    : (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth / 2 - 16;
+            }
+            readonly property real panelLeft: Math.max((screen?.x ?? 0) + 16,
+                Math.min(anchorX - implicitWidth / 2,
+                         (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth - 16))
+                - (screen?.x ?? 0)
+
+            // The panel's own box, at a fixed size, not the whole screen: the compositor blends
             // every mapped layer over every damaged pixel it overlaps, and a full-screen
             // transparent layer taxed every frame of everything (a video, the notch's motion).
             // Fixed so it never resizes (a resizing layer reads as jank).
             anchors {
-                top: root.isTop
-                bottom: root.isBottom
-                left: root.isLeft
-                right: root.isRight
+                top: true
+                left: true
             }
+            margins.top: Appearance.sizes.baseBarHeight
+            margins.left: root.panelLeft
             implicitWidth: Appearance.sizes.notificationPopupWidth + 40
             implicitHeight: Math.round(dock.cap) + 34 + dock.pad * 2 + 40
 
@@ -145,8 +155,8 @@ Scope {
                     height: awayCatcher.height
                     Region {
                         // the panel's window sits in its corner of this one
-                        x: (root.isLeft ? 0 : root.isRight ? awayCatcher.width - root.width : (awayCatcher.width - root.width) / 2) + dock.x
-                        y: (root.isBottom ? awayCatcher.height - root.height : 0) + dock.y
+                        x: root.panelLeft + dock.x
+                        y: Appearance.sizes.baseBarHeight + dock.y
                         width: dock.width
                         height: dock.height
                         intersection: Intersection.Subtract
@@ -204,7 +214,9 @@ Scope {
                     edge: dock.dockEdge
                     cornerRadius: Appearance.rounding.verylarge
                     fillet: 12
-                    color: Appearance.colors.colPanelFrost
+                    // The bar's material continued below the strip: colour, see-through and the
+                    // blur threshold all follow it (the rule matches the bar's namespace).
+                    color: Appearance.colors.colBarSurface
                 }
 
                 // Hover on the panel grows it into the centre; leaving folds it. Not while popups

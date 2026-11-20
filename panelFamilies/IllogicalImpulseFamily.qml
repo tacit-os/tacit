@@ -25,6 +25,8 @@ import qs.modules.ii.screenTranslator
 import qs.modules.ii.sessionScreen
 import qs.modules.ii.sidebarRight
 import qs.modules.ii.overlay
+import qs.modules.ii.volumePopup
+import qs.modules.ii.systemDrawer
 import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.desktopMenu
@@ -85,10 +87,12 @@ Scope {
     // notch replaced them, and turning the notch off used to bring the end-4 bar back.
     PanelLoader { extraCondition: Config.options.bar.enable && !Config.options.bar.vertical && !(Config.options.island.enable && Config.options.island.hideBar); component: Bar {} }
     // Step 1: a full-width strip stands in for the notch. The 3-style demo in modules/demo/
-    // is saved but not loaded; restore the Island loader below to get the notch back.
+    // is saved but not loaded. The notch itself is back under the strip: it hangs from the
+    // bar's underside, in the bar's colour, and only draws while it has something to show.
     // PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
     // PanelLoader { component: DemoBar {} }
     PanelLoader { component: NewBar {} }
+    PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: FilesPanel {} }
@@ -103,6 +107,13 @@ Scope {
     // the popup, and the shipped defaults (island on, its notification state on) meant a fresh
     // install had no centre at all. The popup itself stands down for the island inside the file.
     PanelLoader { component: NotificationPopup {} }
+    // Always loaded: the bar owns the volume popup the bar's volume button opens (GlobalStates.volumeOpen).
+    PanelLoader { component: VolumePopup {} }
+    // The bar's other drawers share the same shell and the bar's material: each is always
+    // loaded so its button works on the first press, and each stays closed until opened.
+    PanelLoader { component: NetworkDrawer {} }
+    PanelLoader { component: BatteryDrawer {} }
+    PanelLoader { component: BrightnessDrawer {} }
     // Always loaded: the notch is suppressed on the lock and session screens, and the volume and
     // brightness keys would give no feedback there. The file mutes its own triggers (meters, gamma,
     // the sink-protection warning) while the notch can answer, so exactly one of them says each.

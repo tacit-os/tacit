@@ -472,10 +472,9 @@ Singleton {
     // ------------------------------------------------------------------ colour
     // "neutral" is the resting body; transients may still name a tone (success, error, notify).
     readonly property string tone: root.transientShowing ? (root.payload?.tone ?? "neutral") : "neutral"
-    // Hard rule: no heavy colours. The body is ALWAYS the frost (translucent surfaceContainer over the compositor blur,
-    // custom/rules.lua:17; the darker 88 % glass was tried 2026-10-15 and the frost kept, "felt more Praxis"), and since
-    // 2026-10-15 no tone colours words: the point in the main ink, the rest in meta.
-    readonly property color bodyColor: Appearance.colors.colPanelFrost
+    // The notch is a solid black chip against the bar: opaque, with no tint or see-through, so it
+    // reads as its own cut-out rather than as the bar's material.
+    readonly property color bodyColor: Appearance.m3colors.m3shadow
     readonly property color contentColor: Tacit.inkMain
     readonly property color subtextColor: Tacit.inkMeta
 

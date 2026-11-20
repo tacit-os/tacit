@@ -126,6 +126,24 @@ Singleton {
     }
 
     /**
+     * Draws `top` over `base` (both may be translucent) and returns one flat RGBA colour. Used where
+     * several translucent layers must be handed to one item — the bar's frost, ink wash and veil
+     * painted together as the control panel's ground, so the two read as the same material.
+     */
+    function over(base, top) {
+        var b = Qt.color(base);
+        var t = Qt.color(top);
+        var a = t.a + b.a * (1 - t.a);
+        if (a <= 0)
+            return Qt.rgba(0, 0, 0, 0);
+        return Qt.rgba(
+            (t.r * t.a + b.r * b.a * (1 - t.a)) / a,
+            (t.g * t.a + b.g * b.a * (1 - t.a)) / a,
+            (t.b * t.a + b.b * b.a * (1 - t.a)) / a,
+            a);
+    }
+
+    /**
      * Returns true if the color is considered "dark" (hslLightness < 0.5).
      *
      * @param {string} color - The color to check (any Qt.color-compatible string).

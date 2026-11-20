@@ -519,20 +519,24 @@ Item {
         }
     }
 
-    // Docked into the top edge as ONE silhouette (body + coves, one fill, one outline that
-    // follows the coves) -- see DockedRect.qml. Closed, the 6px cove is a seam you feel rather
-    // than see; open, the 19px cove is the curve you asked for from caelestia.
+    // Docked into the top edge as ONE silhouette (body + coves, one fill) -- see DockedRect.qml.
+    // At rest it is the 34 px header: a chip floating over the strip at the screen's top edge. No
+    // coves cut into the bar. Open, the same body grows down into the sheet.
     DockedRect {
         id: background
         anchors.fill: parent
         visible: !GlobalStates.gridOver
-        cornerRadius: root.radius
-        fillet: root.fillet
+        cornerRadius: root.open ? 0 : 14
+        fillet: 0
+        Behavior on cornerRadius {
+            NumberAnimation { duration: 220 }
+        }
+        // The chip stays present; the grid takes the notch over entirely while it is out.
+        opacity: 1
         // the sign-in's page window shows through here
         hole: root.holeRect
         holeRadius: 15
-        // the browser's address is opaque over the page: the frost's own colour, solid
-        color: IslandController.addressOut && root.view === "address" ? Appearance.m3colors.m3surfaceContainerHigh : IslandController.bodyColor
+        color: IslandController.bodyColor
         Behavior on color {
             ColorAnimation {
                 duration: Appearance.animationCurves.expressiveDefaultEffectsDuration
@@ -543,6 +547,7 @@ Item {
         // it read as a black fringe down the right wall and around the bottom-right curve.
         // The frost over the compositor blur is the separation.
         borderWidth: 0
+
     }
     // The fold's first step: the body's colour fades in over the page through the hole, so the page leaves without a
     // cut, and the fold follows as soon as it has gone (closed in one frame, then the empty sheet waited for the page:

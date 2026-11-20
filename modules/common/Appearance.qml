@@ -57,6 +57,27 @@ Singleton {
     property real autoContentTransparency: 0.9
     property real backgroundTransparency: Config?.options.appearance.transparency.enable ? Config?.options.appearance.transparency.automatic ? autoBackgroundTransparency : Config?.options.appearance.transparency.backgroundTransparency : 0
     property real contentTransparency: Config?.options.appearance.transparency.automatic ? autoContentTransparency : Config?.options.appearance.transparency.contentTransparency
+    // Settings > Appearance's see-through as three looks, read the same way the setting's pictures read
+    // them (tacit-settings.qml, look.glass): Solid is the setting off, Frosted decides per wallpaper,
+    // Clear is the hand-set amount (and never less than Frosted, so it always reads clearer).
+    readonly property string glassLook: !Config?.options.appearance.transparency.enable ? "solid"
+        : Config?.options.appearance.transparency.automatic ? "frosted" : "clear"
+    // How much of the wallpaper a shell panel lets through: the frost's designed 24 % while Frosted,
+    // the person's amount while Clear, none while Solid. The bar and the notch draw it, so the three
+    // looks change them together and the panels stop wearing a frost the setting never asked for.
+    // Never past 40 %: below an alpha of 0.6 the compositor stops blurring the surface (its layer
+    // rule's ignore_alpha, session/hypr/tacit/rules.lua) and the panel turns into raw wallpaper
+    // instead of clear glass. The setting's own Clear is 40 %, so this only guards a hand-edited file.
+    readonly property real panelTransparency: root.glassLook === "solid" ? 0
+        : Math.min(0.6, root.glassLook === "frosted" ? 0.24
+            : Math.max(0.24, Config.options.appearance.transparency.backgroundTransparency))
+          * root.seeThroughScale
+    // The bar is the one surface with nothing to read on its ground, so Clear takes almost all of it
+    // away: 10 % opaque, the words and marks sitting on the picture. Solid and Frosted keep the panel's
+    // own amounts.
+    readonly property real barTransparency: root.glassLook === "solid" ? 0
+        : root.glassLook === "frosted" ? 0.24 * root.seeThroughScale
+        : 0.9
     // How much of this wallpaper the glass lets through (scripts/colors/seethrough.py, at every wallpaper change): one
     // scale on every designed see-through amount, 1 on dark wallpapers and less on bright ones, so the grounds under the
     // text stay as dark as on dusk. Tacit.windowSeeThrough and the frost take it; Hyprland's rules and foot read the file.
@@ -274,7 +295,38 @@ Singleton {
         // Was the palette's private formula; hoisted so the panels stop disagreeing.
         // One step above surfaceContainer: over a page of the same dark tone the frost was
         // invisible and the controls floated. Alpha 0.72 stays above the blur threshold (0.64).
-        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, 0.24 * root.seeThroughScale)
+        // The amount is the see-through setting's (root.panelTransparency), so Solid, Frosted and
+        // Clear move the bar, the notch and the panels together instead of leaving them always frosted.
+        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.panelTransparency)
+        // The bar and the notch hang on the top edge and are one shade darker than the frost every
+        // panel wears, so the strip reads as part of the same surface family as the apps below it.
+        property color colBarFrost: {
+            const frost = colPanelFrost;
+            // The scheme's own surface, not its accent: the frost's hue, one shade darker, with a
+            // little more of the colour the palette already carries. The strip then sits with the
+            // app surfaces (the frost's blue-grey) instead of taking the accent's gold, and a new
+            // picture moves it the way it moves everything else.
+            const hue = frost.hslHue >= 0 ? frost.hslHue : 0;
+            const chroma = Math.min(0.22, Math.max(frost.hslSaturation, 0.10));
+            return Qt.hsla(hue, chroma, Math.max(0.03, frost.hslLightness * 0.45),
+                           1 - root.barTransparency);
+        }
+        // Clear lets the picture through at full strength, and its colours come with it: the blur
+        // behind the bar reads louder than any panel. A veil of the bar's own tone with the colour
+        // taken out settles it. The picture still shows through, just never more vibrant than the
+        // rest of the glass. Solid and Frosted have a ground of their own and need none.
+        property color colBarVeil: {
+            const bar = colBarFrost;
+            return Qt.hsla(bar.hslHue >= 0 ? bar.hslHue : 0, 0.02,
+                           Math.max(0.02, bar.hslLightness),
+                           root.glassLook === "clear" ? 0.32 : 0);
+        }
+        // The bar's ground as one flat colour: the frost, the 6 % ink wash and Clear's veil drawn
+        // over one another. The control panel hangs off the bar and wears this same token, so its
+        // colour, see-through amount and blur threshold are the bar's, not a panel's.
+        property color colBarSurface: ColorUtils.over(
+            ColorUtils.over(colBarFrost, ColorUtils.applyAlpha(colors.colInkMain, 0.06)),
+            colBarVeil)
         property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
         property color colSurfaceContainer: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
         property color colSurfaceContainerHigh: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)

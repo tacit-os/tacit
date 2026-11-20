@@ -405,9 +405,19 @@ FloatingWindow {
             const s = Files.windowState;
             if (s.floating && s.maximised)
                 Hyprland.dispatch(`hl.dsp.window.fullscreen({ mode = "maximized", action = "set", window = "address:${win.hyprAddress}" })`);
+            else if (s.floating)
+                win.ensureFloat();   // Hyprland's float rule did not stick: re-float so it opens above the tiles
             else if (!s.floating)
                 restoreProbe.running = true;   // tiled last time: only if that would be visible now
         }
+    }
+    // Hyprland's window_rule(float = true) should float Files on map, but if it did not (or something
+    // re-tiled it), toggle it back to floating so it opens above the tiled windows. `action = "set"`
+    // toggles in this Lua API, so only flip a window that is not floating already.
+    function ensureFloat() {
+        const c = win.client();
+        if (c && !c.floating)
+            Hyprland.dispatch(`hl.dsp.window.float({ action = "set", window = "address:${win.hyprAddress}" })`);
     }
     // A tile under a screen-sized floating window is invisible (floats sit above tiles). If
     // that is what the workspace looks like now, the window stays floating instead.

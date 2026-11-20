@@ -1,8 +1,11 @@
 pragma ComponentBehavior: Bound
+import QtQuick.Controls
 
 // The top bar: a full-width strip docked to the top edge, standing in for the notch.
 // It follows Tacit Design (design.tacitos.co):
-//   Materials - frost (colPanelFrost) lifted by a 6 % wash of the main ink, never a solid grey patch
+//   Materials - frost (colPanelFrost) lifted by a 6 % wash of the main ink, never a solid grey patch.
+//               The frost's amount is Settings > Appearance's see-through (Solid, Frosted, Clear), so
+//               the bar, the notch and the panels change look together.
 //   Shape     - the panel's corner is Tacit.radius.panel (14); a strip flush to both edges has no free corner
 //   Colour    - text is ranked by ink (inkMain, inkSec, inkMeta, inkFaint), never text with opacity
 //   Actions   - the right-hand buttons are IconButton from the kit (36 square, a wash on hover)
@@ -11,6 +14,7 @@ pragma ComponentBehavior: Bound
 import QtQuick
 import QtQuick.Layouts
 import Quickshell
+import Quickshell.Hyprland
 import Quickshell.Wayland
 import qs
 import qs.modules.common
@@ -53,16 +57,24 @@ Scope {
                 implicitHeight: Appearance.sizes.baseBarHeight
                 mask: Region { item: strip }
 
-                // The ground: frost, then the main ink at the wash's 6 % over it. The wash is
-                // drawn rather than mixed so the wallpaper's hue still comes through.
+                // The ground: the frost wearing the colour scheme (colBarFrost), then the main ink
+                // at the wash's 6 % over it. The wash is drawn rather than mixed so the picture's
+                // hue still comes through.
                 Rectangle {
                     id: strip
                     anchors.fill: parent
-                    color: Appearance.colors.colPanelFrost
+                    color: Appearance.colors.colBarFrost
                 }
                 Rectangle {
                     anchors.fill: parent
                     color: ColorUtils.applyAlpha(Tacit.inkMain, Tacit.wash.action)
+                }
+                // Clear's blur arrives at full strength and so do the picture's colours. The veil
+                // takes the colour out of them and leaves the picture in place (Clear only).
+                Rectangle {
+                    anchors.fill: parent
+                    visible: Appearance.colors.colBarVeil.a > 0
+                    color: Appearance.colors.colBarVeil
                 }
 
                 // Three equal zones. Each takes a third of the width, so the centre stays the
@@ -132,7 +144,7 @@ Scope {
                                                 : "transparent"
                                         }
 
-                                        Text {
+                                        BarText {
                                             id: number
                                             anchors.centerIn: parent
                                             text: String(chip.modelData.id)
@@ -158,7 +170,7 @@ Scope {
                                 implicitWidth: Math.min(title.implicitWidth, 240)
                                 implicitHeight: title.implicitHeight
 
-                                Text {
+                                BarText {
                                     id: title
                                     anchors.verticalCenter: parent.verticalCenter
                                     width: Math.min(implicitWidth, 240)
@@ -186,9 +198,13 @@ Scope {
                             }
                             spacing: Tacit.space.xs
 
-                            // --- Indicators: battery, network, volume ---
-                            // Network and volume are still symbols only; battery reads UPower.
-                            // Its mark says the charge at a glance: charging, or a pack running out.
+                            // --- Indicators ---
+                            K.IconButton {
+                                id: trayButton
+                                symbol: "expand_more"
+                                label: "System tray"
+                                size: 18
+                            }
                             K.IconButton {
                                 id: batteryButton
                                 symbol: Battery.isCharging ? "battery_charging"
@@ -196,23 +212,50 @@ Scope {
                                     : "battery"
                                 label: Battery.available ? `Battery ${Math.round(Battery.percentage * 100)}%` : "Battery"
                                 size: 18
+                                checked: GlobalStates.batteryOpen
+                                onActivated: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
                             }
                             K.IconButton {
                                 id: networkButton
                                 symbol: "wifi"
                                 label: "Network"
                                 size: 18
+                                checked: GlobalStates.networkOpen
+                                onActivated: GlobalStates.networkOpen = !GlobalStates.networkOpen
                             }
                             K.IconButton {
                                 id: volumeButton
                                 symbol: "volume"
                                 label: "Volume"
                                 size: 18
+                                checked: GlobalStates.volumeOpen
+                                onActivated: GlobalStates.volumeOpen = true
+                                MouseArea {
+                                    anchors.fill: parent
+                                    onClicked: GlobalStates.volumeOpen = true
+                                }
+                            }
+                            K.IconButton {
+                                id: brightnessButton
+                                symbol: "brightness"
+                                label: "Brightness"
+                                size: 18
+                                checked: GlobalStates.brightnessOpen
+                                onActivated: GlobalStates.brightnessOpen = !GlobalStates.brightnessOpen
                             }
 
-                            // Notifications. Opens the same centre the corner door and an arrival
-                            // open (GlobalStates.notificationCenterOpen). The badge counts what is
-                            // unread, in the accent with the ink that sits on an accent fill.
+                            // The Control panel: the same surface SUPER + N reaches
+                            // (quickshell:sidebarRightToggle -> GlobalStates.sidebarRightOpen).
+                            K.IconButton {
+                                id: controlButton
+                                symbol: "tune"
+                                label: "Control panel"
+                                size: 18
+                                checked: GlobalStates.sidebarRightOpen
+                                onActivated: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
+                            }
+
+                            // Notifications last.
                             K.IconButton {
                                 id: notifButton
                                 symbol: Notifications.unread > 0 ? "bell_ring" : "bell"
@@ -235,7 +278,7 @@ Scope {
                                     color: Tacit.accent
                                     visible: Notifications.unread > 0
 
-                                    Text {
+                                    BarText {
                                         anchors.centerIn: parent
                                         text: Notifications.unread > 99 ? "99+" : String(Notifications.unread)
                                         color: Tacit.inkOnAccent
@@ -246,86 +289,76 @@ Scope {
                                 }
                             }
 
-                            // The Control panel: the same surface SUPER + N reaches
-                            // (quickshell:sidebarRightToggle -> GlobalStates.sidebarRightOpen).
-                            // Its mark is drawn here: three sliders with their handles, since the
-                            // kit's symbols have no control-centre one.
-                            K.IconButton {
-                                id: controlButton
-                                symbol: ""
-                                label: "Control panel"
-                                size: 18
-                                checked: GlobalStates.sidebarRightOpen
-                                onActivated: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
-
-                                Item {
-                                    anchors.centerIn: parent
-                                    width: 16
-                                    height: 16
-
-                                    readonly property color ink: controlButton.checked ? Tacit.accent
-                                        : controlButton.hovered ? Tacit.inkMain
-                                        : Tacit.inkSec
-
-                                    Repeater {
-                                        model: [
-                                            { y: 2, x: 11 },
-                                            { y: 8, x: 5 },
-                                            { y: 14, x: 11 }
-                                        ]
-
-                                        Item {
-                                            anchors.fill: parent
-                                            required property var modelData
-
-                                            Rectangle {
-                                                x: 0
-                                                y: modelData.y - 0.75
-                                                width: modelData.x - 3
-                                                height: 1.5
-                                                radius: 0.75
-                                                color: parent.parent.ink
-                                            }
-                                            Rectangle {
-                                                x: modelData.x + 3
-                                                y: modelData.y - 0.75
-                                                width: 13 - modelData.x
-                                                height: 1.5
-                                                radius: 0.75
-                                                color: parent.parent.ink
-                                            }
-                                            Rectangle {
-                                                x: modelData.x - 2.5
-                                                y: modelData.y - 2.5
-                                                width: 5
-                                                height: 5
-                                                radius: 2.5
-                                                color: parent.parent.ink
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-
-                            // The clock keeps the end of the bar: "Wed Nov 18 11:00 PM".
-                            Item {
-                                Layout.leftMargin: Tacit.space.s
-                                implicitWidth: clock.implicitWidth
-                                implicitHeight: clock.implicitHeight
-
-                                Text {
-                                    id: clock
-                                    anchors.verticalCenter: parent.verticalCenter
-                                    text: Qt.locale().toString(DateTime.clock.date, "ddd MMM d hh:mm AP")
-                                    color: Tacit.inkMain
-                                    font.family: Tacit.font.main
-                                    font.pixelSize: Tacit.size.meta
-                                    font.weight: Tacit.weight.regular
-                                    font.features: { "tnum": 1 }
-                                }
-                            }
                         }
                     }
+                }
+
+                // The control panel hangs off the button: publish where the button is, on the
+                // screen the panel will open on. SidebarRight centres its window on this, so the
+                // button is the panel's centre wherever the bar lays out its right-hand zone.
+                function publishAnchor(key, button) {
+                    if (root.screen?.name !== Hyprland.focusedMonitor?.name)
+                        return;
+                    const c = button.mapToGlobal(button.width / 2, button.height / 2);
+                    GlobalStates[key] = { x: c.x, screen: root.screen.name };
+                }
+
+                Connections {
+                    target: GlobalStates
+                    function onSidebarRightOpenChanged() {
+                        if (GlobalStates.sidebarRightOpen)
+                            root.publishAnchor("controlPanelAnchor", controlButton);
+                    }
+                    function onVolumeOpenChanged() {
+                        if (GlobalStates.volumeOpen)
+                            root.publishAnchor("volumeAnchor", volumeButton);
+                    }
+                    function onNotificationCenterOpenChanged() {
+                        if (GlobalStates.notificationCenterOpen)
+                            root.publishAnchor("notificationAnchor", notifButton);
+                    }
+                    function onNetworkOpenChanged() {
+                        if (GlobalStates.networkOpen)
+                            root.publishAnchor("networkAnchor", networkButton);
+                    }
+                    function onBatteryOpenChanged() {
+                        if (GlobalStates.batteryOpen)
+                            root.publishAnchor("batteryAnchor", batteryButton);
+                    }
+                    function onBrightnessOpenChanged() {
+                        if (GlobalStates.brightnessOpen)
+                            root.publishAnchor("brightnessAnchor", brightnessButton);
+                    }
+                }
+                Connections {
+                    target: controlButton
+                    function onXChanged() { root.publishAnchor("controlPanelAnchor", controlButton) }
+                    function onWidthChanged() { root.publishAnchor("controlPanelAnchor", controlButton) }
+                }
+                Connections {
+                    target: volumeButton
+                    function onXChanged() { root.publishAnchor("volumeAnchor", volumeButton) }
+                    function onWidthChanged() { root.publishAnchor("volumeAnchor", volumeButton) }
+                }
+                Connections {
+                    target: notifButton
+                    function onXChanged() { root.publishAnchor("notificationAnchor", notifButton) }
+                    function onWidthChanged() { root.publishAnchor("notificationAnchor", notifButton) }
+                }
+                Connections {
+                    target: networkButton
+                    function onXChanged() { root.publishAnchor("networkAnchor", networkButton) }
+                    function onWidthChanged() { root.publishAnchor("networkAnchor", networkButton) }
+                }
+                Connections {
+                    target: batteryButton
+                    function onXChanged() { root.publishAnchor("batteryAnchor", batteryButton) }
+                    function onWidthChanged() { root.publishAnchor("batteryAnchor", batteryButton) }
+                }
+                Connections {
+                    target: brightnessButton
+                    function onXChanged() { root.publishAnchor("brightnessAnchor", brightnessButton) }
+                    function onWidthChanged() { root.publishAnchor("brightnessAnchor", brightnessButton) }
                 }
             }
         }

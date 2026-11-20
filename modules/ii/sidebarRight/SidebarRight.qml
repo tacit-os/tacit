@@ -86,16 +86,25 @@ Scope {
         }
 
         exclusiveZone: 0
-        // Bottom-right corner, sized to its content (see SidebarRightContent.qml). The window
-        // is the body plus one cove on the left and one above (DockedRect corner mode).
+        // Hanging from the bar's underside: the control-panel button in the bar is what opens it,
+        // and the panel drops out of the strip it belongs to. The bar's exclusive zone already puts
+        // a Top layer below it, so there is no top margin: adding one leaves a whole bar's gap.
+        // Sized to its content (see SidebarRightContent.qml); the window is as wide as the panel
+        // can be, with a cove where it meets the bar.
         readonly property int cove: 12
         implicitWidth: sidebarWidth + cove
-        // What the panel may never exceed: the screen minus the notch's reserved band, its height and its distance from
-        // the top (Island.qml's exclusiveZone). Past it the panel scrolls
-        // its own content (SidebarRightContent.qml), because anything above the window's top
-        // edge is outside the layer surface, where nothing is drawn and nothing is clickable.
+        // The button's centre, published by the bar. Fall back to the right edge when the panel is
+        // opened by a keybind before any bar has published it.
+        readonly property real anchorX: {
+            const a = GlobalStates.controlPanelAnchor;
+            return a && a.screen === screen?.name ? a.x
+                : (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth / 2 - 16;
+        }
+        // What the panel may never exceed: the screen minus the bar's reserved band. Past it the
+        // panel scrolls its own content (SidebarRightContent.qml), because anything below the
+        // window's bottom edge is outside the layer surface, where nothing is drawn or clickable.
         readonly property real panelMaxHeight: (screen?.height ?? 1080)
-            - Config.options.island.reservedHeight - Config.options.island.topMargin - cove
+            - Appearance.sizes.baseBarHeight - cove
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
         // mask keeps the empty part click-through.
@@ -114,9 +123,15 @@ Scope {
         color: "transparent"
 
         anchors {
-            right: true
-            bottom: true
+            left: true
+            top: true
         }
+        // Centre the window on the button, held at least 16 px inside the screen's edges (the
+        // compositor hides what lies flush against a rounded screen corner).
+        margins.left: Math.max((screen?.x ?? 0) + 16,
+            Math.min(panelWindow.anchorX - implicitWidth / 2,
+                     (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth - 16))
+            - (screen?.x ?? 0)
 
         Item {
             anchors.fill: parent
@@ -133,7 +148,7 @@ Scope {
                 id: maskBox
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: parent.bottom
+                anchors.top: parent.top
                 height: Math.max(0, Math.min(entranceWrapper.contentHeight * (1 - entranceWrapper.offsetScale), parent.height))
             }
 
@@ -141,13 +156,13 @@ Scope {
                 id: entranceWrapper
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.bottom: parent.bottom
+                anchors.top: parent.top
                 clip: true
 
                 readonly property bool open: GlobalStates.sidebarRightOpen
                 readonly property real contentHeight: (sidebarContentLoader.item?.implicitHeight ?? 0) + panelWindow.cove
-                // The palette's motion, turned to this edge: the whole panel rises out of the
-                // bottom edge as one piece (caelestia launcher Wrapper.qml). A standard
+                // The palette's motion, turned to this edge: the whole panel drops out of the
+                // bar as one piece (caelestia launcher Wrapper.qml). A standard
                 // curve, not the overshooting spatial one: a docked silhouette that
                 // overshoots lifts off the edge it docks into, and the small panel made
                 // that gap unmistakable (2026-10-25, prototype feedback). No fade: Hyprland
@@ -155,7 +170,7 @@ Scope {
                 // blur in mid-way.
                 property real offsetScale: open ? 0 : 1
                 height: contentHeight
-                transform: Translate { y: entranceWrapper.contentHeight * entranceWrapper.offsetScale }
+                transform: Translate { y: -entranceWrapper.contentHeight * entranceWrapper.offsetScale }
 
                 Behavior on offsetScale {
                     Anim {
@@ -177,7 +192,7 @@ Scope {
                     anchors {
                         left: parent.left
                         right: parent.right
-                        bottom: parent.bottom
+                        top: parent.top
                         leftMargin: panelWindow.cove
                     }
                     // No Behavior here: the content animates its own height (the date/calendar

@@ -59,7 +59,10 @@ Scope {
                 readonly property bool overFullscreen: fullscreenWindow !== null && Config.options.island.showInFullscreenWhilePlaying
                     && IslandController.mediaPresent && MprisController.isPlaying
                     && !MprisController.playsIn(fullscreenWindow, MprisController.activePlayer)
-                WlrLayershell.layer: overFullscreen ? WlrLayer.Overlay : WlrLayer.Top
+                // The notch now lives on the bar's surface (see the contentLoader below), so it must
+                // draw over that layer; Top would put it under the bar and its ink at rest would be
+                // seen through the frost instead of read on it.
+                WlrLayershell.layer: WlrLayer.Overlay
                 color: "transparent"
 
                 // Window-aware means honest: the reserve is exactly the resting header (34px)
@@ -68,8 +71,10 @@ Scope {
                 // width only, and the clicked sheet OVERLAYS windows like a menu does - so
                 // nothing on the desktop ever reflows because of the notch, and nothing moves
                 // under the pointer.
-                exclusionMode: ExclusionMode.Normal
-                exclusiveZone: Config.options.island.reservedHeight + Config.options.island.topMargin
+                // The top bar (modules/newbar) owns the top edge now: it keeps the reserved
+                // 40 px, and the notch hangs from its underside at that height, so this window
+                // takes no reserve of its own and no window moves when the notch opens.
+                exclusionMode: ExclusionMode.Ignore
 
                 // Top-anchored only (the compositor centres it), at a FIXED size that never
                 // changes: 860 x 540 since the browser's address sheet (820 wide with its shadow,
@@ -83,14 +88,24 @@ Scope {
                     top: true
                 }
                 implicitWidth: 860
-                implicitHeight: 540 + Config.options.island.topMargin
-                mask: Region {
+                implicitHeight: 540
+                // The notch draws over the bar it sits in: the carved chip starts at the screen's top
+                // edge, and the sheet hangs below it when open.
+                readonly property bool contentShown: contentLoader.item !== null
+                mask: islandRoot.contentShown ? notchMask : emptyMask
+                Region {
+                    id: notchMask
                     item: contentLoader
                     // the sign-in's hole: the page window under it takes the pointer there
                     Region {
-                        item: islandContent?.holeItem ?? null
+                        item: islandRoot.islandContent?.holeItem ?? null
                         intersection: Intersection.Subtract
                     }
+                }
+                Region {
+                    id: emptyMask
+                    width: 0
+                    height: 0
                 }
 
                 // Include in focus grab, like the bar
@@ -189,9 +204,11 @@ Scope {
                     id: contentLoader
                     active: !GlobalStates.screenLocked
                     focus: true
+                    // The header ink sits on the bar's own centre line; the sheet hangs from there.
+                    visible: islandRoot.contentShown
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: Config.options.island.topMargin
+                    anchors.topMargin: 0
                     sourceComponent: IslandContent {
                         screenData: islandRoot.screen
                     }

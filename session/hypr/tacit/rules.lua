@@ -21,21 +21,33 @@
 -- blur. With the old 0.1 the edge pixels sat on blurred backdrop while the pixel next
 -- to them showed the raw one, and every curve was a staircase with a bright or dark
 -- fringe (bleed from windows under the idle notch, wallpaper-vs-window when open).
--- colPanelFrost is surfaceContainerHigh at 1 - 0.24 * seeThroughScale
--- (shell modules/common/Appearance.qml:270): 0.76 on a dark wallpaper, 0.79 where the
--- wallpaper scales the glass to 0.871. TACIT_GLASS is that scale (hyprland.lua:61) and
--- tacit_glass() applies it, so the threshold follows the frost instead of staying at the
--- 0.64 the comment used to name. At scale 1 it is 0.73, not 0.64.
-local frost_ignore_alpha = ((tacit_glass and tacit_glass(0.76)) or 0.76) - 0.03
-hl.layer_rule({ match = { namespace = "quickshell:island" },            blur = true, ignore_alpha = frost_ignore_alpha })
+-- The threshold is the LIGHTEST the frost ever gets, not its Frosted alpha: Settings'
+-- see-through has three looks and the panel follows all of them (Appearance.panelTransparency:
+-- Solid opaque, Frosted 24 %, Clear the person's amount, never past 40 %). So the body's
+-- alpha runs from 1 (Solid) down to 0.6 (Clear at scale 1), and 0.6 - 0.03 is the one
+-- threshold the blur can hold without a reload as the look changes. Pinned to the Frosted
+-- 0.76 (what this read before) a Clear panel fell under it and lost its blur entirely.
+local frost_ignore_alpha = 0.57
+-- The notch is carved out of the bar and wears the bar's material (colBarSurface): same
+-- blur threshold as the bar, so chip and strip read as one surface in every see-through.
+hl.layer_rule({ match = { namespace = "quickshell:island" },            blur = true, ignore_alpha = 0.02 })
+-- The top bar (modules/newbar) is the notch's surface spread edge to edge, and it is one plain
+-- strip: no transparent margin beside its frost, so nothing has to be masked out of the blur and
+-- the threshold can sit at nothing. That matters because the bar follows Settings > Appearance's
+-- see-through (Solid, Frosted, Clear) live: at Solid its alpha is 1, at Clear it is about 0.6, and
+-- a threshold pinned near either of those would drop the blur in the other.
+hl.layer_rule({ match = { namespace = "quickshell:newbar" },            blur = true, ignore_alpha = 0.02 })
 -- no_anim: these three draw their own edge reveal (caelestia's model, see
 -- shell-fusion-motion-plan.md). Left on layersIn they would get Hyprland's popin on
 -- top of the shell's slide. The island keeps riding layersIn.
 -- The Desktop folder's tags are the notch's pills on the wallpaper: same frost, same threshold.
 hl.layer_rule({ match = { namespace = "quickshell:desktopIcons" },      blur = true, ignore_alpha = frost_ignore_alpha })
 hl.layer_rule({ match = { namespace = "quickshell:overview" },          blur = true, ignore_alpha = 0.89, no_anim = true })
-hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" },      blur = true, ignore_alpha = frost_ignore_alpha, no_anim = true })
-hl.layer_rule({ match = { namespace = "quickshell:notificationPopup" }, blur = true, ignore_alpha = frost_ignore_alpha })
+-- The control panel wears the bar's material (colBarSurface) and hangs off it: the blur
+-- threshold follows the bar's, not the panel frost's, so the two read as one surface.
+hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" },      blur = true, ignore_alpha = 0.02, no_anim = true })
+-- The notification centre hangs off the bar and wears the bar's material: same blur threshold.
+hl.layer_rule({ match = { namespace = "quickshell:notificationPopup" }, blur = true, ignore_alpha = 0.02 })
 hl.layer_rule({ match = { namespace = "quickshell:session" },           blur = true, ignore_alpha = 0.1 })
 -- The password request is drawn as the notch opening (modules/ii/polkit/PolkitContent.qml): the
 -- notch's frost and threshold; it draws its own opening, so no layer animation.

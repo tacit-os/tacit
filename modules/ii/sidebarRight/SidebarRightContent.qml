@@ -443,11 +443,13 @@ Item {
             DockedRect {
                 id: dockedBg
                 anchors.fill: parent
-                edge: "bottom-right"
+                edge: "top"
                 cornerRadius: sidebarRightBackground.radius
                 fillet: 12
-                // The rule's own role: a shell surface that floats over apps is the frost.
-                color: Appearance.colors.colPanelFrost
+                // The panel is the bar's surface continued below the strip, not a panel of its own:
+                // the same colour, wash, veil and see-through amount. The blur rule matches the
+                // bar's too, so the picture behind both is lit the same way.
+                color: Appearance.colors.colBarSurface
             }
 
         StyledFlickable {
