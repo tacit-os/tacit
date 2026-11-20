@@ -114,6 +114,7 @@ Scope {
     PanelLoader { component: NetworkDrawer {} }
     PanelLoader { component: BatteryDrawer {} }
     PanelLoader { component: BrightnessDrawer {} }
+    PanelLoader { component: TrayDrawer {} }
     // Always loaded: the notch is suppressed on the lock and session screens, and the volume and
     // brightness keys would give no feedback there. The file mutes its own triggers (meters, gamma,
     // the sink-protection warning) while the notch can answer, so exactly one of them says each.

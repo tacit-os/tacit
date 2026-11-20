@@ -205,6 +205,8 @@ Scope {
                                 symbol: "expand_more"
                                 label: "System tray"
                                 size: 18
+                                checked: GlobalStates.trayOpen
+                                onActivated: GlobalStates.trayOpen = !GlobalStates.trayOpen
                             }
                             K.IconButton {
                                 id: batteryButton
@@ -356,6 +358,10 @@ Scope {
                         if (GlobalStates.brightnessOpen)
                             root.publishAnchor("brightnessAnchor", brightnessButton);
                     }
+                    function onTrayOpenChanged() {
+                        if (GlobalStates.trayOpen)
+                            root.publishAnchor("trayAnchor", trayButton);
+                    }
                 }
                 Connections {
                     target: controlButton
@@ -395,6 +401,11 @@ Scope {
                     target: brightnessButton
                     function onXChanged() { root.publishAnchor("brightnessAnchor", brightnessButton) }
                     function onWidthChanged() { root.publishAnchor("brightnessAnchor", brightnessButton) }
+                }
+                Connections {
+                    target: trayButton
+                    function onXChanged() { root.publishAnchor("trayAnchor", trayButton) }
+                    function onWidthChanged() { root.publishAnchor("trayAnchor", trayButton) }
                 }
             }
         }

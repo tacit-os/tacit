@@ -26,10 +26,20 @@ Scope {
     property real drawerWidth: 340
     property real maxBodyHeight: 460
     property string ipcTarget: ""
+    // A tray item's menu takes its own grab. While it is open a click is consumed by that grab,
+    // which would otherwise clear the drawer's dismissable grab and close the drawer. The menu
+    // tells us here so the drawer can ignore that one dismissal.
+    property bool holdDismissal: false
 
     signal openRequested()
     signal closeRequested()
     signal toggleRequested()
+
+    // Re-arm the drawer in the shared grab after a menu's own grab cleared it.
+    function regrab() {
+        if (panelWindow.visible)
+            GlobalFocusGrab.addDismissable(panelWindow);
+    }
 
     PanelWindow {
         id: panelWindow
@@ -76,21 +86,29 @@ Scope {
         onVisibleChanged: {
             if (visible) {
                 GlobalFocusGrab.addDismissable(panelWindow);
+                // Extra grab members are added as they appear; see the Connections below.
             } else {
                 GlobalFocusGrab.removeDismissable(panelWindow);
             }
         }
 
+
+
         Connections {
             target: GlobalFocusGrab
             function onDismissed() {
-                panelWindow.hide();
+                // A menu's own grab clears ours; do not let that close the drawer underneath it.
+                if (!drawer.holdDismissal)
+                    panelWindow.hide();
             }
         }
 
         exclusiveZone: 0
         readonly property int cove: 12
-        implicitWidth: drawer.drawerWidth + cove
+        // Follow the body's own width when it declares one, so a drawer can hug its content.
+        readonly property real bodyWidth: (bodyLoader.item?.implicitWidth > 0)
+            ? bodyLoader.item.implicitWidth : drawer.drawerWidth
+        implicitWidth: bodyWidth + cove
         // The window is the reservoir the body slides inside; only the drawn panel follows
         // the body's own height, so there is no empty ground under short content.
         readonly property real panelHeight: Math.min(drawer.maxBodyHeight,
@@ -100,7 +118,7 @@ Scope {
         readonly property real anchorX: {
             const a = drawer.anchor;
             return a && a.screen === screen?.name ? a.x
-                : (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth / 2 - 16;
+                : (screen?.x ?? 0) + (screen?.width ?? 1920) - bodyWidth / 2 - 16;
         }
 
         mask: Region {

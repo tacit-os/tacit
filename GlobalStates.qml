@@ -29,6 +29,9 @@ Singleton {
     property bool networkOpen: false
     property bool batteryOpen: false
     property bool brightnessOpen: false
+    // The bar's system-tray button, for the tray drawer.
+    property var trayAnchor: null
+    property bool trayOpen: false
     // A section the control panel opens on (one of SidebarRightContent's section flags), then
     // clears: `sidebarRight openSound` (CTRL+SUPER+V).
     property string sidebarRightSection: ""
