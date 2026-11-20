@@ -1790,6 +1790,25 @@ ApplicationWindow {
             spacing: 0
 
             Group {
+                title: "Notch"
+                note: "The chip at rest and the sheet it opens into share this body."
+                ChoiceRow {
+                    glyph: "notch"
+                    label: "Notch colour"
+                    description: ({
+                        "solid": "Pure black, a cut-out of its own",
+                        "bar": "The bar's colour, see-through and blur"
+                    })[Config.options.island.bodyStyle] ?? ""
+                    options: [
+                        { value: "solid", label: "Black" },
+                        { value: "bar", label: "Follow the bar" }
+                    ]
+                    current: Config.options.island.bodyStyle
+                    onPicked: value => Config.options.island.bodyStyle = value
+                }
+            }
+
+            Group {
                 title: "Height"
                 note: "The strip's height, and the space it reserves for windows below. Its buttons need at least 36 px."
                 StepperRow {

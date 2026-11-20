@@ -322,6 +322,10 @@ Scope {
                 function publishAnchor(key, button) {
                     if (root.screen?.name !== Hyprland.focusedMonitor?.name)
                         return;
+                    // Before the first layout a button has no size, and mapToGlobal returns a
+                    // corner that left the notification popup under the bar's left group.
+                    if (button.width <= 0 || button.height <= 0)
+                        return;
                     const c = button.mapToGlobal(button.width / 2, button.height / 2);
                     GlobalStates[key] = { x: c.x, screen: root.screen.name };
                 }
@@ -367,6 +371,15 @@ Scope {
                     target: notifButton
                     function onXChanged() { root.publishAnchor("notificationAnchor", notifButton) }
                     function onWidthChanged() { root.publishAnchor("notificationAnchor", notifButton) }
+                }
+                // A transient popup arrives without opening the centre, so refresh the anchor on
+                // arrival too; otherwise the popup lands wherever the last geometry change left it.
+                Connections {
+                    target: Notifications
+                    function onPopupListChanged() {
+                        if (Notifications.popupList.length > 0)
+                            root.publishAnchor("notificationAnchor", notifButton);
+                    }
                 }
                 Connections {
                     target: networkButton

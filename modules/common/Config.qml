@@ -689,6 +689,9 @@ Singleton {
 
             property JsonObject island: JsonObject {
                 property bool enable: true
+                // The notch's body: "solid" is a pure black cut-out, "bar" wears the bar's own
+                // surface and blur so the chip and strip read as one material.
+                property string bodyStyle: "solid"
                 // The island replaces the clock, not the bar: the tray, workspaces, window title
                 // and power button still live there. Set true to run the island alone.
                 property bool hideBar: true

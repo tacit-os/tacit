@@ -472,9 +472,11 @@ Singleton {
     // ------------------------------------------------------------------ colour
     // "neutral" is the resting body; transients may still name a tone (success, error, notify).
     readonly property string tone: root.transientShowing ? (root.payload?.tone ?? "neutral") : "neutral"
-    // The notch is a solid black chip against the bar: opaque, with no tint or see-through, so it
-    // reads as its own cut-out rather than as the bar's material.
-    readonly property color bodyColor: Appearance.m3colors.m3shadow
+    // Settings › Bar: a pure black cut-out, or the bar's own ground (colour, see-through and blur
+    // included) so the chip reads as a piece of the strip.
+    readonly property bool barBody: Config.options.island.bodyStyle === "bar"
+    readonly property color bodyColor: root.barBody ? Appearance.colors.colBarSurface
+        : Appearance.m3colors.m3shadow
     readonly property color contentColor: Tacit.inkMain
     readonly property color subtextColor: Tacit.inkMeta
 

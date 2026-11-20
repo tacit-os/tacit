@@ -37,6 +37,27 @@ ContentPage {
     }
 
     ContentSection {
+        icon: "notch"
+        title: Translation.tr("Notch")
+        shape: MaterialShape.Shape.Cookie4Sided
+        Layout.fillWidth: true
+
+        GroupedList {
+            ConfigSelectionArray {
+                Layout.fillWidth: true
+                icon: "notch"
+                text: Translation.tr("Notch colour")
+                currentValue: Config.options.island.bodyStyle
+                onSelected: newValue => { Config.options.island.bodyStyle = newValue; }
+                options: [
+                    { displayName: Translation.tr("Black"), icon: "contrast", value: "solid" },
+                    { displayName: Translation.tr("Follow the bar"), icon: "bottom_app_bar", value: "bar" }
+                ]
+            }
+        }
+    }
+
+    ContentSection {
         icon: "height"
         title: Translation.tr("Height")
         shape: MaterialShape.Shape.ClamShell

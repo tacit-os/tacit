@@ -35,6 +35,10 @@ Scope {
                 id: islandRoot
                 screen: islandLoader.modelData
 
+                // Keep the notch's own namespace even with the bar's colour: sharing the bar's
+                // namespace stacked two translucent surfaces on the same layer and the compositor
+                // blended their antialiased edges into a dotted seam. The notch's blur rule uses
+                // the same threshold as the bar's, so "follow the bar" still blurs alike.
                 WlrLayershell.namespace: "quickshell:island"
                 // Keys only when opened from a key (IslandController.keyboard); None otherwise so
                 // a hover never steals typing from the window under the pointer. Also only while

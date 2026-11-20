@@ -525,6 +525,11 @@ Item {
     DockedRect {
         id: background
         anchors.fill: parent
+        // Render the silhouette into its own antialiased layer so the compositor blends a smooth
+        // edge instead of the stair-step of dark dashes the Shape's CurveRenderer left here.
+        layer.enabled: true
+        layer.smooth: true
+        antialiasing: true
         visible: !GlobalStates.gridOver
         // The sheet keeps its designed corners when open (24) as well as the chip's when
         // closed (14); a hard 0 while open squareed the whole drawer off.
