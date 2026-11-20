@@ -201,12 +201,14 @@ Scope {
                             // --- Indicators ---
                             K.IconButton {
                                 id: trayButton
+                                visible: Config.options.bar.showTrayButton
                                 symbol: "expand_more"
                                 label: "System tray"
                                 size: 18
                             }
                             K.IconButton {
                                 id: batteryButton
+                                visible: Config.options.bar.showBatteryButton
                                 symbol: Battery.isCharging ? "battery_charging"
                                     : Battery.isLowAndNotCharging ? "battery_alert"
                                     : "battery"
@@ -217,6 +219,7 @@ Scope {
                             }
                             K.IconButton {
                                 id: networkButton
+                                visible: Config.options.bar.showNetworkButton
                                 symbol: "wifi"
                                 label: "Network"
                                 size: 18
@@ -225,6 +228,7 @@ Scope {
                             }
                             K.IconButton {
                                 id: volumeButton
+                                visible: Config.options.bar.showVolumeButton
                                 symbol: "volume"
                                 label: "Volume"
                                 size: 18
@@ -237,6 +241,7 @@ Scope {
                             }
                             K.IconButton {
                                 id: brightnessButton
+                                visible: Config.options.bar.showBrightnessButton
                                 symbol: "brightness"
                                 label: "Brightness"
                                 size: 18
@@ -248,6 +253,7 @@ Scope {
                             // (quickshell:sidebarRightToggle -> GlobalStates.sidebarRightOpen).
                             K.IconButton {
                                 id: controlButton
+                                visible: Config.options.bar.showControlButton
                                 symbol: "tune"
                                 label: "Control panel"
                                 size: 18
@@ -258,6 +264,7 @@ Scope {
                             // Notifications last.
                             K.IconButton {
                                 id: notifButton
+                                visible: Config.options.bar.showNotificationsButton
                                 symbol: Notifications.unread > 0 ? "bell_ring" : "bell"
                                 label: "Notifications"
                                 size: 18

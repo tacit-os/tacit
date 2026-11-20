@@ -20,6 +20,7 @@ Singleton {
             { key: "Quick",     name: Translation.tr("Quick"),     icon: "instant_mix",    iconRotation: 0,   path: "QuickConfig.qml" },
             { key: "General",   name: Translation.tr("General"),   icon: "browse",         iconRotation: 0,   path: "GeneralConfig.qml" },
             { key: "Notch",     name: Translation.tr("Notch"),     icon: "call_to_action", iconRotation: 0,   path: "NotchConfig.qml" },
+            { key: "Bar",       name: Translation.tr("Bar"),       icon: "space_dashboard",iconRotation: 0,   path: "BarConfig.qml" },
             { key: "Network",   name: Translation.tr("Network"),   icon: "wifi",           iconRotation: 0,   path: "NetworkConfig.qml" },
             { key: "Bluetooth", name: Translation.tr("Bluetooth"), icon: "bluetooth",      iconRotation: 0,   path: "BluetoothConfig.qml" },
             { key: "Desktop",   name: Translation.tr("Desktop"),   icon: "texture",        iconRotation: 0,   path: "BackgroundConfig.qml" },

@@ -555,6 +555,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.topMargin: 10
                 sourceComponent: root.categories[root.current].key === "look" ? lookPage
+                    : root.categories[root.current].key === "bar" ? barPage
                     : root.categories[root.current].key === "desktop" ? desktopPage
                     : root.categories[root.current].key === "bluetooth" ? bluetoothPage
                     : root.categories[root.current].key === "sound" ? soundPage
@@ -1777,6 +1778,65 @@ ApplicationWindow {
                     description: "Phones and watches nearby rotate an address every few minutes and carry no name"
                     checked: Config.options.bluetooth.hideUnnamedDevices
                     onToggled: value => Config.options.bluetooth.hideUnnamedDevices = value
+                }
+            }
+        }
+    }
+
+    // ── Bar ───────────────────────────────────────────────────────────────────
+    Component {
+        id: barPage
+        ColumnLayout {
+            spacing: 0
+
+            Group {
+                title: "Indicators"
+                note: "Each button opens a drawer that wears the bar's own surface. Hide one here and its drawer has no way in from the strip."
+                SwitchRow {
+                    glyph: "expand_more"
+                    label: "System tray"
+                    checked: Config.options.bar.showTrayButton
+                    onToggled: value => Config.options.bar.showTrayButton = value
+                }
+                SwitchRow {
+                    glyph: "battery"
+                    label: "Battery"
+                    description: "Charge, health and power draw"
+                    checked: Config.options.bar.showBatteryButton
+                    onToggled: value => Config.options.bar.showBatteryButton = value
+                }
+                SwitchRow {
+                    glyph: "wifi"
+                    label: "Network"
+                    description: "Wi-Fi networks and connections"
+                    checked: Config.options.bar.showNetworkButton
+                    onToggled: value => Config.options.bar.showNetworkButton = value
+                }
+                SwitchRow {
+                    glyph: "volume"
+                    label: "Volume"
+                    description: "Output, mute and app levels"
+                    checked: Config.options.bar.showVolumeButton
+                    onToggled: value => Config.options.bar.showVolumeButton = value
+                }
+                SwitchRow {
+                    glyph: "brightness"
+                    label: "Brightness"
+                    description: "Backlight and night light"
+                    checked: Config.options.bar.showBrightnessButton
+                    onToggled: value => Config.options.bar.showBrightnessButton = value
+                }
+                SwitchRow {
+                    glyph: "tune"
+                    label: "Control panel"
+                    checked: Config.options.bar.showControlButton
+                    onToggled: value => Config.options.bar.showControlButton = value
+                }
+                SwitchRow {
+                    glyph: "bell"
+                    label: "Notifications"
+                    checked: Config.options.bar.showNotificationsButton
+                    onToggled: value => Config.options.bar.showNotificationsButton = value
                 }
             }
         }

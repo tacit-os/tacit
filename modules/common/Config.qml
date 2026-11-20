@@ -607,6 +607,15 @@ Singleton {
                 property bool showBackground: true
                 property bool verbose: true
                 property bool vertical: false
+                // The new top bar (modules/newbar) and its drawers. The older options above
+                // belong to the end-4 bar; these say which indicators this strip carries.
+                property bool showTrayButton: true
+                property bool showBatteryButton: true
+                property bool showNetworkButton: true
+                property bool showVolumeButton: true
+                property bool showBrightnessButton: true
+                property bool showControlButton: true
+                property bool showNotificationsButton: true
                 property JsonObject resources: JsonObject {
                     property string style: "filled"
                     property bool showValue: false

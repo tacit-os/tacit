@@ -25,7 +25,7 @@ Singleton {
     // The old panel's page names ("Notch", or "Notch:search term"), for links and scripts
     // written against it.
     readonly property var oldPages: ({
-        "Quick": "look", "General": "look", "Bar": "desktop", "Notch": "notch", "Network": "network",
+        "Quick": "look", "General": "look", "Bar": "bar", "Notch": "notch", "Network": "network",
         "Bluetooth": "bluetooth", "Desktop": "look", "Interface": "desktop", "Services": "apps",
         "Hyprland": "windows", "Niri": "windows", "About": "about"
     })
