@@ -1790,6 +1790,22 @@ ApplicationWindow {
             spacing: 0
 
             Group {
+                title: "Height"
+                note: "The strip's height, and the space it reserves for windows below. Its buttons need at least 36 px."
+                StepperRow {
+                    glyph: "height"
+                    label: "Bar height"
+                    description: "How tall the top strip is"
+                    value: Config.options.bar.height
+                    from: 36
+                    to: 56
+                    stepSize: 2
+                    suffix: " px"
+                    onMoved: value => Config.options.bar.height = value
+                }
+            }
+
+            Group {
                 title: "Indicators"
                 note: "Each button opens a drawer that wears the bar's own surface. Hide one here and its drawer has no way in from the strip."
                 SwitchRow {

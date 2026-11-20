@@ -608,7 +608,9 @@ Singleton {
                 property bool verbose: true
                 property bool vertical: false
                 // The new top bar (modules/newbar) and its drawers. The older options above
-                // belong to the end-4 bar; these say which indicators this strip carries.
+                // belong to the end-4 bar; these say how tall this strip is and which
+                // indicators it carries.
+                property int height: 36
                 property bool showTrayButton: true
                 property bool showBatteryButton: true
                 property bool showNetworkButton: true

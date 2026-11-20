@@ -526,7 +526,9 @@ Item {
         id: background
         anchors.fill: parent
         visible: !GlobalStates.gridOver
-        cornerRadius: root.open ? 0 : 14
+        // The sheet keeps its designed corners when open (24) as well as the chip's when
+        // closed (14); a hard 0 while open squareed the whole drawer off.
+        cornerRadius: root.radius
         fillet: 0
         Behavior on cornerRadius {
             NumberAnimation { duration: 220 }

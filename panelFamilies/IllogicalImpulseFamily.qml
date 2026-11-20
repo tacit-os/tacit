@@ -91,8 +91,8 @@ Scope {
     // bar's underside, in the bar's colour, and only draws while it has something to show.
     // PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
     // PanelLoader { component: DemoBar {} }
-    PanelLoader { component: NewBar {} }
     PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
+    PanelLoader { component: NewBar {} }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: FilesPanel {} }

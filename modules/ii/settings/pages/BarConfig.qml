@@ -37,6 +37,25 @@ ContentPage {
     }
 
     ContentSection {
+        icon: "height"
+        title: Translation.tr("Height")
+        shape: MaterialShape.Shape.ClamShell
+        Layout.fillWidth: true
+
+        GroupedList {
+            ConfigSpinBox {
+                icon: "height"
+                text: Translation.tr("Bar height")
+                value: Config.options.bar.height
+                from: 36
+                to: 56
+                stepSize: 2
+                onValueChanged: { Config.options.bar.height = value }
+            }
+        }
+    }
+
+    ContentSection {
         icon: "bottom_app_bar"
         title: Translation.tr("Top bar")
         shape: MaterialShape.Shape.ClamShell

@@ -265,33 +265,49 @@ Scope {
                             K.IconButton {
                                 id: notifButton
                                 visible: Config.options.bar.showNotificationsButton
-                                symbol: Notifications.unread > 0 ? "bell_ring" : "bell"
+                                // "bell_ring" is not a symbol in the set; the ligature is "bell-ring".
+                                // An unknown name renders as stray glyphs beside the count badge.
+                                symbol: Notifications.unread > 0 ? "bell-ring" : "bell"
                                 label: "Notifications"
                                 size: 18
                                 checked: GlobalStates.notificationCenterOpen
                                 onActivated: GlobalStates.notificationCenterOpen = !GlobalStates.notificationCenterOpen
 
+                                // The button is 36 px but the glyph is 18 px and centred: anchoring
+                                // the badge to the button put it beside the bell like a second icon.
+                                // Anchor it to the glyph's box instead so it reads as a corner badge.
+                                Item {
+                                    id: notifGlyphBox
+                                    anchors.centerIn: parent
+                                    width: 18
+                                    height: 18
+                                }
                                 Rectangle {
                                     id: notifBadge
                                     anchors {
-                                        right: parent.right
-                                        top: parent.top
-                                        rightMargin: 3
-                                        topMargin: 3
+                                        right: notifGlyphBox.right
+                                        top: notifGlyphBox.top
+                                        rightMargin: -2
+                                        topMargin: -2
                                     }
-                                    width: 15
-                                    height: 15
-                                    radius: width / 2
+                                    // The count sits on the accent fill, so it needs no shadow:
+                                    // BarText's layer effect smeared it inside this small badge.
+                                    implicitWidth: Math.max(13, notifCount.implicitWidth + 4)
+                                    implicitHeight: 13
+                                    width: implicitWidth
+                                    height: implicitHeight
+                                    radius: height / 2
                                     color: Tacit.accent
                                     visible: Notifications.unread > 0
 
-                                    BarText {
+                                    StyledText {
+                                        id: notifCount
                                         anchors.centerIn: parent
                                         text: Notifications.unread > 99 ? "99+" : String(Notifications.unread)
                                         color: Tacit.inkOnAccent
                                         font.family: Tacit.font.main
-                                        font.pixelSize: 9
-                                        font.weight: Tacit.weight.medium
+                                        font.pixelSize: 8
+                                        font.weight: Font.Medium
                                     }
                                 }
                             }

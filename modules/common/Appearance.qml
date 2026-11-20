@@ -626,7 +626,9 @@ Singleton {
     
 
     sizes: QtObject {
-        property real baseBarHeight: 40
+        // Settings › Bar: the strip's height, so changing it moves the bar's reserved zone and
+        // every surface that hangs from it without a restart.
+        property real baseBarHeight: Config?.options.bar.height ?? 36
         property real barHeight: Config.options.bar.cornerStyle === 1 ? 
             (baseBarHeight + root.sizes.hyprlandGapsOut * 2) : baseBarHeight
         property real barCenterSideModuleWidth: Config.options?.bar.verbose ? 360 : 140
