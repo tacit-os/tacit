@@ -16,7 +16,7 @@ Item {
     property bool vertical: false
     property var activeMenu: null
 
-    visible: SystemTray.items.values.length > 0
+    visible: TrayService.items.length > 0
     implicitWidth: vertical ? Appearance.sizes.verticalBarWidth : gridLayout.implicitWidth
     implicitHeight: vertical ? gridLayout.implicitHeight + 6 : Appearance.sizes.barHeight
 

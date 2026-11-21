@@ -617,7 +617,14 @@ Item {
                     visible: Battery.available
                     anchors.verticalCenter: parent.verticalCenter
                     // low at the level the low-battery warning uses (Settings: "Warn when the battery falls to")
-                    text: Battery.isPluggedIn ? "bolt" : (Battery.isLow ? "battery_alert" : "battery_full")
+                    text: {
+                        if (Battery.isCharging) return "battery_charging_full"
+                        if (Battery.isPluggedIn) return "battery_charging_full"
+                        if (Battery.isLowAndNotCharging) return "battery_alert"
+                        const pct = Math.round(Battery.percentage * 100)
+                        if (pct >= 95) return "battery_full"
+                        return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+                    }
                     iconSize: 16
                     color: Battery.isLowAndNotCharging ? Tacit.inkMain : IslandController.subtextColor
                 }

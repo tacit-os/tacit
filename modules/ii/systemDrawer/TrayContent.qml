@@ -21,7 +21,7 @@ Item {
     // Set by TrayDrawer so the menu can tell the drawer not to close beneath it.
     property var drawer: null
 
-    readonly property bool hasItems: SystemTray.items.values.length > 0
+    readonly property bool hasItems: TrayService.items.length > 0
     readonly property int itemCount: TrayService.items.length
     // Fit items into a compact grid: one row for a handful, wrapping as the tray fills. The
     // drawer follows this width so a single icon does not sit in a mostly empty panel.
@@ -73,11 +73,11 @@ Item {
         const chrome = Kit.tokens.space.l + Kit.tokens.space.l; // column margins
         const maxW = 340;
         // No apps: just the empty-state label. One app: just that icon, no extra empty panel.
-        if (root.itemCount === 0) return 140;
+        if (root.itemCount === 0) return 112;
         if (root.itemCount === 1) return Math.max(52, Math.min(maxW, gridW + chrome));
         return Math.max(160, Math.min(maxW, gridW + chrome));
     }
-    implicitHeight: content.implicitHeight + Kit.tokens.space.l + Kit.tokens.space.xl
+    implicitHeight: content.implicitHeight + (root.itemCount === 0 ? Kit.tokens.space.s + Kit.tokens.space.s : Kit.tokens.space.l + Kit.tokens.space.xl)
 
     DockedRect {
         anchors.fill: parent
@@ -93,10 +93,10 @@ Item {
             fill: parent
             leftMargin: Kit.tokens.space.l
             rightMargin: Kit.tokens.space.l
-            topMargin: Kit.tokens.space.l
-            bottomMargin: Kit.tokens.space.xl
+            topMargin: root.itemCount === 0 ? Kit.tokens.space.s : Kit.tokens.space.l
+            bottomMargin: root.itemCount === 0 ? Kit.tokens.space.s : Kit.tokens.space.xl
         }
-        spacing: Kit.tokens.space.m
+        spacing: root.itemCount === 0 ? 0 : Kit.tokens.space.m
 
         StyledText {
             Layout.fillWidth: true
@@ -109,6 +109,7 @@ Item {
         // Every active item in one grid; no pinned/overflow split.
         GridLayout {
             Layout.fillWidth: true
+            visible: root.hasItems
             columns: root.gridCols
             rowSpacing: Kit.tokens.space.s
             columnSpacing: Kit.tokens.space.s
@@ -130,6 +131,7 @@ Item {
             color: Appearance.colors.colSubtext
             font.pixelSize: Appearance.font.pixelSize.smaller
             wrapMode: Text.Wrap
+            horizontalAlignment: Text.AlignHCenter
         }
     }
 }

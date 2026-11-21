@@ -14,6 +14,15 @@ MouseArea {
     readonly property bool isPluggedIn: Battery.isPluggedIn
     readonly property real percentage: Battery.percentage
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
+    readonly property bool isLowAndNotCharging: Battery.isLowAndNotCharging
+    readonly property string batteryIcon: {
+        if (isCharging) return "battery_charging_full"
+        if (isPluggedIn) return "battery_charging_full"
+        if (isLowAndNotCharging) return "battery_alert"
+        const pct = Math.round(percentage * 100)
+        if (pct >= 95) return "battery_full"
+        return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+    }
     readonly property string displayText: (root.vertical && root.percentage > 99) ? "" : batteryProgress.text
 
     implicitWidth:  vertical ? Appearance.sizes.verticalBarWidth : batteryProgress.valueBarWidth + 8
@@ -45,9 +54,9 @@ MouseArea {
                         Layout.leftMargin: -2
                         Layout.rightMargin: -2
                         fill: 1
-                        text: "bolt"
+                        text: root.batteryIcon
                         iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
+                        visible: true
                     }
                     StyledText {
                         Layout.alignment: Qt.AlignVCenter
@@ -69,10 +78,10 @@ MouseArea {
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
                         fill: 1
-                        text: "bolt"
+                        text: root.batteryIcon
                         Layout.topMargin: 4
                         iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
+                        visible: true
                     }
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter

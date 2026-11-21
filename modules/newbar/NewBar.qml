@@ -211,9 +211,14 @@ Scope {
                             K.IconButton {
                                 id: batteryButton
                                 visible: Config.options.bar.showBatteryButton
-                                symbol: Battery.isCharging ? "battery_charging"
-                                    : Battery.isLowAndNotCharging ? "battery_alert"
-                                    : "battery"
+                                symbol: {
+                                    if (Battery.isCharging) return "battery_charging_full"
+                                    if (Battery.isPluggedIn) return "battery_charging_full"
+                                    if (Battery.isLowAndNotCharging) return "battery_alert"
+                                    const pct = Math.round(Battery.percentage * 100)
+                                    if (pct >= 95) return "battery_full"
+                                    return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+                                }
                                 label: Battery.available ? `Battery ${Math.round(Battery.percentage * 100)}%` : "Battery"
                                 size: 18
                                 checked: GlobalStates.batteryOpen
