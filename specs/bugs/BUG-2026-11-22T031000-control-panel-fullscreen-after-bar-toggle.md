@@ -24,11 +24,11 @@ Risk level: Medium — user-visible geometry regression, no data/security impact
 
 ## TDD Fix Plan
 
-This repo has no QML test harness. Verification is manual/live using config toggles and `qs log`.
+Verification uses the repo's qmltestrunner harness (`tests/lib/qtscene.mjs`) plus live config toggles and `qs log`.
 
 1. **RED**: Reproduce with bar off→on→open panel; observe background taller than content.
-   **GREEN**: Replace the Loader's conditional top/bottom anchors with an explicit `y` binding (so it can never be stretched to the screen-sized wrapper), and derive the content's `maxHeight` live from Config instead of passing it through the inline `sourceComponent`.
-   **verify**: `qs -p <shell>` loads; toggle bar off/on; log shows `barShown` tracks `Config.options.bar.show` and the background height stays ~405 (content height), not 1164 (window height).
+   **GREEN**: Replace the Loader's conditional top/bottom anchors with an explicit `y` binding (so it can never be stretched to the screen-sized wrapper), and derive the content's `maxHeight` live inside `SidebarRightContent` instead of passing it through the inline `sourceComponent`.
+   **verify**: `node tests/control-panel-bar-toggle-height.test.mjs` passes; `qs log -p <path>` shows the background height stays ~405 (content height), not 1164 (window height), across an off→on→off→on sequence.
 
 2. **RED**: Confirm no regression in bar-on floating/attached drawer styles and no state loss.
    **GREEN**: Keep `BarDrawerBackground` as the single source of floating/attached material logic; do NOT recreate the Loader on toggles (an earlier attempt did and caused flicker + state loss).

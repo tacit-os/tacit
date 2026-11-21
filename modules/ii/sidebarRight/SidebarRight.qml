@@ -201,7 +201,7 @@ Scope {
                     // screen-sized wrapper stretched the loaded item to window height on a
                     // bar toggle, and the stretch persisted. y keeps it at the bar underside
                     // when the bar is on, or at the bottom edge when off.
-                    y: panelWindow.barShown ? panelWindow.topGap : (panelWindow.height - (item?.implicitHeight ?? 0))
+                    y: panelWindow.barShown ? panelWindow.topGap : Math.max(0, panelWindow.height - (item?.implicitHeight ?? 0))
                     // No Behavior here: the content animates its own height and the panel follows
                     // frame by frame.
                     height: item?.implicitHeight ?? 0
