@@ -86,14 +86,16 @@ Scope {
         }
 
         exclusiveZone: 0
+        readonly property bool floating: Config.options.bar.show
         // The cove and the window's measure. The body is 340 wide; the extra cove is where the
         // silhouette flares into the strip, like the control panel's own cove.
-        readonly property int cove: 12
+        readonly property int cove: floating ? 0 : 12
+        readonly property int topGap: floating ? 8 : 0
         implicitWidth: 340 + cove
         // Tall enough for the master row, the slider and the audio section's capped list
         // (six 40 px rows) without the last row running into the silhouette's rounded bottom.
         readonly property real panelHeight: Math.min(460, panelMaxHeight)
-        implicitHeight: panelHeight + cove
+        implicitHeight: panelHeight + cove + topGap
 
         // The volume button's centre, published by the bar. The fallback is the right edge
         // before any bar has published it (a keybind opening the panel).
@@ -105,7 +107,7 @@ Scope {
         // What the panel may never exceed: the screen minus the bar's reserved band and the
         // cove, so the whole silhouette stays on screen.
         readonly property real panelMaxHeight: (screen?.height ?? 1080)
-            - Appearance.sizes.baseBarHeight - cove
+            - Appearance.sizes.baseBarHeight - cove - topGap
 
         mask: Region {
             item: maskBox
@@ -163,7 +165,7 @@ Scope {
                 clip: true
 
                 readonly property bool open: GlobalStates.volumeOpen
-                readonly property real contentHeight: (bodyLoader.item?.implicitHeight ?? 0) + panelWindow.cove
+                readonly property real contentHeight: (bodyLoader.item?.implicitHeight ?? 0) + panelWindow.cove + panelWindow.topGap
                 // The panel drops out of the bar as one piece, on the control panel's curve.
                 property real offsetScale: open ? 0 : 1
                 height: contentHeight
@@ -189,6 +191,7 @@ Scope {
                         left: parent.left
                         right: parent.right
                         top: parent.top
+                        topMargin: panelWindow.topGap
                         leftMargin: panelWindow.cove
                     }
                     height: item?.implicitHeight ?? 0
@@ -217,12 +220,19 @@ Scope {
 
                             DockedRect {
                                 anchors.fill: parent
+                                visible: !Config.options.bar.show
                                 edge: "top"
                                 cornerRadius: Appearance.rounding.verylarge
                                 fillet: 12
-                                // The panel is the bar's surface continued below the strip: the
-                                // same colour, wash, veil and see-through amount as the control panel.
                                 color: Appearance.colors.colBarSurface
+                            }
+                            Rectangle {
+                                anchors.fill: parent
+                                visible: Config.options.bar.show
+                                radius: Appearance.rounding.verylarge
+                                color: Appearance.colors.colBarSurface
+                                border.width: 1
+                                border.color: Appearance.colors.colLayer0Border
                             }
 
                             ColumnLayout {

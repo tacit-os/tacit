@@ -81,10 +81,19 @@ Item {
 
     DockedRect {
         anchors.fill: parent
+        visible: !Config.options.bar.show
         edge: "top"
         cornerRadius: Appearance.rounding.verylarge
         fillet: 12
-        color: Config.options.bar.showBackground ? Appearance.colors.colBarSurface : "transparent"
+        color: Appearance.colors.colBarSurface
+    }
+    Rectangle {
+        anchors.fill: parent
+        visible: Config.options.bar.show
+        radius: Appearance.rounding.verylarge
+        color: Appearance.colors.colBarSurface
+        border.width: 1
+        border.color: Appearance.colors.colLayer0Border
     }
 
     ColumnLayout {

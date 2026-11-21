@@ -89,7 +89,9 @@ Scope {
         // Bar shown: hangs from the bar's underside, centred on the control button, and drops
         // down out of the strip. Bar off: returns to the pre-bar bottom-right corner and rises up.
         readonly property bool barShown: Config.options.bar.show
-        readonly property int cove: 12
+        readonly property bool floating: barShown
+        readonly property int cove: floating ? 0 : 12
+        readonly property int topGap: floating ? 8 : 0
         implicitWidth: sidebarWidth + cove
         // The button's centre, published by the bar. Fall back to the right edge when opened by
         // a keybind before any bar has published it.
@@ -101,12 +103,12 @@ Scope {
         // What the panel may never exceed. Bar on: screen minus the bar band. Bar off: screen
         // minus the notch's reserve, so the panel and notch never fight for the same space.
         readonly property real panelMaxHeight: barShown
-            ? (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove
+            ? (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove - topGap
             : (screen?.height ?? 1080) - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
         // mask keeps the empty part click-through.
-        implicitHeight: panelMaxHeight + cove
+        implicitHeight: panelMaxHeight + cove + topGap
         // The click area is the part of the panel still inside the window. It is its own item
         // because a slide is a transform on entranceWrapper, and the mask must never leave the
         // surface.
@@ -162,7 +164,7 @@ Scope {
                 clip: true
 
                 readonly property bool open: GlobalStates.sidebarRightOpen
-                readonly property real contentHeight: (sidebarContentLoader.item?.implicitHeight ?? 0) + panelWindow.cove
+                readonly property real contentHeight: (sidebarContentLoader.item?.implicitHeight ?? 0) + panelWindow.cove + (panelWindow.barShown ? panelWindow.topGap : 0)
                 // Bar shown: the panel drops out of the bar. Bar off: it rises from the bottom edge.
                 // A standard curve, no fade (blur would pop mid-way).
                 property real offsetScale: open ? 0 : 1
@@ -195,6 +197,7 @@ Scope {
                         right: parent.right
                         top: panelWindow.barShown ? parent.top : undefined
                         bottom: panelWindow.barShown ? undefined : parent.bottom
+                        topMargin: panelWindow.barShown ? panelWindow.topGap : 0
                         leftMargin: panelWindow.cove
                     }
                     // No Behavior here: the content animates its own height and the panel follows

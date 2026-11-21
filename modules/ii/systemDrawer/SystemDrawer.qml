@@ -104,7 +104,9 @@ Scope {
         }
 
         exclusiveZone: 0
-        readonly property int cove: 12
+        readonly property bool floating: Config.options.bar.show
+        readonly property int cove: floating ? 0 : 12
+        readonly property int topGap: floating ? 8 : 0
         // Follow the body's own width when it declares one, so a drawer can hug its content.
         readonly property real bodyWidth: (bodyLoader.item?.implicitWidth > 0)
             ? bodyLoader.item.implicitWidth : drawer.drawerWidth
@@ -112,8 +114,8 @@ Scope {
         // The window is the reservoir the body slides inside; only the drawn panel follows
         // the body's own height, so there is no empty ground under short content.
         readonly property real panelHeight: Math.min(drawer.maxBodyHeight,
-            (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove)
-        implicitHeight: panelHeight + cove
+            (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove - topGap)
+        implicitHeight: panelHeight + cove + topGap
 
         readonly property real anchorX: {
             const a = drawer.anchor;
@@ -166,7 +168,7 @@ Scope {
                 anchors.top: parent.top
                 clip: true
 
-                readonly property real contentHeight: (bodyLoader.item?.implicitHeight ?? 0) + panelWindow.cove
+                readonly property real contentHeight: (bodyLoader.item?.implicitHeight ?? 0) + panelWindow.cove + panelWindow.topGap
                 property real offsetScale: drawer.open ? 0 : 1
                 height: contentHeight
                 transform: Translate { y: -entranceWrapper.contentHeight * entranceWrapper.offsetScale }
@@ -190,6 +192,7 @@ Scope {
                         left: parent.left
                         right: parent.right
                         top: parent.top
+                        topMargin: panelWindow.topGap
                         leftMargin: panelWindow.cove
                     }
                     height: item?.implicitHeight ?? 0

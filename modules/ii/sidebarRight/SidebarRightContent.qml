@@ -444,12 +444,20 @@ Item {
             DockedRect {
                 id: dockedBg
                 anchors.fill: parent
-                edge: root.barShown ? "top" : "bottom-right"
+                visible: !root.barShown
+                edge: "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
                 fillet: 12
-                // Bar shown: the panel continues the bar's surface below the strip. Bar off: the
-                // pre-bar corner panel in its own frost.
-                color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
+                // Bar off: the pre-bar corner panel in its own frost.
+                color: Appearance.colors.colPanelFrost
+            }
+            Rectangle {
+                anchors.fill: parent
+                visible: root.barShown
+                radius: sidebarRightBackground.radius
+                color: Appearance.colors.colBarSurface
+                border.width: 1
+                border.color: Appearance.colors.colLayer0Border
             }
 
         StyledFlickable {
