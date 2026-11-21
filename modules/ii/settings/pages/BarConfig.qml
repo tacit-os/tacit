@@ -5,9 +5,9 @@ import qs.modules.common
 import qs.modules.common.widgets
 
 /**
- * The new top bar's options: which indicators it carries. Each one opens a drawer that wears
- * the bar's own surface, so showing or hiding a button here also decides which drawers can be
- * opened from the strip. The older bar's layout and frame settings stay under Quick.
+ * The top bar and the notch. Show or hide the strip; when it is off the shell returns to the
+ * pre-bar layout (control panel bottom-right, notifications at the top corner, notch
+ * standalone). Height and indicators apply only while the bar is shown.
  */
 ContentPage {
     id: page
@@ -36,6 +36,24 @@ ContentPage {
         }
     }
 
+    readonly property bool barShown: Config.options.bar.show
+
+    ContentSection {
+        icon: "bottom_app_bar"
+        title: Translation.tr("Top bar")
+        shape: MaterialShape.Shape.ClamShell
+        Layout.fillWidth: true
+
+        GroupedList {
+            ConfigSwitch {
+                buttonIcon: "bottom_app_bar"
+                text: Translation.tr("Show bar")
+                checked: Config.options.bar.show
+                onSwitched: value => { Config.options.bar.show = value }
+            }
+        }
+    }
+
     ContentSection {
         icon: "notch"
         title: Translation.tr("Notch")
@@ -49,15 +67,18 @@ ContentPage {
                 text: Translation.tr("Notch colour")
                 currentValue: Config.options.island.bodyStyle
                 onSelected: newValue => { Config.options.island.bodyStyle = newValue; }
-                options: [
+                options: page.barShown ? [
                     { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" },
                     { displayName: Translation.tr("Follow the bar"), icon: "bottom_app_bar", value: "bar" }
+                ] : [
+                    { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" }
                 ]
             }
         }
     }
 
     ContentSection {
+        visible: page.barShown
         icon: "height"
         title: Translation.tr("Height")
         shape: MaterialShape.Shape.ClamShell
@@ -77,8 +98,9 @@ ContentPage {
     }
 
     ContentSection {
+        visible: page.barShown
         icon: "bottom_app_bar"
-        title: Translation.tr("Top bar")
+        title: Translation.tr("Indicators")
         shape: MaterialShape.Shape.ClamShell
         Layout.fillWidth: true
 

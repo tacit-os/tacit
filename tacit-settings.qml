@@ -1788,6 +1788,18 @@ ApplicationWindow {
         id: barPage
         ColumnLayout {
             spacing: 0
+            readonly property bool barShown: Config.options.bar.show
+
+            Group {
+                title: "Top bar"
+                note: "A strip at the top edge. Off: the control panel sits at the bottom-right, notifications arrive at the top corner, and the notch stands alone as before."
+                SwitchRow {
+                    glyph: "bottom_app_bar"
+                    label: "Show bar"
+                    checked: Config.options.bar.show
+                    onToggled: value => Config.options.bar.show = value
+                }
+            }
 
             Group {
                 title: "Notch"
@@ -1795,13 +1807,15 @@ ApplicationWindow {
                 ChoiceRow {
                     glyph: "notch"
                     label: "Notch colour"
-                    description: ({
+                    description: barShown ? (({
                         "solid": "The dock's colour and see-through",
                         "bar": "The bar's colour, see-through and blur"
-                    })[Config.options.island.bodyStyle] ?? ""
-                    options: [
+                    })[Config.options.island.bodyStyle] ?? "") : "The dock's colour and see-through"
+                    options: barShown ? [
                         { value: "solid", label: "Dark" },
                         { value: "bar", label: "Follow the bar" }
+                    ] : [
+                        { value: "solid", label: "Dark" }
                     ]
                     current: Config.options.island.bodyStyle
                     onPicked: value => Config.options.island.bodyStyle = value
@@ -1809,6 +1823,7 @@ ApplicationWindow {
             }
 
             Group {
+                visible: barShown
                 title: "Height"
                 note: "The strip's height, and the space it reserves for windows below. Its buttons need at least 36 px."
                 StepperRow {
@@ -1825,6 +1840,7 @@ ApplicationWindow {
             }
 
             Group {
+                visible: barShown
                 title: "Indicators"
                 note: "Each button opens a drawer that wears the bar's own surface. Hide one here and its drawer has no way in from the strip."
                 SwitchRow {

@@ -86,13 +86,23 @@ Scope {
     // The bar and the vertical bar have their own switch, bar.enable, off and in no Settings row: the
     // notch replaced them, and turning the notch off used to bring the end-4 bar back.
     PanelLoader { extraCondition: Config.options.bar.enable && !Config.options.bar.vertical && !(Config.options.island.enable && Config.options.island.hideBar); component: Bar {} }
-    // Step 1: a full-width strip stands in for the notch. The 3-style demo in modules/demo/
-    // is saved but not loaded. The notch itself is back under the strip: it hangs from the
-    // bar's underside, in the bar's colour, and only draws while it has something to show.
-    // PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
-    // PanelLoader { component: DemoBar {} }
+    // The top strip (Settings > Bar). Off: the shell falls back to the pre-bar layout (no
+    // strip, notch standalone, control panel bottom-right, notifications at the top corner).
+    // Load order affects layer stacking; NewBar last so Island stacks above it.
     PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
-    PanelLoader { component: NewBar {} }
+    PanelLoader { extraCondition: Config.options.bar.show; component: NewBar {} }
+    Connections {
+        target: Config.options.bar
+        function onShowChanged() {
+            if (Config.options.bar.show) return;
+            GlobalStates.sidebarRightOpen = false;
+            GlobalStates.volumeOpen = false;
+            GlobalStates.networkOpen = false;
+            GlobalStates.batteryOpen = false;
+            GlobalStates.brightnessOpen = false;
+            GlobalStates.trayOpen = false;
+        }
+    }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: FilesPanel {} }

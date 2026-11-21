@@ -86,25 +86,23 @@ Scope {
         }
 
         exclusiveZone: 0
-        // Hanging from the bar's underside: the control-panel button in the bar is what opens it,
-        // and the panel drops out of the strip it belongs to. The bar's exclusive zone already puts
-        // a Top layer below it, so there is no top margin: adding one leaves a whole bar's gap.
-        // Sized to its content (see SidebarRightContent.qml); the window is as wide as the panel
-        // can be, with a cove where it meets the bar.
+        // Bar shown: hangs from the bar's underside, centred on the control button, and drops
+        // down out of the strip. Bar off: returns to the pre-bar bottom-right corner and rises up.
+        readonly property bool barShown: Config.options.bar.show
         readonly property int cove: 12
         implicitWidth: sidebarWidth + cove
-        // The button's centre, published by the bar. Fall back to the right edge when the panel is
-        // opened by a keybind before any bar has published it.
+        // The button's centre, published by the bar. Fall back to the right edge when opened by
+        // a keybind before any bar has published it.
         readonly property real anchorX: {
             const a = GlobalStates.controlPanelAnchor;
             return a && a.screen === screen?.name ? a.x
                 : (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth / 2 - 16;
         }
-        // What the panel may never exceed: the screen minus the bar's reserved band. Past it the
-        // panel scrolls its own content (SidebarRightContent.qml), because anything below the
-        // window's bottom edge is outside the layer surface, where nothing is drawn or clickable.
-        readonly property real panelMaxHeight: (screen?.height ?? 1080)
-            - Appearance.sizes.baseBarHeight - cove
+        // What the panel may never exceed. Bar on: screen minus the bar band. Bar off: screen
+        // minus the notch's reserve, so the panel and notch never fight for the same space.
+        readonly property real panelMaxHeight: barShown
+            ? (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove
+            : (screen?.height ?? 1080) - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
         // mask keeps the empty part click-through.
@@ -123,15 +121,17 @@ Scope {
         color: "transparent"
 
         anchors {
-            left: true
-            top: true
+            left: barShown
+            top: barShown
+            right: !barShown
+            bottom: !barShown
         }
-        // Centre the window on the button, held at least 16 px inside the screen's edges (the
-        // compositor hides what lies flush against a rounded screen corner).
-        margins.left: Math.max((screen?.x ?? 0) + 16,
+        // Bar shown: centre on the button, held inside the screen edges. Bar off: flush in the
+        // bottom-right corner.
+        margins.left: barShown ? Math.max((screen?.x ?? 0) + 16,
             Math.min(panelWindow.anchorX - implicitWidth / 2,
                      (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth - 16))
-            - (screen?.x ?? 0)
+            - (screen?.x ?? 0) : 0
 
         Item {
             anchors.fill: parent
@@ -148,7 +148,8 @@ Scope {
                 id: maskBox
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: panelWindow.barShown ? parent.top : undefined
+                anchors.bottom: panelWindow.barShown ? undefined : parent.bottom
                 height: Math.max(0, Math.min(entranceWrapper.contentHeight * (1 - entranceWrapper.offsetScale), parent.height))
             }
 
@@ -156,21 +157,21 @@ Scope {
                 id: entranceWrapper
                 anchors.left: parent.left
                 anchors.right: parent.right
-                anchors.top: parent.top
+                anchors.top: panelWindow.barShown ? parent.top : undefined
+                anchors.bottom: panelWindow.barShown ? undefined : parent.bottom
                 clip: true
 
                 readonly property bool open: GlobalStates.sidebarRightOpen
                 readonly property real contentHeight: (sidebarContentLoader.item?.implicitHeight ?? 0) + panelWindow.cove
-                // The palette's motion, turned to this edge: the whole panel drops out of the
-                // bar as one piece (caelestia launcher Wrapper.qml). A standard
-                // curve, not the overshooting spatial one: a docked silhouette that
-                // overshoots lifts off the edge it docks into, and the small panel made
-                // that gap unmistakable (2026-10-25, prototype feedback). No fade: Hyprland
-                // blurs only pixels above ignore_alpha, so a fading panel would pop its
-                // blur in mid-way.
+                // Bar shown: the panel drops out of the bar. Bar off: it rises from the bottom edge.
+                // A standard curve, no fade (blur would pop mid-way).
                 property real offsetScale: open ? 0 : 1
                 height: contentHeight
-                transform: Translate { y: -entranceWrapper.contentHeight * entranceWrapper.offsetScale }
+                transform: Translate {
+                    y: panelWindow.barShown
+                        ? -entranceWrapper.contentHeight * entranceWrapper.offsetScale
+                        : entranceWrapper.contentHeight * entranceWrapper.offsetScale
+                }
 
                 Behavior on offsetScale {
                     Anim {
@@ -186,18 +187,18 @@ Scope {
 
                 Loader {
                     id: sidebarContentLoader
-                    // The body sits flush in the corner; the cove to its left and the cove
-                    // above it are drawn by the DockedRect inside SidebarRightContent.qml.
+                    // The body sits flush in the corner; the coves are drawn by the DockedRect
+                    // inside SidebarRightContent.qml.
                     active: panelWindow.reallyVisible || (panelWindow.settled && Config?.options.sidebar.keepRightSidebarLoaded)
                     anchors {
                         left: parent.left
                         right: parent.right
-                        top: parent.top
+                        top: panelWindow.barShown ? parent.top : undefined
+                        bottom: panelWindow.barShown ? undefined : parent.bottom
                         leftMargin: panelWindow.cove
                     }
-                    // No Behavior here: the content animates its own height (the date/calendar
-                    // group on the standard curve), and the panel follows it frame by frame. A
-                    // second animation on top made the panel overshoot and come back.
+                    // No Behavior here: the content animates its own height and the panel follows
+                    // frame by frame.
                     height: item?.implicitHeight ?? 0
 
                     focus: GlobalStates.sidebarRightOpen
@@ -209,6 +210,7 @@ Scope {
 
                     sourceComponent: SidebarRightContent {
                         maxHeight: panelWindow.panelMaxHeight
+                        barShown: panelWindow.barShown
                     }
                 }
             }

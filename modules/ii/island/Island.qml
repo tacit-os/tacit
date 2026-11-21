@@ -75,10 +75,14 @@ Scope {
                 // width only, and the clicked sheet OVERLAYS windows like a menu does - so
                 // nothing on the desktop ever reflows because of the notch, and nothing moves
                 // under the pointer.
-                // The top bar (modules/newbar) owns the top edge now: it keeps the reserved
-                // 40 px, and the notch hangs from its underside at that height, so this window
-                // takes no reserve of its own and no window moves when the notch opens.
-                exclusionMode: ExclusionMode.Ignore
+                // The top bar (modules/newbar) owns the top edge when shown: it reserves the
+                // strip and the notch hangs from its underside with no reserve of its own. With
+                // the bar off, the notch returns to its pre-bar place and keeps its own reserve.
+                readonly property bool barShown: Config.options.bar.show
+                // -1 = ignore other surfaces' exclusive zones, so the notch stays at the screen
+                // top even while the bar reserves its strip.
+                exclusionMode: barShown ? ExclusionMode.Ignore : ExclusionMode.Normal
+                exclusiveZone: barShown ? -1 : (Config.options.island.reservedHeight + Config.options.island.topMargin)
 
                 // Top-anchored only (the compositor centres it), at a FIXED size that never
                 // changes: 860 x 540 since the browser's address sheet (820 wide with its shadow,
@@ -92,9 +96,9 @@ Scope {
                     top: true
                 }
                 implicitWidth: 860
-                implicitHeight: 540
-                // The notch draws over the bar it sits in: the carved chip starts at the screen's top
-                // edge, and the sheet hangs below it when open.
+                implicitHeight: barShown ? 540 : (540 + Config.options.island.topMargin)
+                // Bar shown: the notch draws over the strip (chip at the screen's top edge).
+                // Bar off: the notch sits at its pre-bar offset from the top edge.
                 readonly property bool contentShown: contentLoader.item !== null
                 mask: islandRoot.contentShown ? notchMask : emptyMask
                 Region {
@@ -208,11 +212,12 @@ Scope {
                     id: contentLoader
                     active: !GlobalStates.screenLocked
                     focus: true
-                    // The header ink sits on the bar's own centre line; the sheet hangs from there.
+                    // Bar shown: the header sits on the bar's centre line. Bar off: the notch
+                    // keeps its pre-bar offset from the top edge.
                     visible: islandRoot.contentShown
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: 0
+                    anchors.topMargin: islandRoot.barShown ? 0 : Config.options.island.topMargin
                     sourceComponent: IslandContent {
                         screenData: islandRoot.screen
                     }

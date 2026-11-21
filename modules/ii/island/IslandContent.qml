@@ -194,13 +194,10 @@ Item {
 
     readonly property var headerGeometry: IslandController.geometryFor(root.headerState)
     readonly property var openGeometry: IslandController.geometryFor("open")
-    // The notch wears the bar's own material (Settings > Bar: the body is the bar's colour). The
-    // bar already paints that frost under the header, and the island is its own window on top, so
-    // painting it again there is not the same surface: two translucent frosts stack darker than
-    // the strip, their blur runs twice, and every antialiased edge let the picture through as a
-    // bright dotted rim. So the body starts at the bar's underside and the 34 px header stays
-    // clear - the header is literally the bar's own pixels, at the bar's own blur.
-    readonly property bool flushWithBar: IslandController.barBody
+    // Bar shown + "Follow the bar": the notch wears the bar's material, so the body starts at
+    // the bar's underside and the 34 px header stays clear (the bar's own pixels). Bar off, or
+    // "Dark": the notch stands alone at the screen's top edge with its pre-bar coves/reserve.
+    readonly property bool flushWithBar: Config.options.bar.show && IslandController.barBody
     readonly property real barBand: Appearance.sizes.baseBarHeight
     property real radius: root.open ? root.openGeometry.r : root.headerGeometry.r
     // The cove stays 6 open and closed (theirs grows to 19; see IslandController.geometryFor).
@@ -532,9 +529,9 @@ Item {
     // Docked into the top edge as ONE silhouette (body + coves, one fill) -- see DockedRect.qml.
     // At rest it is the 34 px header: a chip floating over the strip at the screen's top edge. No
     // coves cut into the bar. Open, the same body grows down into the sheet.
-    // When the body is the bar's colour (root.flushWithBar) the shape starts at the bar's
-    // underside instead: at rest there is no body at all, and open it hangs from the strip with
-    // the strip's own frost and blur, so the two read as one surface with no seam at the join.
+    // Flush to the bar: the shape starts at the bar's underside (no body at rest, hangs open
+    // with square join). Standalone (bar off / Dark): the pre-bar notch at the screen's top edge
+    // with its coves.
     DockedRect {
         id: background
         // Explicit, not anchored: with the bottom anchored, the item's y is derived from its
@@ -550,9 +547,10 @@ Item {
         antialiasing: true
         visible: !GlobalStates.gridOver
         // The sheet keeps its designed corners when open (24) as well as the chip's when
-        // closed (14); a hard 0 while open squareed the whole drawer off.
+        // closed (14). Flush to the bar joins with a straight edge (no cove); standalone keeps
+        // the notch's coves.
         cornerRadius: root.radius
-        fillet: 0
+        fillet: root.flushWithBar ? 0 : root.fillet
         Behavior on cornerRadius {
             NumberAnimation { duration: 220 }
         }

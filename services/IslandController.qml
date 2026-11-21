@@ -474,7 +474,9 @@ Singleton {
     readonly property string tone: root.transientShowing ? (root.payload?.tone ?? "neutral") : "neutral"
     // Settings › Bar: the dock's ground (colour and see-through, blurred by the compositor like
     // every shell surface), or the bar's own ground so the chip reads as a piece of the strip.
-    readonly property bool barBody: Config.options.island.bodyStyle === "bar"
+    // "Follow the bar" only applies while the top bar is shown; without it the notch stands alone.
+    readonly property bool barShown: Config.options.bar.show
+    readonly property bool barBody: barShown && Config.options.island.bodyStyle === "bar"
     readonly property color bodyColor: root.barBody ? Appearance.colors.colBarSurface
         : Appearance.colors.colDockSurface
     readonly property color contentColor: Tacit.inkMain

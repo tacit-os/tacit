@@ -608,8 +608,10 @@ Singleton {
                 property bool verbose: true
                 property bool vertical: false
                 // The new top bar (modules/newbar) and its drawers. The older options above
-                // belong to the end-4 bar; these say how tall this strip is and which
-                // indicators it carries.
+                // belong to the end-4 bar. show gates the strip; when off the shell returns to
+                // the pre-bar layout (no top reserve, control panel bottom-right, notifications
+                // at the top corner, notch standalone).
+                property bool show: true
                 property int height: 36
                 property bool showTrayButton: true
                 property bool showBatteryButton: true

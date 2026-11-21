@@ -54,6 +54,7 @@ import qs.modules.ii.sidebarRight.calendar
  */
 Item {
     id: root
+    property bool barShown: Config.options.bar.show
     property int sidebarWidth: Appearance.sizes.sidebarWidth
     property int sidebarPadding: Kit.tokens.space.l
     property bool showAudioOutputDialog: false
@@ -443,13 +444,12 @@ Item {
             DockedRect {
                 id: dockedBg
                 anchors.fill: parent
-                edge: "top"
+                edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
                 fillet: 12
-                // The panel is the bar's surface continued below the strip, not a panel of its own:
-                // the same colour, wash, veil and see-through amount. The blur rule matches the
-                // bar's too, so the picture behind both is lit the same way.
-                color: Appearance.colors.colBarSurface
+                // Bar shown: the panel continues the bar's surface below the strip. Bar off: the
+                // pre-bar corner panel in its own frost.
+                color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
             }
 
         StyledFlickable {
