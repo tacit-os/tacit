@@ -14,7 +14,7 @@ Singleton {
     property real centerL: 0
     property real rightL: 0
 
-    readonly property real lightThreshold: 65
+    readonly property real lightThreshold: 60
     readonly property bool leftIsLight: leftL >= lightThreshold
     readonly property bool centerIsLight: centerL >= lightThreshold
     readonly property bool rightIsLight: rightL >= lightThreshold
@@ -54,7 +54,8 @@ Singleton {
 
     function onInkMain(zone) {
         if (Config.options.bar.showBackground) return Tacit.ground
-        return isLight(zone) ? Appearance.colors.colOnLayer0 : Tacit.ground
+        // Light-zone active chips use dark inkMain() fill; pair with light ink for contrast.
+        return isLight(zone) ? Appearance.inkFor(95, Appearance.m3colors.m3surface) : Tacit.ground
     }
 
     function seeThroughMeasured() { luminanceFile.reload() }

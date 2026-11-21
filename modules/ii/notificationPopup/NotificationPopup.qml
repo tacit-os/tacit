@@ -38,11 +38,11 @@ Scope {
             visible: true
             screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
 
-            // Bar shown: hangs from the strip, centred on the bell button (grows down). Bar off:
-            // sits in the configured corner as before.
+            // Bar shown: hangs from the strip at the right corner with a gap from the wall.
+            // Bar off: sits in the configured corner as before.
             readonly property bool barShown: Config.options.bar.show
             property string position: {
-                if (barShown) return "top_center"
+                if (barShown) return "top_right"
                 const raw = Config.options.notifications.position ?? "top_right"
                 if (raw === "top") return "top_right"
                 if (raw === "bottom") return "bottom_right"
@@ -76,27 +76,16 @@ Scope {
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
 
-            // The bell button's centre, published by the bar (bar shown). Fallback: right edge.
-            readonly property real anchorX: {
-                const a = GlobalStates.notificationAnchor;
-                return a && a.screen === screen?.name ? a.x
-                    : (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth / 2 - 16;
-            }
-            readonly property real panelLeft: Math.max((screen?.x ?? 0) + 16,
-                Math.min(anchorX - implicitWidth / 2,
-                         (screen?.x ?? 0) + (screen?.width ?? 1920) - implicitWidth - 16))
-                - (screen?.x ?? 0)
-
             // The panel's own box, at a fixed size, not the whole screen. Fixed so it never
             // resizes (a resizing layer reads as jank).
             anchors {
-                top: barShown ? true : root.isTop
-                bottom: barShown ? false : root.isBottom
-                left: barShown ? true : root.isLeft
-                right: barShown ? false : root.isRight
+                top: root.isTop
+                bottom: root.isBottom
+                left: root.isLeft
+                right: root.isRight
             }
             margins.top: barShown ? Appearance.sizes.baseBarHeight : 0
-            margins.left: barShown ? root.panelLeft : 0
+            margins.right: barShown ? Tacit.space.m : 0
             implicitWidth: Appearance.sizes.notificationPopupWidth + 40
             implicitHeight: Math.round(dock.cap) + 34 + dock.pad * 2 + 40
 
@@ -160,12 +149,11 @@ Scope {
                     height: awayCatcher.height
                     Region {
                         // the panel's window sits in its place within this full-screen catcher
-                        x: root.barShown
-                            ? (root.panelLeft + dock.x)
-                            : ((root.isLeft ? 0 : root.isRight ? awayCatcher.width - root.width : (awayCatcher.width - root.width) / 2) + dock.x)
-                        y: root.barShown
-                            ? (Appearance.sizes.baseBarHeight + dock.y)
-                            : ((root.isBottom ? awayCatcher.height - root.height : 0) + dock.y)
+                        x: (root.isLeft ? root.margins.left
+                            : root.isRight ? awayCatcher.width - root.width - root.margins.right
+                            : (awayCatcher.width - root.width) / 2) + dock.x
+                        y: (root.isTop ? root.margins.top
+                            : awayCatcher.height - root.height - root.margins.bottom) + dock.y
                         width: dock.width
                         height: dock.height
                         intersection: Intersection.Subtract
@@ -183,9 +171,11 @@ Scope {
                 id: dock
                 readonly property int pad: 8
                 readonly property int sideMargin: 0
-                readonly property string dockEdge: root.isCenter
-                    ? (root.isBottom ? "bottom" : "top")
-                    : `${root.isBottom ? "bottom" : "top"}-${root.isLeft ? "left" : "right"}`
+                readonly property string dockEdge: root.barShown
+                    ? "top"
+                    : root.isCenter
+                        ? (root.isBottom ? "bottom" : "top")
+                        : `${root.isBottom ? "bottom" : "top"}-${root.isLeft ? "left" : "right"}`
                 readonly property real cap: root.screen ? root.screen.height * 0.55 : 600
                 // Popups too: a burst does not take the screen; the newest rows show, the rest
                 // wait in the centre (the dock clips).
@@ -219,21 +209,10 @@ Scope {
                 anchors.rightMargin: sideMargin
                 anchors.leftMargin: sideMargin
 
-                DockedRect {
-                    anchors.fill: parent
-                    visible: !root.barShown || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
+                BarDrawerBackground {
                     edge: dock.dockEdge
-                    cornerRadius: Appearance.rounding.verylarge
-                    fillet: 12
-                    color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
-                }
-                Rectangle {
-                    anchors.fill: parent
-                    visible: root.barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
-                    radius: Appearance.rounding.verylarge
-                    color: Appearance.colors.colBarSurface
-                    border.width: 1
-                    border.color: Appearance.colors.colLayer0Border
+                    fillet: root.barShown ? 0 : 12
+                    backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
                 }
 
                 // Hover on the panel grows it into the centre; leaving folds it. Not while popups

@@ -110,11 +110,12 @@ Scope {
                             // Placeholder: a circle mark that opens the app launcher.
                             // The overview's Connections treat a direct overviewOpen (as the
                             // corner's launcher button does) as the launcher's search.
-                            K.IconButton {
+                            BarActionButton {
                                 id: circlePlaceholderButton
+                                ink: root.leftInkMain
+                                bottom: root.bottom
                                 symbol: "ring"
-                                label: "App launcher"
-                                size: 18
+                                label: Translation.tr("App launcher")
                                 onActivated: GlobalStates.overviewOpen = true
                             }
 
@@ -206,40 +207,28 @@ Scope {
                             spacing: Tacit.space.xs
 
                             // --- Indicators ---
-                            Item {
+                            BarActionButton {
                                 id: trayButton
-                                visible: Config.options.bar.showTrayButton
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                HoverHandler { id: trayHover }
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: GlobalStates.trayOpen
-                                        ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : trayHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
-                                        : "transparent"
-                                }
-                                K.Symbol {
-                                    anchors.centerIn: parent
-                                    text: "expand_more"
-                                    size: 18
-                                    color: root.rightInkMain
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: GlobalStates.trayOpen = !GlobalStates.trayOpen
-                                }
+                                show: Config.options.bar.showTrayButton
+                                ink: root.rightInkMain
+                                bottom: root.bottom
+                                symbol: "expand_more"
+                                label: Translation.tr("System tray")
+                                active: GlobalStates.trayOpen
+                                onActivated: GlobalStates.trayOpen = !GlobalStates.trayOpen
                             }
                             Item {
                                 id: batteryButton
-                                visible: Config.options.bar.showBatteryButton
+                                visible: Config.options.bar.showBatteryButton && Battery.available
                                 Layout.alignment: Qt.AlignVCenter
                                 implicitWidth: Math.max(36, batteryRow.implicitWidth + Tacit.space.m)
                                 implicitHeight: 36
                                 readonly property bool showBatteryPercent: Config.options.bar.showBatteryPercentage && Battery.available
+                                activeFocusOnTab: true
+                                Accessible.role: Accessible.Button
+                                Accessible.name: Battery.available ? Translation.tr("Battery %1%").arg(Math.round(Battery.percentage * 100)) : Translation.tr("Battery")
+                                Keys.onReturnPressed: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
+                                Keys.onSpacePressed: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
 
                                 HoverHandler { id: batteryHover }
 
@@ -248,7 +237,7 @@ Scope {
                                     radius: height / 2
                                     color: GlobalStates.batteryOpen
                                         ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : batteryHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
+                                        : (batteryHover.hovered || batteryButton.activeFocus) ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
                                         : "transparent"
                                 }
 
@@ -259,14 +248,7 @@ Scope {
 
                                     K.Symbol {
                                         anchors.verticalCenter: parent.verticalCenter
-                                        text: {
-                                            if (Battery.isCharging) return "battery_charging_full"
-                                            if (Battery.isPluggedIn) return "battery_charging_full"
-                                            if (Battery.isLowAndNotCharging) return "battery_alert"
-                                            const pct = Math.round(Battery.percentage * 100)
-                                            if (pct >= 95) return "battery_full"
-                                            return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
-                                        }
+                                        text: Battery.iconName()
                                         size: 18
                                         color: root.rightInkMain
                                     }
@@ -287,117 +269,54 @@ Scope {
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
                                 }
+                                PopupToolTip {
+                                    anchorEdges: root.bottom ? Edges.Top : Edges.Bottom
+                                    extraVisibleCondition: batteryHover.hovered || batteryButton.activeFocus
+                                    text: Battery.available ? Translation.tr("Battery %1%").arg(Math.round(Battery.percentage * 100)) : Translation.tr("Battery")
+                                }
                             }
-                            Item {
+                            BarActionButton {
                                 id: networkButton
-                                visible: Config.options.bar.showNetworkButton
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                HoverHandler { id: networkHover }
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: GlobalStates.networkOpen
-                                        ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : networkHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
-                                        : "transparent"
-                                }
-                                K.Symbol {
-                                    anchors.centerIn: parent
-                                    text: "wifi"
-                                    size: 18
-                                    color: root.rightInkMain
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: GlobalStates.networkOpen = !GlobalStates.networkOpen
-                                }
+                                show: Config.options.bar.showNetworkButton
+                                ink: root.rightInkMain
+                                bottom: root.bottom
+                                symbol: "wifi"
+                                label: Translation.tr("Network")
+                                active: GlobalStates.networkOpen
+                                onActivated: GlobalStates.networkOpen = !GlobalStates.networkOpen
                             }
-                            Item {
+                            BarActionButton {
                                 id: volumeButton
-                                visible: Config.options.bar.showVolumeButton
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                HoverHandler { id: volumeHover }
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: GlobalStates.volumeOpen
-                                        ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : volumeHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
-                                        : "transparent"
-                                }
-                                K.Symbol {
-                                    anchors.centerIn: parent
-                                    text: "volume"
-                                    size: 18
-                                    color: root.rightInkMain
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: GlobalStates.volumeOpen = true
-                                }
+                                show: Config.options.bar.showVolumeButton
+                                ink: root.rightInkMain
+                                bottom: root.bottom
+                                symbol: "volume"
+                                label: Translation.tr("Volume")
+                                active: GlobalStates.volumeOpen
+                                onActivated: GlobalStates.volumeOpen = true
                             }
-                            Item {
+                            BarActionButton {
                                 id: brightnessButton
-                                visible: Config.options.bar.showBrightnessButton
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                HoverHandler { id: brightnessHover }
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: GlobalStates.brightnessOpen
-                                        ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : brightnessHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
-                                        : "transparent"
-                                }
-                                K.Symbol {
-                                    anchors.centerIn: parent
-                                    text: "brightness"
-                                    size: 18
-                                    color: root.rightInkMain
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: GlobalStates.brightnessOpen = !GlobalStates.brightnessOpen
-                                }
+                                show: Config.options.bar.showBrightnessButton
+                                ink: root.rightInkMain
+                                bottom: root.bottom
+                                symbol: "brightness"
+                                label: Translation.tr("Brightness")
+                                active: GlobalStates.brightnessOpen
+                                onActivated: GlobalStates.brightnessOpen = !GlobalStates.brightnessOpen
                             }
 
                             // The Control panel: the same surface SUPER + N reaches
                             // (quickshell:sidebarRightToggle -> GlobalStates.sidebarRightOpen).
-                            Item {
+                            BarActionButton {
                                 id: controlButton
-                                visible: Config.options.bar.showControlButton
-                                Layout.alignment: Qt.AlignVCenter
-                                implicitWidth: 36
-                                implicitHeight: 36
-                                HoverHandler { id: controlHover }
-                                Rectangle {
-                                    anchors.fill: parent
-                                    radius: height / 2
-                                    color: GlobalStates.sidebarRightOpen
-                                        ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : controlHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
-                                        : "transparent"
-                                }
-                                K.Symbol {
-                                    anchors.centerIn: parent
-                                    text: "tune"
-                                    size: 18
-                                    color: root.rightInkMain
-                                }
-                                MouseArea {
-                                    anchors.fill: parent
-                                    cursorShape: Qt.PointingHandCursor
-                                    onClicked: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
-                                }
+                                show: Config.options.bar.showControlButton
+                                ink: root.rightInkMain
+                                bottom: root.bottom
+                                symbol: "tune"
+                                label: Translation.tr("Control panel")
+                                active: GlobalStates.sidebarRightOpen
+                                onActivated: GlobalStates.sidebarRightOpen = !GlobalStates.sidebarRightOpen
                             }
 
                             // Notifications last.
@@ -407,13 +326,18 @@ Scope {
                                 Layout.alignment: Qt.AlignVCenter
                                 implicitWidth: 36
                                 implicitHeight: 36
+                                activeFocusOnTab: true
+                                Accessible.role: Accessible.Button
+                                Accessible.name: Notifications.unread > 0 ? Translation.tr("Notifications (%1 unread)").arg(Notifications.unread) : Translation.tr("Notifications")
+                                Keys.onReturnPressed: GlobalStates.notificationCenterOpen = !GlobalStates.notificationCenterOpen
+                                Keys.onSpacePressed: GlobalStates.notificationCenterOpen = !GlobalStates.notificationCenterOpen
                                 HoverHandler { id: notifHover }
                                 Rectangle {
                                     anchors.fill: parent
                                     radius: height / 2
                                     color: GlobalStates.notificationCenterOpen
                                         ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.action)
-                                        : notifHover.hovered ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
+                                        : (notifHover.hovered || notifButton.activeFocus) ? ColorUtils.applyAlpha(root.rightInkMain, Tacit.wash.hoverSmall)
                                         : "transparent"
                                 }
                                 K.Symbol {
@@ -464,6 +388,11 @@ Scope {
                                     anchors.fill: parent
                                     cursorShape: Qt.PointingHandCursor
                                     onClicked: GlobalStates.notificationCenterOpen = !GlobalStates.notificationCenterOpen
+                                }
+                                PopupToolTip {
+                                    anchorEdges: root.bottom ? Edges.Top : Edges.Bottom
+                                    extraVisibleCondition: notifHover.hovered || notifButton.activeFocus
+                                    text: Translation.tr("Notifications")
                                 }
                             }
 

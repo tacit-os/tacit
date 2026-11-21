@@ -79,22 +79,7 @@ Item {
     }
     implicitHeight: content.implicitHeight + (root.itemCount === 0 ? Kit.tokens.space.s + Kit.tokens.space.s : Kit.tokens.space.l + Kit.tokens.space.xl)
 
-    DockedRect {
-        anchors.fill: parent
-        visible: !Config.options.bar.show || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
-        edge: "top"
-        cornerRadius: Appearance.rounding.verylarge
-        fillet: 12
-        color: Appearance.colors.colBarSurface
-    }
-    Rectangle {
-        anchors.fill: parent
-        visible: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
-        radius: Appearance.rounding.verylarge
-        color: Appearance.colors.colBarSurface
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
+    BarDrawerBackground {}
 
     ColumnLayout {
         id: content

@@ -441,22 +441,11 @@ Item {
             id: panelContent
             anchors.fill: parent
 
-            DockedRect {
+            BarDrawerBackground {
                 id: dockedBg
-                anchors.fill: parent
-                visible: !root.barShown || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
                 edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
-                fillet: 12
-                color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
-            }
-            Rectangle {
-                anchors.fill: parent
-                visible: root.barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
-                radius: sidebarRightBackground.radius
-                color: Appearance.colors.colBarSurface
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+                backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
             }
 
         StyledFlickable {

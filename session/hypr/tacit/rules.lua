@@ -45,7 +45,7 @@ hl.layer_rule({ match = { namespace = "quickshell:desktopIcons" },      blur = t
 hl.layer_rule({ match = { namespace = "quickshell:overview" },          blur = true, ignore_alpha = 0.89, no_anim = true })
 -- The control panel wears the bar's material (colBarSurface) and hangs off it: the blur
 -- threshold follows the bar's, not the panel frost's, so the two read as one surface.
-hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" },      blur = true, ignore_alpha = 0.02, no_anim = true })
+hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" },      blur = true, ignore_alpha = 0.02, no_anim = true, xray = false })
 -- The notification centre hangs off the bar and wears the bar's material: same blur threshold.
 hl.layer_rule({ match = { namespace = "quickshell:notificationPopup" }, blur = true, ignore_alpha = 0.02 })
 hl.layer_rule({ match = { namespace = "quickshell:session" },           blur = true, ignore_alpha = 0.1 })

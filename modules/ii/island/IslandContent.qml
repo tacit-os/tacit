@@ -537,7 +537,10 @@ Item {
         // Explicit, not anchored: with the bottom anchored, the item's y is derived from its
         // height and the offset below the bar was silently dropped (the body stayed 0 px high).
         x: 0
-        y: root.flushWithBar ? root.barBand : 0
+        // When the notch is open flush with the bar, extend to y=0 so the surface is one
+        // continuous piece (avoids a double-blur seam at the bar boundary). At rest, start at
+        // barBand so bar widgets remain visible through the transparent top region.
+        y: (root.flushWithBar && root.open) ? 0 : (root.flushWithBar ? root.barBand : 0)
         width: parent.width
         height: Math.max(0, root.height - y)
         // Render the silhouette into its own antialiased layer so the compositor blends a smooth
@@ -557,9 +560,7 @@ Item {
         // The chip stays present; the grid takes the notch over entirely while it is out.
         opacity: 1
         // the sign-in's page window shows through here (the hole is in the body's own frame)
-        hole: root.flushWithBar
-            ? Qt.rect(root.holeRect.x, root.holeRect.y - root.barBand, root.holeRect.width, root.holeRect.height)
-            : root.holeRect
+        hole: Qt.rect(root.holeRect.x, root.holeRect.y - background.y, root.holeRect.width, root.holeRect.height)
         holeRadius: 15
         color: IslandController.bodyColor
         Behavior on color {

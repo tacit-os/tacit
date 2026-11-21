@@ -18,22 +18,7 @@ Item {
     implicitWidth: 340
     implicitHeight: wifi.implicitHeight + Kit.tokens.space.l * 2
 
-    DockedRect {
-        anchors.fill: parent
-        visible: !Config.options.bar.show || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
-        edge: "top"
-        cornerRadius: Appearance.rounding.verylarge
-        fillet: 12
-        color: Appearance.colors.colBarSurface
-    }
-    Rectangle {
-        anchors.fill: parent
-        visible: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
-        radius: Appearance.rounding.verylarge
-        color: Appearance.colors.colBarSurface
-        border.width: 1
-        border.color: Appearance.colors.colLayer0Border
-    }
+    BarDrawerBackground {}
 
     ColumnLayout {
         anchors {

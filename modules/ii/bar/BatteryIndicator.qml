@@ -15,15 +15,7 @@ MouseArea {
     readonly property real percentage: Battery.percentage
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
     readonly property bool isLowAndNotCharging: Battery.isLowAndNotCharging
-    readonly property string batteryIcon: {
-        if (isCharging) return "battery_charging_full"
-        if (isPluggedIn) return "battery_charging_full"
-        if (isLowAndNotCharging) return "battery_alert"
-        const pct = Math.round(percentage * 100)
-        if (pct >= 95) return "battery_full"
-        return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
-    }
-    readonly property string displayText: (root.vertical && root.percentage > 99) ? "" : batteryProgress.text
+    readonly property string batteryIcon: Battery.iconName()
 
     implicitWidth:  vertical ? Appearance.sizes.verticalBarWidth : batteryProgress.valueBarWidth + 8
     implicitHeight: vertical ? batteryProgress.valueBarWidth + 8 : Appearance.sizes.barHeight
@@ -62,7 +54,7 @@ MouseArea {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.topMargin: 2
                         font: batteryProgress.font
-                        text: batteryProgress.text
+                        text: `${Math.round(root.percentage * 100)}%`
                         visible: Config.options.bar.showBatteryPercentage
                     }
                 }
@@ -88,8 +80,8 @@ MouseArea {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: root.isCharging ? 2 : 4
                         font: batteryProgress.font
-                        text: Math.round(root.percentage * 100)
-                        visible: Config.options.bar.showBatteryPercentage && root.percentage < 1
+                        text: `${Math.round(root.percentage * 100)}%`
+                        visible: Config.options.bar.showBatteryPercentage
                     }
                 }
             }

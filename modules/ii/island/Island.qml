@@ -63,10 +63,9 @@ Scope {
                 readonly property bool overFullscreen: fullscreenWindow !== null && Config.options.island.showInFullscreenWhilePlaying
                     && IslandController.mediaPresent && MprisController.isPlaying
                     && !MprisController.playsIn(fullscreenWindow, MprisController.activePlayer)
-                // Top is buried under a fullscreen window, which puts the notch behind a game or
-                // film with no map/unmap flicker. The panel family creates the notch after the bar
-                // so it stacks above the strip on this same layer.
-                WlrLayershell.layer: WlrLayer.Top
+                // Keep notch above the bar strip. Overlay avoids stacking races when the bar
+                // is toggled on after startup (bar PanelLoader recreates on Top).
+                WlrLayershell.layer: WlrLayer.Overlay
                 color: "transparent"
 
                 // Window-aware means honest: the reserve is exactly the resting header (34px)

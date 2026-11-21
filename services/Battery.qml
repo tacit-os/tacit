@@ -36,6 +36,15 @@ Singleton {
     property bool isSuspendingAndNotCharging: allowAutomaticSuspend && isSuspending && !isPluggedIn
     property bool isFullAndCharging: isFull && isCharging
 
+    function iconName() {
+        if (isCharging) return "battery_charging_full"
+        if (isPluggedIn) return "battery_charging_full"
+        if (isLowAndNotCharging) return "battery_alert"
+        const pct = Math.round(percentage * 100)
+        if (pct >= 95) return "battery_full"
+        return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+    }
+
     // The times are the pack's own, not UPower's: UPower divides by the current at this instant, which the EC gives
     // without its direction and in steps, and the island swung between 3, 4 and 9 h to full, and showed a time to full
     // while a capped charger let the pack drain (2026-10-13). Here the rate is the pack's energy over the last minutes
