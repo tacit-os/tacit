@@ -391,6 +391,7 @@ switch() {
             is_video "$measured" && measured=$(jq -r '.background.thumbnailPath // ""' "$SHELL_CONFIG_FILE" 2>/dev/null)
         fi
         [[ -f "$measured" ]] && python3 "$SCRIPT_DIR/seethrough.py" "$measured" "$colors_json_path" > /dev/null
+        [[ -f "$measured" ]] && python3 "$SCRIPT_DIR/bar_luminance.py" "$measured" > /dev/null
     fi
     deactivate
 
