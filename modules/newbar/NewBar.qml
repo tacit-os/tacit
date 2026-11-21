@@ -113,7 +113,7 @@ Scope {
                             BarActionButton {
                                 id: circlePlaceholderButton
                                 ink: root.leftInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "ring"
                                 label: Translation.tr("App launcher")
                                 onActivated: GlobalStates.overviewOpen = true
@@ -211,7 +211,7 @@ Scope {
                                 id: trayButton
                                 show: Config.options.bar.showTrayButton
                                 ink: root.rightInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "expand_more"
                                 label: Translation.tr("System tray")
                                 active: GlobalStates.trayOpen
@@ -279,7 +279,7 @@ Scope {
                                 id: networkButton
                                 show: Config.options.bar.showNetworkButton
                                 ink: root.rightInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "wifi"
                                 label: Translation.tr("Network")
                                 active: GlobalStates.networkOpen
@@ -289,7 +289,7 @@ Scope {
                                 id: volumeButton
                                 show: Config.options.bar.showVolumeButton
                                 ink: root.rightInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "volume"
                                 label: Translation.tr("Volume")
                                 active: GlobalStates.volumeOpen
@@ -299,7 +299,7 @@ Scope {
                                 id: brightnessButton
                                 show: Config.options.bar.showBrightnessButton
                                 ink: root.rightInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "brightness"
                                 label: Translation.tr("Brightness")
                                 active: GlobalStates.brightnessOpen
@@ -312,7 +312,7 @@ Scope {
                                 id: controlButton
                                 show: Config.options.bar.showControlButton
                                 ink: root.rightInkMain
-                                bottom: root.bottom
+                                barBottom: Config.options.bar.bottom
                                 symbol: "tune"
                                 label: Translation.tr("Control panel")
                                 active: GlobalStates.sidebarRightOpen

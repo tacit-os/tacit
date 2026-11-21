@@ -1,11 +1,12 @@
 import QtQuick
 import QtQuick.Layouts
+import Quickshell
 import qs
 import qs.modules.common
 import qs.modules.common.widgets
 import qs.modules.common.functions
 import qs.services
-import "root:/modules/common/kde" as K
+import Tacit.Kit as K
 
 Item {
     id: root
@@ -17,7 +18,7 @@ Item {
     property color ink: Tacit.inkMain
     property real buttonWidth: 36
     property real buttonHeight: 36
-    property bool bottom: false
+    property bool barBottom: false
     signal activated()
 
     visible: show
@@ -56,7 +57,7 @@ Item {
     }
 
     PopupToolTip {
-        anchorEdges: root.bottom ? Edges.Top : Edges.Bottom
+        anchorEdges: root.barBottom ? Edges.Top : Edges.Bottom
         extraVisibleCondition: hover.hovered || root.activeFocus
         text: root.label
     }
