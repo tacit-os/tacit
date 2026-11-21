@@ -1,0 +1,8 @@
+bugs:
+  - bug_id: BUG-2026-11-22T031000
+    date: 2026-11-22
+    severity: medium
+    priority: high
+    scope: shell/bar/sidebar
+    summary: Control panel background fills screen after bar off/on toggle
+    file: specs/bugs/BUG-2026-11-22T031000-control-panel-fullscreen-after-bar-toggle.md

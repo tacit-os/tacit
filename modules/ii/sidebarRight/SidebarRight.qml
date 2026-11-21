@@ -102,18 +102,13 @@ Scope {
         }
         // What the panel may never exceed. Bar on: screen minus the bar band. Bar off: screen
         // minus the notch's reserve, so the panel and notch never fight for the same space.
-        readonly property real panelMaxHeight: {
-            const h = screen?.height ?? 1080
-            const limit = barShown
-                ? h - Appearance.sizes.baseBarHeight - cove - topGap
-                : h - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
-            return Math.max(200, Math.min(limit, h - 8))
-        }
+        readonly property real panelMaxHeight: barShown
+            ? (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove - topGap
+            : (screen?.height ?? 1080) - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
-        // mask keeps the empty part click-through. Clamp to the screen so a stale/large
-        // implicitHeight from content binding loops can never make the window exceed it.
-        implicitHeight: Math.min(panelMaxHeight + cove + topGap, (screen?.height ?? 1080) - 8)
+        // mask keeps the empty part click-through.
+        implicitHeight: panelMaxHeight + cove + topGap
         // The click area is the part of the panel still inside the window. It is its own item
         // because a slide is a transform on entranceWrapper, and the mask must never leave the
         // surface.
@@ -141,7 +136,6 @@ Scope {
             - (screen?.x ?? 0) : 0
 
         Item {
-            id: windowContent
             anchors.fill: parent
 
             MouseArea {
@@ -158,10 +152,8 @@ Scope {
                 anchors.right: parent.right
                 anchors.top: panelWindow.barShown ? parent.top : undefined
                 anchors.bottom: panelWindow.barShown ? undefined : parent.bottom
-                height: Math.max(0, Math.min(entranceWrapper.height, windowContent.height))
+                height: Math.max(0, Math.min(entranceWrapper.contentHeight * (1 - entranceWrapper.offsetScale), parent.height))
             }
-
-
 
             Item {
                 id: entranceWrapper
@@ -176,11 +168,7 @@ Scope {
                 // Bar shown: the panel drops out of the bar. Bar off: it rises from the bottom edge.
                 // A standard curve, no fade (blur would pop mid-way).
                 property real offsetScale: open ? 0 : 1
-                // Clamp to the panel's own max, not the window: windowContent fills the whole
-                // screen-sized layer surface, so using its height as the ceiling lets a stale
-                // content implicitHeight expand the wrapper to full screen (seen after a bar
-                // toggle). panelMaxHeight already excludes the bar band and cove.
-                height: Math.max(0, Math.min(contentHeight, panelWindow.panelMaxHeight))
+                height: contentHeight
                 transform: Translate {
                     y: panelWindow.barShown
                         ? -entranceWrapper.contentHeight * entranceWrapper.offsetScale
@@ -212,10 +200,9 @@ Scope {
                         topMargin: panelWindow.barShown ? panelWindow.topGap : 0
                         leftMargin: panelWindow.cove
                     }
-                    // The content root pins its own height to its bounded implicitHeight;
-                    // don't override it here (a stale implicitHeight from a bar toggle once
-                    // made the floating background fill the whole window).
-                    height: item?.height ?? 0
+                    // No Behavior here: the content animates its own height and the panel follows
+                    // frame by frame.
+                    height: item?.implicitHeight ?? 0
 
                     focus: GlobalStates.sidebarRightOpen
                     Keys.onPressed: event => {
