@@ -63,6 +63,7 @@ MouseArea {
                         Layout.topMargin: 2
                         font: batteryProgress.font
                         text: batteryProgress.text
+                        visible: Config.options.bar.showBatteryPercentage
                     }
                 }
             }
@@ -88,7 +89,7 @@ MouseArea {
                         Layout.topMargin: root.isCharging ? 2 : 4
                         font: batteryProgress.font
                         text: Math.round(root.percentage * 100)
-                        visible: root.percentage < 1
+                        visible: Config.options.bar.showBatteryPercentage && root.percentage < 1
                     }
                 }
             }

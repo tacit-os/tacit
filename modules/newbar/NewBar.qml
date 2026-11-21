@@ -208,21 +208,60 @@ Scope {
                                 checked: GlobalStates.trayOpen
                                 onActivated: GlobalStates.trayOpen = !GlobalStates.trayOpen
                             }
-                            K.IconButton {
+                            Item {
                                 id: batteryButton
                                 visible: Config.options.bar.showBatteryButton
-                                symbol: {
-                                    if (Battery.isCharging) return "battery_charging_full"
-                                    if (Battery.isPluggedIn) return "battery_charging_full"
-                                    if (Battery.isLowAndNotCharging) return "battery_alert"
-                                    const pct = Math.round(Battery.percentage * 100)
-                                    if (pct >= 95) return "battery_full"
-                                    return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+                                Layout.alignment: Qt.AlignVCenter
+                                implicitWidth: Math.max(36, batteryRow.implicitWidth + Tacit.space.m)
+                                implicitHeight: 36
+                                readonly property bool showBatteryPercent: Config.options.bar.showBatteryPercentage && Battery.available
+
+                                HoverHandler { id: batteryHover }
+
+                                Rectangle {
+                                    anchors.fill: parent
+                                    radius: height / 2
+                                    color: GlobalStates.batteryOpen
+                                        ? ColorUtils.applyAlpha(Tacit.inkMain, Tacit.wash.action)
+                                        : batteryHover.hovered ? ColorUtils.applyAlpha(Tacit.inkMain, Tacit.wash.hoverSmall)
+                                        : "transparent"
                                 }
-                                label: Battery.available ? `Battery ${Math.round(Battery.percentage * 100)}%` : "Battery"
-                                size: 18
-                                checked: GlobalStates.batteryOpen
-                                onActivated: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
+
+                                Row {
+                                    id: batteryRow
+                                    spacing: 4
+                                    anchors.centerIn: parent
+
+                                    K.Symbol {
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: {
+                                            if (Battery.isCharging) return "battery_charging_full"
+                                            if (Battery.isPluggedIn) return "battery_charging_full"
+                                            if (Battery.isLowAndNotCharging) return "battery_alert"
+                                            const pct = Math.round(Battery.percentage * 100)
+                                            if (pct >= 95) return "battery_full"
+                                            return `battery_${Math.min(6, Math.floor(pct / 15))}_bar`
+                                        }
+                                        size: 18
+                                        color: Tacit.inkMain
+                                    }
+
+                                    BarText {
+                                        visible: batteryButton.showBatteryPercent
+                                        anchors.verticalCenter: parent.verticalCenter
+                                        text: `${Math.round(Battery.percentage * 100)}%`
+                                        color: Tacit.inkSec
+                                        font.family: Tacit.font.main
+                                        font.pixelSize: Tacit.size.meta
+                                        font.weight: Tacit.weight.regular
+                                    }
+                                }
+
+                                MouseArea {
+                                    anchors.fill: parent
+                                    cursorShape: Qt.PointingHandCursor
+                                    onClicked: GlobalStates.batteryOpen = !GlobalStates.batteryOpen
+                                }
                             }
                             K.IconButton {
                                 id: networkButton

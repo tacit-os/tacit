@@ -118,6 +118,12 @@ ContentPage {
                 onSwitched: value => { Config.options.bar.showBatteryButton = value }
             }
             ConfigSwitch {
+                buttonIcon: "percent"
+                text: Translation.tr("Show battery percentage in bar")
+                checked: Config.options.bar.showBatteryPercentage
+                onSwitched: value => { Config.options.bar.showBatteryPercentage = value }
+            }
+            ConfigSwitch {
                 buttonIcon: "wifi"
                 text: Translation.tr("Network button and drawer")
                 checked: Config.options.bar.showNetworkButton

@@ -1857,6 +1857,13 @@ ApplicationWindow {
                     onToggled: value => Config.options.bar.showBatteryButton = value
                 }
                 SwitchRow {
+                    glyph: "percent"
+                    label: "Battery percentage"
+                    description: "Show the percentage beside the battery icon in the bar"
+                    checked: Config.options.bar.showBatteryPercentage
+                    onToggled: value => Config.options.bar.showBatteryPercentage = value
+                }
+                SwitchRow {
                     glyph: "wifi"
                     label: "Network"
                     description: "Wi-Fi networks and connections"

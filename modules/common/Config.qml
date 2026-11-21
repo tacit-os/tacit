@@ -615,6 +615,7 @@ Singleton {
                 property int height: 36
                 property bool showTrayButton: true
                 property bool showBatteryButton: true
+                property bool showBatteryPercentage: false
                 property bool showNetworkButton: true
                 property bool showVolumeButton: true
                 property bool showBrightnessButton: true
