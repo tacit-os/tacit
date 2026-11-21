@@ -370,7 +370,9 @@ Item {
     readonly property color colPillOnHover: Tacit.raisedHot
     readonly property color colPillOff: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.05)
     readonly property color colPillOffHover: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.07)
-    property real maxHeight: 700
+    // Live bound (not passed through Loader.sourceComponent, whose property bindings
+    // are severed after first instantiation): the panel may never exceed the screen.
+    readonly property real maxHeight: (root.QsWindow.window?.screen?.height ?? 1080) - 16
     // The toggles block is the panel's measure: seven height.action cells — six
     // secondaries in the row with the dots as the seventh — close it; the primary
     // square's two pills split the same width. The sliders, row and drawer's grid all

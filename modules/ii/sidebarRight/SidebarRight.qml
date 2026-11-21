@@ -195,11 +195,13 @@ Scope {
                     anchors {
                         left: parent.left
                         right: parent.right
-                        top: panelWindow.barShown ? parent.top : undefined
-                        bottom: panelWindow.barShown ? undefined : parent.bottom
-                        topMargin: panelWindow.barShown ? panelWindow.topGap : 0
                         leftMargin: panelWindow.cove
                     }
+                    // Position explicitly (never anchor to bottom/top): anchoring to the
+                    // screen-sized wrapper stretched the loaded item to window height on a
+                    // bar toggle, and the stretch persisted. y keeps it at the bar underside
+                    // when the bar is on, or at the bottom edge when off.
+                    y: panelWindow.barShown ? panelWindow.topGap : (panelWindow.height - (item?.implicitHeight ?? 0))
                     // No Behavior here: the content animates its own height and the panel follows
                     // frame by frame.
                     height: item?.implicitHeight ?? 0
@@ -212,8 +214,21 @@ Scope {
                     }
 
                     sourceComponent: SidebarRightContent {
-                        maxHeight: panelWindow.panelMaxHeight
-                        barShown: panelWindow.barShown
+                        // barShown follows Config directly inside the component.
+                    }
+                }
+                // A Loader severs bindings on an inline sourceComponent after the first
+                // instantiation: after a bar toggle the content kept the old barShown and a
+                // stale window-height geometry. Recreate the item when bar visibility changes
+                // so all bindings evaluate fresh.
+                Connections {
+                    target: Config.options.bar
+                    function onShowChanged() {
+                        if (!sidebarContentLoader.active)
+                            return
+                        const c = sidebarContentLoader.sourceComponent
+                        sidebarContentLoader.sourceComponent = undefined
+                        Qt.callLater(() => sidebarContentLoader.sourceComponent = c)
                     }
                 }
             }
