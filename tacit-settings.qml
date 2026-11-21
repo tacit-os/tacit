@@ -1796,11 +1796,11 @@ ApplicationWindow {
                     glyph: "notch"
                     label: "Notch colour"
                     description: ({
-                        "solid": "Pure black, a cut-out of its own",
+                        "solid": "The material's darkest surface, an opaque cut-out",
                         "bar": "The bar's colour, see-through and blur"
                     })[Config.options.island.bodyStyle] ?? ""
                     options: [
-                        { value: "solid", label: "Black" },
+                        { value: "solid", label: "Dark" },
                         { value: "bar", label: "Follow the bar" }
                     ]
                     current: Config.options.island.bodyStyle

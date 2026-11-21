@@ -50,7 +50,7 @@ ContentPage {
                 currentValue: Config.options.island.bodyStyle
                 onSelected: newValue => { Config.options.island.bodyStyle = newValue; }
                 options: [
-                    { displayName: Translation.tr("Black"), icon: "contrast", value: "solid" },
+                    { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" },
                     { displayName: Translation.tr("Follow the bar"), icon: "bottom_app_bar", value: "bar" }
                 ]
             }
