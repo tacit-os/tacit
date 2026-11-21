@@ -194,6 +194,14 @@ Item {
 
     readonly property var headerGeometry: IslandController.geometryFor(root.headerState)
     readonly property var openGeometry: IslandController.geometryFor("open")
+    // The notch wears the bar's own material (Settings > Bar: the body is the bar's colour). The
+    // bar already paints that frost under the header, and the island is its own window on top, so
+    // painting it again there is not the same surface: two translucent frosts stack darker than
+    // the strip, their blur runs twice, and every antialiased edge let the picture through as a
+    // bright dotted rim. So the body starts at the bar's underside and the 34 px header stays
+    // clear - the header is literally the bar's own pixels, at the bar's own blur.
+    readonly property bool flushWithBar: IslandController.barBody
+    readonly property real barBand: Appearance.sizes.baseBarHeight
     property real radius: root.open ? root.openGeometry.r : root.headerGeometry.r
     // The cove stays 6 open and closed (theirs grows to 19; see IslandController.geometryFor).
     // The browser's address sheet is the exception: r 24 with 19 px coves, as its render has it.
@@ -501,6 +509,8 @@ Item {
     }
 
     // The browser's address floats over the page (its render): a soft shadow under the sheet.
+    // Not while flush with the bar: the sheet is the bar's surface and the shadow's top would
+    // darken the strip right above the join, which is the one place that must not show a seam.
     RectangularShadow {
         x: 12
         y: 30
@@ -511,7 +521,7 @@ Item {
         offset: Qt.vector2d(0, 14)
         color: ColorUtils.transparentize(Appearance.m3colors.m3shadow, 0.64)
         visible: opacity > 0
-        opacity: root.open && root.view === "address" ? 1 : 0
+        opacity: root.open && root.view === "address" && !root.flushWithBar ? 1 : 0
         Behavior on opacity {
             Anim {
                 type: Anim.DefaultEffects
@@ -522,9 +532,17 @@ Item {
     // Docked into the top edge as ONE silhouette (body + coves, one fill) -- see DockedRect.qml.
     // At rest it is the 34 px header: a chip floating over the strip at the screen's top edge. No
     // coves cut into the bar. Open, the same body grows down into the sheet.
+    // When the body is the bar's colour (root.flushWithBar) the shape starts at the bar's
+    // underside instead: at rest there is no body at all, and open it hangs from the strip with
+    // the strip's own frost and blur, so the two read as one surface with no seam at the join.
     DockedRect {
         id: background
-        anchors.fill: parent
+        // Explicit, not anchored: with the bottom anchored, the item's y is derived from its
+        // height and the offset below the bar was silently dropped (the body stayed 0 px high).
+        x: 0
+        y: root.flushWithBar ? root.barBand : 0
+        width: parent.width
+        height: Math.max(0, root.height - y)
         // Render the silhouette into its own antialiased layer so the compositor blends a smooth
         // edge instead of the stair-step of dark dashes the Shape's CurveRenderer left here.
         layer.enabled: true
@@ -540,8 +558,10 @@ Item {
         }
         // The chip stays present; the grid takes the notch over entirely while it is out.
         opacity: 1
-        // the sign-in's page window shows through here
-        hole: root.holeRect
+        // the sign-in's page window shows through here (the hole is in the body's own frame)
+        hole: root.flushWithBar
+            ? Qt.rect(root.holeRect.x, root.holeRect.y - root.barBand, root.holeRect.width, root.holeRect.height)
+            : root.holeRect
         holeRadius: 15
         color: IslandController.bodyColor
         Behavior on color {
