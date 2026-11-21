@@ -217,20 +217,6 @@ Scope {
                         // barShown follows Config directly inside the component.
                     }
                 }
-                // A Loader severs bindings on an inline sourceComponent after the first
-                // instantiation: after a bar toggle the content kept the old barShown and a
-                // stale window-height geometry. Recreate the item when bar visibility changes
-                // so all bindings evaluate fresh.
-                Connections {
-                    target: Config.options.bar
-                    function onShowChanged() {
-                        if (!sidebarContentLoader.active)
-                            return
-                        const c = sidebarContentLoader.sourceComponent
-                        sidebarContentLoader.sourceComponent = undefined
-                        Qt.callLater(() => sidebarContentLoader.sourceComponent = c)
-                    }
-                }
             }
         }
 

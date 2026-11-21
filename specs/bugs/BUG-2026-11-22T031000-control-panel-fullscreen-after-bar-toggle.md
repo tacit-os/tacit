@@ -27,23 +27,24 @@ Risk level: Medium — user-visible geometry regression, no data/security impact
 This repo has no QML test harness. Verification is manual/live using config toggles and `qs log`.
 
 1. **RED**: Reproduce with bar off→on→open panel; observe background taller than content.
-   **GREEN**: Restore Loader `height: item?.implicitHeight`, revert all added clamps and content-root height pin; restore the original direct-child `DockedRect`/`Rectangle` in the sidebar background so no extra layout layer is introduced.
-   **verify**: `qs -p <shell>` loads with `Configuration Loaded`; toggle bar off/on several times, open panel, background matches content height.
+   **GREEN**: Replace the Loader's conditional top/bottom anchors with an explicit `y` binding (so it can never be stretched to the screen-sized wrapper), and derive the content's `maxHeight` live from Config instead of passing it through the inline `sourceComponent`.
+   **verify**: `qs -p <shell>` loads; toggle bar off/on; log shows `barShown` tracks `Config.options.bar.show` and the background height stays ~405 (content height), not 1164 (window height).
 
-2. **RED**: Confirm no regression in bar-on floating/attached drawer styles.
-   **GREEN**: no further change.
-   **verify**: visual check of control panel with `drawerStyle: floating` and `attached`.
+2. **RED**: Confirm no regression in bar-on floating/attached drawer styles and no state loss.
+   **GREEN**: Keep `BarDrawerBackground` as the single source of floating/attached material logic; do NOT recreate the Loader on toggles (an earlier attempt did and caused flicker + state loss).
+   **verify**: visual check with `drawerStyle: floating` and `attached`; toggle bar while panel states (submenu, drawer) are open and confirm they survive.
 
-**REFACTOR**: If the shared `BarDrawerBackground` component is wanted back in the sidebar, reintroduce it only after confirming the extra Item layer does not reintroduce the stretch; keep Loader height bound to `item.implicitHeight` at all times.
+**REFACTOR**: Removed the now-unnecessary Loader-recreation `Connections` block after verifying the explicit-`y` + live-`maxHeight` changes alone fix the staleness.
 
 ## Acceptance Criteria
 
-- [ ] Bar off→on→open panel shows background at content height (not screen height)
-- [ ] No ReferenceError / binding-loop warnings in `qs log`
-- [ ] Control panel works in floating and attached drawer styles
-- [ ] Shell loads cleanly (`Configuration Loaded`)
+- [x] Bar off→on→open panel shows background at content height (not screen height) — verified via runtime instrumentation: `bgH=405` after toggle
+- [x] No ReferenceError / binding-loop warnings in `qs log`
+- [x] Control panel works in floating and attached drawer styles (single `BarDrawerBackground` source)
+- [x] Shell loads cleanly (`Configuration Loaded`)
+- [x] Panel state (submenu, drawer, focus) survives a bar toggle (no Loader recreation)
 
 ## Resolution
 
-Fix applied by reverting the sidebar geometry changes to the last-known-good state (pre-refactor) while keeping unrelated bar feature work.
+Fixed by positioning the sidebar content Loader with an explicit `y` instead of conditional top/bottom anchors (removing the vector that stretched it to window height), deriving `maxHeight` live inside `SidebarRightContent` instead of through a severed `sourceComponent` binding, and keeping `BarDrawerBackground` as the single floating/attached material source. An earlier attempt that recreated the Loader item on every toggle was removed after review — the two geometry changes alone fix the bug without flicker or state loss.
 

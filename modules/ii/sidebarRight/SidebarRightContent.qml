@@ -371,8 +371,11 @@ Item {
     readonly property color colPillOff: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.05)
     readonly property color colPillOffHover: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.07)
     // Live bound (not passed through Loader.sourceComponent, whose property bindings
-    // are severed after first instantiation): the panel may never exceed the screen.
-    readonly property real maxHeight: (root.QsWindow.window?.screen?.height ?? 1080) - 16
+    // are severed after first instantiation). The panel window itself clamps to the
+    // screen, so an unknown screen simply leaves this cap unset.
+    readonly property real maxHeight: root.QsWindow.window?.screen
+        ? root.QsWindow.window.screen.height - 16
+        : Number.MAX_SAFE_INTEGER
     // The toggles block is the panel's measure: seven height.action cells — six
     // secondaries in the row with the dots as the seventh — close it; the primary
     // square's two pills split the same width. The sliders, row and drawer's grid all
@@ -443,22 +446,11 @@ Item {
             id: panelContent
             anchors.fill: parent
 
-            DockedRect {
+            BarDrawerBackground {
                 id: dockedBg
-                anchors.fill: parent
-                visible: !root.barShown || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
                 edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
-                fillet: 12
-                color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
-            }
-            Rectangle {
-                anchors.fill: parent
-                visible: root.barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
-                radius: sidebarRightBackground.radius
-                color: Appearance.colors.colBarSurface
-                border.width: 1
-                border.color: Appearance.colors.colLayer0Border
+                backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
             }
 
         StyledFlickable {
