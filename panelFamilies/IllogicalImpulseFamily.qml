@@ -70,6 +70,8 @@ Scope {
         }
     }
     Component.onCompleted: family.holdTacit()
+    property bool barBackgroundWatched: Config.options.bar.showBackground
+    onBarBackgroundWatchedChanged: family.holdTacit()
     Connections {
         target: Config
         function onReadyChanged() { family.holdTacit(); }
@@ -111,17 +113,7 @@ Scope {
             GlobalStates.brightnessOpen = false;
             GlobalStates.trayOpen = false;
         }
-        function onShowBackgroundChanged() {
-            if (Config.options.bar.showBackground) {
-                if (Config.options.island.bodyStyle !== "bar")
-                    Config.options.island.bodyStyle = "bar";
-            } else {
-                if (Config.options.island.bodyStyle !== "solid")
-                    Config.options.island.bodyStyle = "solid";
-                if (Config.options.bar.drawerStyle === "attached")
-                    Config.options.bar.drawerStyle = "floating";
-            }
-        }
+        function onShowBackgroundChanged() { family.holdTacit(); }
     }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }

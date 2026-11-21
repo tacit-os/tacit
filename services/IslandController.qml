@@ -476,7 +476,7 @@ Singleton {
     // every shell surface), or the bar's own ground so the chip reads as a piece of the strip.
     // "Follow the bar" only applies while the top bar is shown; without it the notch stands alone.
     readonly property bool barShown: Config.options.bar.show
-    readonly property bool barBody: barShown && Config.options.island.bodyStyle === "bar"
+    readonly property bool barBody: barShown && Config.options.bar.showBackground
     readonly property color bodyColor: root.barBody ? Appearance.colors.colBarSurface
         : Appearance.colors.colDockSurface
     readonly property color contentColor: Tacit.inkMain

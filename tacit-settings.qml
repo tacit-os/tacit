@@ -1805,7 +1805,11 @@ ApplicationWindow {
                     label: "Show background"
                     description: "Show the bar strip and bar drawer backgrounds"
                     checked: Config.options.bar.showBackground
-                    onToggled: value => Config.options.bar.showBackground = value
+                    onToggled: value => {
+                        Config.options.bar.showBackground = value
+                        Config.options.island.bodyStyle = value ? "bar" : "solid"
+                        if (!value) Config.options.bar.drawerStyle = "floating"
+                    }
                 }
                 ChoiceRow {
                     visible: barShown

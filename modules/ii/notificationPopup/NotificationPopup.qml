@@ -215,13 +215,13 @@ Scope {
                 anchors.right: root.isRight ? parent.right : undefined
                 anchors.left: root.isLeft ? parent.left : undefined
                 anchors.horizontalCenter: root.isCenter ? parent.horizontalCenter : undefined
-                anchors.topMargin: root.barShown && root.isTop && Config.options.bar.drawerStyle !== "attached" ? 8 : 0
+                anchors.topMargin: root.barShown && root.isTop && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached") ? 8 : 0
                 anchors.rightMargin: sideMargin
                 anchors.leftMargin: sideMargin
 
                 DockedRect {
                     anchors.fill: parent
-                    visible: !root.barShown || Config.options.bar.drawerStyle === "attached"
+                    visible: !root.barShown || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
                     edge: dock.dockEdge
                     cornerRadius: Appearance.rounding.verylarge
                     fillet: 12
@@ -229,7 +229,7 @@ Scope {
                 }
                 Rectangle {
                     anchors.fill: parent
-                    visible: root.barShown && Config.options.bar.drawerStyle !== "attached"
+                    visible: root.barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
                     radius: Appearance.rounding.verylarge
                     color: Appearance.colors.colBarSurface
                     border.width: 1

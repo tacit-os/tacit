@@ -55,7 +55,11 @@ ContentPage {
                 buttonIcon: "wallpaper"
                 text: Translation.tr("Show bar background")
                 checked: Config.options.bar.showBackground
-                onSwitched: value => { Config.options.bar.showBackground = value }
+                onSwitched: value => {
+                    Config.options.bar.showBackground = value
+                    Config.options.island.bodyStyle = value ? "bar" : "solid"
+                    if (!value) Config.options.bar.drawerStyle = "floating"
+                }
             }
             ConfigSelectionArray {
                 Layout.fillWidth: true

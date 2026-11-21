@@ -444,7 +444,7 @@ Item {
             DockedRect {
                 id: dockedBg
                 anchors.fill: parent
-                visible: !root.barShown || Config.options.bar.drawerStyle === "attached"
+                visible: !root.barShown || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
                 edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
                 fillet: 12
@@ -452,7 +452,7 @@ Item {
             }
             Rectangle {
                 anchors.fill: parent
-                visible: root.barShown && Config.options.bar.drawerStyle !== "attached"
+                visible: root.barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
                 radius: sidebarRightBackground.radius
                 color: Appearance.colors.colBarSurface
                 border.width: 1

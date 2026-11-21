@@ -86,7 +86,7 @@ Scope {
         }
 
         exclusiveZone: 0
-        readonly property bool floating: Config.options.bar.show && Config.options.bar.drawerStyle !== "attached"
+        readonly property bool floating: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
         // The cove and the window's measure. The body is 340 wide; the extra cove is where the
         // silhouette flares into the strip, like the control panel's own cove.
         readonly property int cove: floating ? 0 : 12
@@ -220,7 +220,7 @@ Scope {
 
                             DockedRect {
                                 anchors.fill: parent
-                                visible: !Config.options.bar.show || Config.options.bar.drawerStyle === "attached"
+                                visible: !Config.options.bar.show || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
                                 edge: "top"
                                 cornerRadius: Appearance.rounding.verylarge
                                 fillet: 12
@@ -228,7 +228,7 @@ Scope {
                             }
                             Rectangle {
                                 anchors.fill: parent
-                                visible: Config.options.bar.show && Config.options.bar.drawerStyle !== "attached"
+                                visible: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
                                 radius: Appearance.rounding.verylarge
                                 color: Appearance.colors.colBarSurface
                                 border.width: 1

@@ -104,7 +104,7 @@ Scope {
         }
 
         exclusiveZone: 0
-        readonly property bool floating: Config.options.bar.show && Config.options.bar.drawerStyle !== "attached"
+        readonly property bool floating: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
         readonly property int cove: floating ? 0 : 12
         readonly property int topGap: floating ? 8 : 0
         // Follow the body's own width when it declares one, so a drawer can hug its content.

@@ -20,7 +20,7 @@ Item {
 
     DockedRect {
         anchors.fill: parent
-        visible: !Config.options.bar.show || Config.options.bar.drawerStyle === "attached"
+        visible: !Config.options.bar.show || (Config.options.bar.showBackground && Config.options.bar.drawerStyle === "attached")
         edge: "top"
         cornerRadius: Appearance.rounding.verylarge
         fillet: 12
@@ -28,7 +28,7 @@ Item {
     }
     Rectangle {
         anchors.fill: parent
-        visible: Config.options.bar.show && Config.options.bar.drawerStyle !== "attached"
+        visible: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
         radius: Appearance.rounding.verylarge
         color: Appearance.colors.colBarSurface
         border.width: 1

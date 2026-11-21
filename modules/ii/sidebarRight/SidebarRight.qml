@@ -89,7 +89,7 @@ Scope {
         // Bar shown: hangs from the bar's underside, centred on the control button, and drops
         // down out of the strip. Bar off: returns to the pre-bar bottom-right corner and rises up.
         readonly property bool barShown: Config.options.bar.show
-        readonly property bool floating: barShown && Config.options.bar.drawerStyle !== "attached"
+        readonly property bool floating: barShown && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
         readonly property int cove: floating ? 0 : 12
         readonly property int topGap: floating ? 8 : 0
         implicitWidth: sidebarWidth + cove
