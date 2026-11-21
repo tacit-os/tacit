@@ -102,9 +102,13 @@ Scope {
         }
         // What the panel may never exceed. Bar on: screen minus the bar band. Bar off: screen
         // minus the notch's reserve, so the panel and notch never fight for the same space.
-        readonly property real panelMaxHeight: barShown
-            ? (screen?.height ?? 1080) - Appearance.sizes.baseBarHeight - cove - topGap
-            : (screen?.height ?? 1080) - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
+        readonly property real panelMaxHeight: {
+            const h = screen?.height ?? 1080
+            const limit = barShown
+                ? h - Appearance.sizes.baseBarHeight - cove - topGap
+                : h - (Config.options.island.reservedHeight + Config.options.island.topMargin) - cove
+            return Math.max(200, Math.min(limit, h - 8))
+        }
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
         // mask keeps the empty part click-through.
