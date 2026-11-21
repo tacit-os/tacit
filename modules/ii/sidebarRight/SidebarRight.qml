@@ -158,7 +158,7 @@ Scope {
                 anchors.right: parent.right
                 anchors.top: panelWindow.barShown ? parent.top : undefined
                 anchors.bottom: panelWindow.barShown ? undefined : parent.bottom
-                height: Math.max(0, Math.min(entranceWrapper.contentHeight * (1 - entranceWrapper.offsetScale), windowContent.height))
+                height: Math.max(0, Math.min(entranceWrapper.height, windowContent.height))
             }
 
 
@@ -176,9 +176,11 @@ Scope {
                 // Bar shown: the panel drops out of the bar. Bar off: it rises from the bottom edge.
                 // A standard curve, no fade (blur would pop mid-way).
                 property real offsetScale: open ? 0 : 1
-                // Clamp to the window: a stale content implicitHeight must never make the
-                // wrapper (and its content) grow past the screen-sized layer surface.
-                height: Math.max(0, Math.min(contentHeight, windowContent.height))
+                // Clamp to the panel's own max, not the window: windowContent fills the whole
+                // screen-sized layer surface, so using its height as the ceiling lets a stale
+                // content implicitHeight expand the wrapper to full screen (seen after a bar
+                // toggle). panelMaxHeight already excludes the bar band and cove.
+                height: Math.max(0, Math.min(contentHeight, panelWindow.panelMaxHeight))
                 transform: Translate {
                     y: panelWindow.barShown
                         ? -entranceWrapper.contentHeight * entranceWrapper.offsetScale
