@@ -63,17 +63,18 @@ Scope {
                 Rectangle {
                     id: strip
                     anchors.fill: parent
-                    color: Appearance.colors.colBarFrost
+                    color: Config.options.bar.showBackground ? Appearance.colors.colBarFrost : "transparent"
                 }
                 Rectangle {
                     anchors.fill: parent
+                    visible: Config.options.bar.showBackground
                     color: ColorUtils.applyAlpha(Tacit.inkMain, Tacit.wash.action)
                 }
                 // Clear's blur arrives at full strength and so do the picture's colours. The veil
                 // takes the colour out of them and leaves the picture in place (Clear only).
                 Rectangle {
                     anchors.fill: parent
-                    visible: Appearance.colors.colBarVeil.a > 0
+                    visible: Config.options.bar.showBackground && Appearance.colors.colBarVeil.a > 0
                     color: Appearance.colors.colBarVeil
                 }
 

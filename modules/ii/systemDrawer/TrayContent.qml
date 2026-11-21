@@ -84,7 +84,7 @@ Item {
         edge: "top"
         cornerRadius: Appearance.rounding.verylarge
         fillet: 12
-        color: Appearance.colors.colBarSurface
+        color: Config.options.bar.showBackground ? Appearance.colors.colBarSurface : "transparent"
     }
 
     ColumnLayout {

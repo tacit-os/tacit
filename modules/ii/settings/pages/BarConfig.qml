@@ -51,6 +51,16 @@ ContentPage {
                 checked: Config.options.bar.show
                 onSwitched: value => { Config.options.bar.show = value }
             }
+            ConfigSwitch {
+                buttonIcon: "wallpaper"
+                text: Translation.tr("Show bar background")
+                checked: Config.options.bar.showBackground
+                onSwitched: value => {
+                    Config.options.bar.showBackground = value
+                    if (!value && Config.options.island.bodyStyle === "bar")
+                        Config.options.island.bodyStyle = "solid"
+                }
+            }
         }
     }
 
@@ -67,7 +77,7 @@ ContentPage {
                 text: Translation.tr("Notch colour")
                 currentValue: Config.options.island.bodyStyle
                 onSelected: newValue => { Config.options.island.bodyStyle = newValue; }
-                options: page.barShown ? [
+                options: (page.barShown && Config.options.bar.showBackground) ? [
                     { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" },
                     { displayName: Translation.tr("Follow the bar"), icon: "bottom_app_bar", value: "bar" }
                 ] : [

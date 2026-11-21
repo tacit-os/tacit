@@ -59,6 +59,8 @@ Scope {
             o.overview.style = "default";
         if (o.lock.useHyprlock)
             o.lock.useHyprlock = false;
+        if (!o.bar.showBackground && o.island.bodyStyle === "bar")
+            o.island.bodyStyle = "solid";
     }
     Component.onCompleted: family.holdTacit()
     Connections {
@@ -101,6 +103,10 @@ Scope {
             GlobalStates.batteryOpen = false;
             GlobalStates.brightnessOpen = false;
             GlobalStates.trayOpen = false;
+        }
+        function onShowBackgroundChanged() {
+            if (!Config.options.bar.showBackground && Config.options.island.bodyStyle === "bar")
+                Config.options.island.bodyStyle = "solid";
         }
     }
     PanelLoader { component: Background {} }

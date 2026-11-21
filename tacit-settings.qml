@@ -1799,6 +1799,18 @@ ApplicationWindow {
                     checked: Config.options.bar.show
                     onToggled: value => Config.options.bar.show = value
                 }
+                SwitchRow {
+                    visible: barShown
+                    glyph: "wallpaper"
+                    label: "Show background"
+                    description: "Show the bar strip and bar drawer backgrounds"
+                    checked: Config.options.bar.showBackground
+                    onToggled: value => {
+                        Config.options.bar.showBackground = value
+                        if (!value && Config.options.island.bodyStyle === "bar")
+                            Config.options.island.bodyStyle = "solid"
+                    }
+                }
             }
 
             Group {
@@ -1807,11 +1819,11 @@ ApplicationWindow {
                 ChoiceRow {
                     glyph: "notch"
                     label: "Notch colour"
-                    description: barShown ? (({
+                    description: (barShown && Config.options.bar.showBackground) ? (({
                         "solid": "The dock's colour and see-through",
                         "bar": "The bar's colour, see-through and blur"
                     })[Config.options.island.bodyStyle] ?? "") : "The dock's colour and see-through"
-                    options: barShown ? [
+                    options: (barShown && Config.options.bar.showBackground) ? [
                         { value: "solid", label: "Dark" },
                         { value: "bar", label: "Follow the bar" }
                     ] : [
