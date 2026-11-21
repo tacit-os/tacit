@@ -55,34 +55,7 @@ ContentPage {
                 buttonIcon: "wallpaper"
                 text: Translation.tr("Show bar background")
                 checked: Config.options.bar.showBackground
-                onSwitched: value => {
-                    Config.options.bar.showBackground = value
-                    if (!value && Config.options.island.bodyStyle === "bar")
-                        Config.options.island.bodyStyle = "solid"
-                }
-            }
-        }
-    }
-
-    ContentSection {
-        icon: "notch"
-        title: Translation.tr("Notch")
-        shape: MaterialShape.Shape.Cookie4Sided
-        Layout.fillWidth: true
-
-        GroupedList {
-            ConfigSelectionArray {
-                Layout.fillWidth: true
-                icon: "notch"
-                text: Translation.tr("Notch colour")
-                currentValue: Config.options.island.bodyStyle
-                onSelected: newValue => { Config.options.island.bodyStyle = newValue; }
-                options: (page.barShown && Config.options.bar.showBackground) ? [
-                    { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" },
-                    { displayName: Translation.tr("Follow the bar"), icon: "bottom_app_bar", value: "bar" }
-                ] : [
-                    { displayName: Translation.tr("Dark"), icon: "contrast", value: "solid" }
-                ]
+                onSwitched: value => { Config.options.bar.showBackground = value }
             }
         }
     }

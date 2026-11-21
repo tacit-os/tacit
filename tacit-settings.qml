@@ -1805,32 +1805,7 @@ ApplicationWindow {
                     label: "Show background"
                     description: "Show the bar strip and bar drawer backgrounds"
                     checked: Config.options.bar.showBackground
-                    onToggled: value => {
-                        Config.options.bar.showBackground = value
-                        if (!value && Config.options.island.bodyStyle === "bar")
-                            Config.options.island.bodyStyle = "solid"
-                    }
-                }
-            }
-
-            Group {
-                title: "Notch"
-                note: "The chip at rest and the sheet it opens into share this body."
-                ChoiceRow {
-                    glyph: "notch"
-                    label: "Notch colour"
-                    description: (barShown && Config.options.bar.showBackground) ? (({
-                        "solid": "The dock's colour and see-through",
-                        "bar": "The bar's colour, see-through and blur"
-                    })[Config.options.island.bodyStyle] ?? "") : "The dock's colour and see-through"
-                    options: (barShown && Config.options.bar.showBackground) ? [
-                        { value: "solid", label: "Dark" },
-                        { value: "bar", label: "Follow the bar" }
-                    ] : [
-                        { value: "solid", label: "Dark" }
-                    ]
-                    current: Config.options.island.bodyStyle
-                    onPicked: value => Config.options.island.bodyStyle = value
+                    onToggled: value => Config.options.bar.showBackground = value
                 }
             }
 

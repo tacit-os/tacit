@@ -59,8 +59,12 @@ Scope {
             o.overview.style = "default";
         if (o.lock.useHyprlock)
             o.lock.useHyprlock = false;
-        if (!o.bar.showBackground && o.island.bodyStyle === "bar")
+        if (o.bar.showBackground) {
+            if (o.island.bodyStyle !== "bar")
+                o.island.bodyStyle = "bar";
+        } else if (o.island.bodyStyle !== "solid") {
             o.island.bodyStyle = "solid";
+        }
     }
     Component.onCompleted: family.holdTacit()
     Connections {
@@ -105,8 +109,12 @@ Scope {
             GlobalStates.trayOpen = false;
         }
         function onShowBackgroundChanged() {
-            if (!Config.options.bar.showBackground && Config.options.island.bodyStyle === "bar")
+            if (Config.options.bar.showBackground) {
+                if (Config.options.island.bodyStyle !== "bar")
+                    Config.options.island.bodyStyle = "bar";
+            } else if (Config.options.island.bodyStyle !== "solid") {
                 Config.options.island.bodyStyle = "solid";
+            }
         }
     }
     PanelLoader { component: Background {} }
