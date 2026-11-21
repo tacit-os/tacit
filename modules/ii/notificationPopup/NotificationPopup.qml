@@ -213,6 +213,8 @@ Scope {
                     edge: dock.dockEdge
                     fillet: root.barShown ? 0 : 12
                     backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
+                    floatingOverride: (root.barShown
+                        && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")) ? 1 : 0
                 }
 
                 // Hover on the panel grows it into the centre; leaving folds it. Not while popups

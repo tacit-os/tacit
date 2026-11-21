@@ -54,6 +54,9 @@ import qs.modules.ii.sidebarRight.calendar
  */
 Item {
     id: root
+    // Pin height to the bounded implicitHeight so anchored children (the drawer
+    // background) can never fill a stale, larger height after a bar toggle.
+    height: implicitHeight
     property bool barShown: Config.options.bar.show
     property int sidebarWidth: Appearance.sizes.sidebarWidth
     property int sidebarPadding: Kit.tokens.space.l
@@ -446,6 +449,8 @@ Item {
                 edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
                 backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
+                floatingOverride: (root.barShown
+                    && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")) ? 1 : 0
             }
 
         StyledFlickable {

@@ -212,9 +212,10 @@ Scope {
                         topMargin: panelWindow.barShown ? panelWindow.topGap : 0
                         leftMargin: panelWindow.cove
                     }
-                    // No Behavior here: the content animates its own height and the panel follows
-                    // frame by frame.
-                    height: item?.implicitHeight ?? 0
+                    // The content root pins its own height to its bounded implicitHeight;
+                    // don't override it here (a stale implicitHeight from a bar toggle once
+                    // made the floating background fill the whole window).
+                    height: item?.height ?? 0
 
                     focus: GlobalStates.sidebarRightOpen
                     Keys.onPressed: event => {

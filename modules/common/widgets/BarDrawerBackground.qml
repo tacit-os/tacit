@@ -10,7 +10,10 @@ Item {
     property real fillet: 12
     property color backgroundColor: Appearance.colors.colBarSurface
     property color borderColor: Appearance.colors.colLayer0Border
-    property bool floating: Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")
+    // Override for surfaces that track barShown as a property (which can update on a
+    // different frame than Config.options.bar.show on a bar toggle). -1 = auto.
+    property int floatingOverride: -1
+    property bool floating: (floatingOverride >= 0 ? (floatingOverride === 1) : (Config.options.bar.show && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")))
 
     anchors.fill: parent
 
