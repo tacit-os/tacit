@@ -111,8 +111,9 @@ Scope {
         }
         // Constant, like the notch's window: a layer surface cannot animate a resize, so the
         // window is as tall as the panel can ever get and the panel animates inside it. The
-        // mask keeps the empty part click-through.
-        implicitHeight: panelMaxHeight + cove + topGap
+        // mask keeps the empty part click-through. Clamp to the screen so a stale/large
+        // implicitHeight from content binding loops can never make the window exceed it.
+        implicitHeight: Math.min(panelMaxHeight + cove + topGap, (screen?.height ?? 1080) - 8)
         // The click area is the part of the panel still inside the window. It is its own item
         // because a slide is a transform on entranceWrapper, and the mask must never leave the
         // surface.
