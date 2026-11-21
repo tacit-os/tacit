@@ -215,22 +215,21 @@ Scope {
                 anchors.right: root.isRight ? parent.right : undefined
                 anchors.left: root.isLeft ? parent.left : undefined
                 anchors.horizontalCenter: root.isCenter ? parent.horizontalCenter : undefined
-                anchors.topMargin: root.barShown && root.isTop ? 8 : 0
+                anchors.topMargin: root.barShown && root.isTop && Config.options.bar.drawerStyle !== "attached" ? 8 : 0
                 anchors.rightMargin: sideMargin
                 anchors.leftMargin: sideMargin
 
                 DockedRect {
                     anchors.fill: parent
-                    visible: !root.barShown
+                    visible: !root.barShown || Config.options.bar.drawerStyle === "attached"
                     edge: dock.dockEdge
                     cornerRadius: Appearance.rounding.verylarge
                     fillet: 12
-                    // Bar off: the panel frost, as before the bar.
-                    color: Appearance.colors.colPanelFrost
+                    color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
                 }
                 Rectangle {
                     anchors.fill: parent
-                    visible: root.barShown
+                    visible: root.barShown && Config.options.bar.drawerStyle !== "attached"
                     radius: Appearance.rounding.verylarge
                     color: Appearance.colors.colBarSurface
                     border.width: 1

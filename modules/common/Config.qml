@@ -613,6 +613,7 @@ Singleton {
                 // at the top corner, notch standalone).
                 property bool show: true
                 property int height: 36
+                property string drawerStyle: "floating" // "floating" | "attached"
                 property bool showTrayButton: true
                 property bool showBatteryButton: true
                 property bool showBatteryPercentage: false

@@ -444,16 +444,15 @@ Item {
             DockedRect {
                 id: dockedBg
                 anchors.fill: parent
-                visible: !root.barShown
-                edge: "bottom-right"
+                visible: !root.barShown || Config.options.bar.drawerStyle === "attached"
+                edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
                 fillet: 12
-                // Bar off: the pre-bar corner panel in its own frost.
-                color: Appearance.colors.colPanelFrost
+                color: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
             }
             Rectangle {
                 anchors.fill: parent
-                visible: root.barShown
+                visible: root.barShown && Config.options.bar.drawerStyle !== "attached"
                 radius: sidebarRightBackground.radius
                 color: Appearance.colors.colBarSurface
                 border.width: 1

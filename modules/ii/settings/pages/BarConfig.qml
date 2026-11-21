@@ -57,6 +57,19 @@ ContentPage {
                 checked: Config.options.bar.showBackground
                 onSwitched: value => { Config.options.bar.showBackground = value }
             }
+            ConfigSelectionArray {
+                Layout.fillWidth: true
+                icon: "dock_to_bottom"
+                text: Translation.tr("Drawer style")
+                currentValue: Config.options.bar.drawerStyle
+                onSelected: newValue => { Config.options.bar.drawerStyle = newValue; }
+                options: Config.options.bar.showBackground ? [
+                    { displayName: Translation.tr("Floating"), icon: "open_in_new", value: "floating" },
+                    { displayName: Translation.tr("Attached"), icon: "dock_to_bottom", value: "attached" }
+                ] : [
+                    { displayName: Translation.tr("Floating"), icon: "open_in_new", value: "floating" }
+                ]
+            }
         }
     }
 

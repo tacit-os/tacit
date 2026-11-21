@@ -62,8 +62,11 @@ Scope {
         if (o.bar.showBackground) {
             if (o.island.bodyStyle !== "bar")
                 o.island.bodyStyle = "bar";
-        } else if (o.island.bodyStyle !== "solid") {
-            o.island.bodyStyle = "solid";
+        } else {
+            if (o.island.bodyStyle !== "solid")
+                o.island.bodyStyle = "solid";
+            if (o.bar.drawerStyle === "attached")
+                o.bar.drawerStyle = "floating";
         }
     }
     Component.onCompleted: family.holdTacit()
@@ -112,8 +115,11 @@ Scope {
             if (Config.options.bar.showBackground) {
                 if (Config.options.island.bodyStyle !== "bar")
                     Config.options.island.bodyStyle = "bar";
-            } else if (Config.options.island.bodyStyle !== "solid") {
-                Config.options.island.bodyStyle = "solid";
+            } else {
+                if (Config.options.island.bodyStyle !== "solid")
+                    Config.options.island.bodyStyle = "solid";
+                if (Config.options.bar.drawerStyle === "attached")
+                    Config.options.bar.drawerStyle = "floating";
             }
         }
     }

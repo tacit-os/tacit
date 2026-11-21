@@ -1807,6 +1807,22 @@ ApplicationWindow {
                     checked: Config.options.bar.showBackground
                     onToggled: value => Config.options.bar.showBackground = value
                 }
+                ChoiceRow {
+                    visible: barShown
+                    glyph: "dock_to_bottom"
+                    label: "Drawer style"
+                    description: Config.options.bar.showBackground
+                        ? "How widget drawers sit below the bar"
+                        : "Floating drawers are used when the bar background is hidden"
+                    options: Config.options.bar.showBackground ? [
+                        { value: "floating", label: "Floating" },
+                        { value: "attached", label: "Attached" }
+                    ] : [
+                        { value: "floating", label: "Floating" }
+                    ]
+                    current: Config.options.bar.drawerStyle
+                    onPicked: value => Config.options.bar.drawerStyle = value
+                }
             }
 
             Group {
