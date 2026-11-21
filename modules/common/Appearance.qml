@@ -327,6 +327,9 @@ Singleton {
         property color colBarSurface: ColorUtils.over(
             ColorUtils.over(colBarFrost, ColorUtils.applyAlpha(colors.colInkMain, 0.06)),
             colBarVeil)
+        // The dock's ground (SearchWidget): surfaceContainerHigh at 8 % transparency. The notch's
+        // dark body wears this token, so the chip and the dock are literally the same material.
+        property color colDockSurface: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, 0.08)
         property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
         property color colSurfaceContainer: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
         property color colSurfaceContainerHigh: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)

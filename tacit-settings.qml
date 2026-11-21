@@ -1796,7 +1796,7 @@ ApplicationWindow {
                     glyph: "notch"
                     label: "Notch colour"
                     description: ({
-                        "solid": "The material's darkest surface, an opaque cut-out",
+                        "solid": "The dock's colour and see-through",
                         "bar": "The bar's colour, see-through and blur"
                     })[Config.options.island.bodyStyle] ?? ""
                     options: [
