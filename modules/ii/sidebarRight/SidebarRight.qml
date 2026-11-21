@@ -160,6 +160,8 @@ Scope {
                 height: Math.max(0, Math.min(entranceWrapper.contentHeight * (1 - entranceWrapper.offsetScale), parent.height))
             }
 
+
+
             Item {
                 id: entranceWrapper
                 anchors.left: parent.left
@@ -173,7 +175,9 @@ Scope {
                 // Bar shown: the panel drops out of the bar. Bar off: it rises from the bottom edge.
                 // A standard curve, no fade (blur would pop mid-way).
                 property real offsetScale: open ? 0 : 1
-                height: contentHeight
+                // Clamp to the window: a stale content implicitHeight must never make the
+                // wrapper (and its content) grow past the screen-sized layer surface.
+                height: Math.max(0, Math.min(contentHeight, parent?.height ?? contentHeight))
                 transform: Translate {
                     y: panelWindow.barShown
                         ? -entranceWrapper.contentHeight * entranceWrapper.offsetScale
