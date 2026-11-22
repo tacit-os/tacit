@@ -329,8 +329,8 @@ def disk_start(force=False):
     threading.Thread(target=disk_scan, daemon=True).start()
 
 # ------------------------------------------------------------------ what Tacit itself is made of
-def tacit_parts(ratio, total, unlisted=0):
-    """Tacit's own memory by where it runs, scaled to the total the page shows, then what no cgroup holds."""
+def tacit_parts(ratio, total):
+    """Tacit's own memory by where it runs, scaled to the total the page shows."""
     user = f"/user.slice/user-{UID}.slice"
     def children(path):
         try:
@@ -348,8 +348,7 @@ def tacit_parts(ratio, total, unlisted=0):
     parts = [("The desktop", "Hyprland and the shell", desktop), ("Sound and sharing", "PipeWire and the portals", sound),
              ("Helpers", "agents' host, dictation and the like", helpers), ("The system", "network, login, devices", system)]
     raw = sum(x[2] for x in parts) or 1
-    return [{"name": n, "what": w, "mem": int(m * min(1.0, total / raw))} for n, w, m in parts if m > 0] \
-        + ([{"name": "Hardware", "what": "graphics, drivers and the kernel's own", "mem": int(unlisted)}] if unlisted > 0 else [])
+    return [{"name": n, "what": w, "mem": int(m * min(1.0, total / raw))} for n, w, m in parts if m > 0]
 
 # ------------------------------------------------------------------ one sample
 prev = {"t": None, "ticks": {}, "cpu": None}
@@ -510,14 +509,9 @@ def sample():
 
     # Tacit: every cgroup of the system and the user, less what the apps and agents hold
     total_cg = cg_mem("/user.slice", ratio) + cg_mem("/system.slice", ratio) + cg_mem("/init.scope", ratio)
-    # What the kernel counts as in use (MemTotal - MemAvailable) is more than the cgroups hold: graphics and driver
-    # memory and the kernel's own belong to none of them. Without it the rows added up to less than the total above them.
-    mi = kv(read("/proc/meminfo"))
-    unlisted = max(0, (mi.get("MemTotal", 0) - mi.get("MemAvailable", 0)) * 1024 - total_cg)
     tacit = group("tacit", "tacit")
     tacit["mem"] = max(0, total_cg - sum(g["mem"] for k, g in groups.items() if g["kind"] != "tacit"))
-    tacit["tacitParts"] = tacit_parts(ratio, tacit["mem"], unlisted)
-    tacit["mem"] += unlisted
+    tacit["tacitParts"] = tacit_parts(ratio, tacit["mem"])
 
     # parts in proportion: process RSS double-counts shared pages; the app's total is the truth
     for g in groups.values():
@@ -572,6 +566,7 @@ def sample():
     groups_now.clear()
     groups_now.update({g["key"]: g for g in out})
 
+    mi = kv(read("/proc/meminfo"))
     cpu_line = read("/proc/stat").split("\n", 1)[0].split()[1:]
     vals = list(map(int, cpu_line)); idle = vals[3] + vals[4]; tot = sum(vals)
     busy = None
