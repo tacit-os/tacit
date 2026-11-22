@@ -205,10 +205,11 @@ for i = 1, 4 do
         { description = "Window: Move " .. arrowkey[i] })
 end
 
+-- Alt+F4 still reaches the app, which may close on it; the tip that Super+Q closes any window is shown once, as a mark
+-- in the state folder says, and not as Hyprland's: every Alt+F4 looked like a message about a window that went wrong.
 hl.bind("ALT + F4",
     function()
-        hl.exec_cmd(
-            "notify-send \"Super+Q closes a window\" -a Hyprland")
+        hl.exec_cmd([[f=${XDG_STATE_HOME:-$HOME/.local/state}/quickshell/user/alt-f4-tip; [ -e "$f" ] || { mkdir -p "${f%/*}" && : >"$f" && notify-send -a Tacit "Tip: Super+Q closes any window" "Alt+F4 closes only the apps that take it."; }]])
     end,
     { non_consuming = true })
 hl.bind("SUPER + Q", hl.dsp.window.close(), { description = "Window: Close" })

@@ -8,13 +8,35 @@
 addr=${1#0x} pid=${2:-0} cls=$3
 case $pid in '' | *[!0-9]*) exit 0 ;; esac
 [ "$pid" -gt 1 ] || exit 0
+# The window by its stable id, taken at once: its address can be given to a new window as soon as it is gone. The app's
+# windows are noted too, so a new one from it (a Save changes? of its own) is the app asking, and nothing is said.
+now=$(hyprctl -j clients 2>/dev/null)
+win=$(printf '%s' "$now" | jq -r --arg a "$addr" --argjson p "$pid" 'first(.[] | select((.address | ltrimstr("0x")) == $a and .pid == $p and .mapped)) | .stableId' 2>/dev/null)
+[ -n "$win" ] || exit 0
+had=$(printf '%s' "$now" | jq -c --argjson p "$pid" '[.[] | select(.pid == $p) | .stableId]' 2>/dev/null)
 here() {
-	hyprctl -j clients 2>/dev/null | jq -e --arg a "$addr" 'any(.[]; (.address | ltrimstr("0x")) == $a and .mapped)' >/dev/null 2>&1
+	hyprctl -j clients 2>/dev/null | jq -e --arg w "$win" 'any(.[]; .stableId == $w and .mapped)' >/dev/null 2>&1
+}
+asking() {
+	hyprctl -j clients 2>/dev/null | jq -e --argjson p "$pid" --argjson had "${had:-[]}" 'any(.[]; .pid == $p and .mapped and (.stableId | IN($had[]) | not))' >/dev/null 2>&1
 }
 sleep 6
-here || exit 0
-answer=$(notify-send -a Tacit -t 15000 -A "kill=Force quit" "${cls:-An app} did not close" "It may be asking you something first.")
-[ "$answer" = kill ] || exit 0
+here && ! asking || exit 0
+out=$(mktemp) || exit 0
+trap 'rm -f "$out"' EXIT
+notify-send -a Tacit -t 15000 -p -A "kill=Force quit" "${cls:-An app} is still open" "It may be asking you something first." >"$out" &
+note=$!
+# The note goes as soon as the window does, so an app that only took longer to close is not left looking stuck.
+while kill -0 "$note" 2>/dev/null; do
+	sleep 1
+	here && ! asking && continue
+	id=$(head -n 1 "$out")
+	[ -n "$id" ] && gdbus call --session --dest org.freedesktop.Notifications --object-path /org/freedesktop/Notifications \
+		--method org.freedesktop.Notifications.CloseNotification "$id" >/dev/null 2>&1
+	kill "$note" 2>/dev/null
+	exit 0
+done
+[ "$(sed -n 2p "$out")" = kill ] || exit 0
 # the same window, not one that took its place meanwhile
 here && kill -0 "$pid" 2>/dev/null || exit 0
 kill -TERM "$pid" 2>/dev/null
