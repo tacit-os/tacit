@@ -2314,8 +2314,9 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         anchors.fill: parent
         // 20, not the panels' 30: the compositor clips (and blurs) this window at its own
         // rounding, capped at 20, and the frost must end exactly where the clip does.
+        // Solid while the compositor blurs nothing behind it (Appearance.blurBehind).
         radius: 20
-        color: ColorUtils.transparentize(win.termBase, 0.15)
+        color: ColorUtils.transparentize(win.termBase, Appearance.blurBehind ? 0.15 : 0)
 
         FocusScope {
             id: keys

@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 import Quickshell.Io
 import qs.modules.common.functions
+import qs.services
 pragma Singleton
 pragma ComponentBehavior: Bound
 
@@ -79,6 +80,31 @@ Singleton {
         }
         onLoadFailed: root.seeThroughScale = 1
     }
+    // Whether Hyprland blurs what is behind a see-through surface (decoration:blur:enabled) as it is now, asked again
+    // at every config reload: Settings > Appearance, Game mode or a line in the person's own files can turn the blur
+    // off, and a see-through ground with nothing blurred behind it shows the wallpaper sharp under the text. Without it
+    // Tacit.windowSeeThrough, the frost and Files are solid. Hyprland 0.56 answers with a bool, older ones with an int;
+    // until it answers, and off Hyprland, the blur counts as on, so nothing flashes solid at start. Asked here, not with
+    // a HyprlandConfigOption: its WM would start HyprlandData's hyprctl refreshes in every app that draws a ground.
+    property var blurAnswer
+    readonly property bool blurBehind: root.blurAnswer !== false && root.blurAnswer !== 0
+    Process {
+        id: blurQuery
+        command: ["hyprctl", "getoption", "decoration:blur:enabled", "-j"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                try {
+                    const answer = JSON.parse(text);
+                    root.blurAnswer = answer.bool ?? answer.int;
+                } catch (e) {}
+            }
+        }
+    }
+    Connections {
+        target: HyprlandConfig
+        function onReloaded() { blurQuery.running = true }
+    }
+    Component.onCompleted: blurQuery.running = true
     
     // An ink at a given APCA Lc on a ground (surfaceContainerLow unless given): the point on the line from
     // that ground through onBackground on to white (dark grounds) or black (light ones) that first reaches
@@ -274,7 +300,7 @@ Singleton {
         // Was the palette's private formula; hoisted so the panels stop disagreeing.
         // One step above surfaceContainer: over a page of the same dark tone the frost was
         // invisible and the controls floated. Alpha 0.72 stays above the blur threshold (0.64).
-        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, 0.24 * root.seeThroughScale)
+        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.blurBehind ? 0.24 * root.seeThroughScale : 0)
         property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
         property color colSurfaceContainer: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
         property color colSurfaceContainerHigh: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)

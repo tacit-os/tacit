@@ -145,6 +145,10 @@ if theirs("hyprland/shellOverrides/main") then
     end
 end
 
--- windows not in use as the person set them (Settings, shellOverrides), with this wallpaper's scale on their see-through
+-- windows not in use as the person set them (Settings, shellOverrides), with this wallpaper's scale on their see-through;
+-- not faded at all while the blur is off (Settings > Appearance, Game mode, a line of their own): see-through with
+-- nothing blurred behind it is the "passthrough" look (tacit/rules.lua), the wallpaper sharp under the text
 local inactive = hl.get_config("decoration:inactive_opacity")
-if type(inactive) == "number" then hl.config({ decoration = { inactive_opacity = tacit_glass(inactive) } }) end
+local blur = hl.get_config("decoration:blur:enabled")
+if blur == false or blur == 0 then hl.config({ decoration = { inactive_opacity = 1 } })
+elseif type(inactive) == "number" then hl.config({ decoration = { inactive_opacity = tacit_glass(inactive) } }) end

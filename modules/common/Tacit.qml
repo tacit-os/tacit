@@ -247,8 +247,9 @@ Singleton {
     // how far every Tacit app's window lets the blur through, as Settings > Appearance has it: Frosted is the terminal's
     // ground at foot's alpha 0.85 (foot.ini), Solid none, Clear its own amount. One number, so the apps cannot drift
     // apart (Praxis and the Store had, 2026-10-15). Shell surfaces use the frost. On a bright wallpaper less, by
-    // Appearance.seeThroughScale, so the ground stays as dark as on dusk.
-    readonly property real windowSeeThrough: (!Config.options.appearance.transparency.enable ? 0
+    // Appearance.seeThroughScale, so the ground stays as dark as on dusk; none while the compositor blurs nothing
+    // (Appearance.blurBehind).
+    readonly property real windowSeeThrough: (!Appearance.blurBehind || !Config.options.appearance.transparency.enable ? 0
         : Config.options.appearance.transparency.automatic ? 0.15 : Config.options.appearance.transparency.backgroundTransparency)
         * Appearance.seeThroughScale
 
