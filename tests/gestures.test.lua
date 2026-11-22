@@ -114,6 +114,11 @@ got = swipe(rep(30, 0, -10), 3)
 check("three fingers up on a window in true fullscreen (a pinch, Super+F): it leaves fullscreen", got == "fullscreen fullscreen unset", "got " .. got)
 got = swipe(rep(20, 0, 10), 3)
 check("three fingers down on it still hides it", got == hide, "got " .. got)
+window = { class = "browser-signin", fullscreen = 0 }
+for _, c in ipairs({ { "left", rep(20, -10, 0) }, { "right", rep(20, 10, 0) }, { "down", rep(20, 0, 10) }, { "up", rep(30, 0, -10) } }) do
+    got = swipe(c[2], 3)
+    check("three fingers " .. c[1] .. " on the sign-in page in the notch: nothing", got == "nothing", "got " .. got)
+end
 window = { fullscreen = 0 }
 local overview, palette = "global quickshell:overviewWorkspacesToggle", "global quickshell:searchToggle"
 -- a sideways swipe whose first 5 units lean up (or down), so Hyprland takes it as vertical

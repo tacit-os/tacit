@@ -56,6 +56,13 @@ local function bandAction(verb)
     if verb == "back" then verb = mode == 1 and "fill" or "unside" end
     return hl.dsp.exec_cmd("hyprctl tacitgrip " .. verb .. " active")
 end
+-- The browser's sign-in page (class browser-signin) is the notch's: IslandController puts it under the notch's hole, so
+-- a half or a hide taken by three fingers moved the page alone and left the notch's border where it was (Discord,
+-- Mustiya, 2026-11-18). It stays where the notch put it, whatever the swipe.
+local function onSigninPage()
+    local w = hl.get_active_window()
+    return w ~= nil and w.class == "browser-signin"
+end
 -- One gesture for the four ways, decided when the fingers lift by where they went in all. Hyprland picks a gesture's
 -- direction from the first 5 units of movement, so a swipe up that set off a little sideways was taken as left or
 -- right, and its sideways wobble, added up as distance, then sent the window to a half (Discord, Mustiya, 2026-11-12).
@@ -81,7 +88,7 @@ hl.gesture({
         update = swipeAdd,
         finish = function(e)
             local verb = swipeVerb()
-            if not e.cancelled and verb then
+            if not e.cancelled and verb and not onSigninPage() then
                 hl.dispatch(bandAction(verb))
             end
         end
