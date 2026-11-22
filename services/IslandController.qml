@@ -472,10 +472,13 @@ Singleton {
     // ------------------------------------------------------------------ colour
     // "neutral" is the resting body; transients may still name a tone (success, error, notify).
     readonly property string tone: root.transientShowing ? (root.payload?.tone ?? "neutral") : "neutral"
-    // Hard rule: no heavy colours. The body is ALWAYS the frost (translucent surfaceContainer over the compositor blur,
-    // custom/rules.lua:17; the darker 88 % glass was tried 2026-10-15 and the frost kept, "felt more Praxis"), and since
-    // 2026-10-15 no tone colours words: the point in the main ink, the rest in meta.
-    readonly property color bodyColor: Appearance.colors.colPanelFrost
+    // Settings › Bar: the dock's ground (colour and see-through, blurred by the compositor like
+    // every shell surface), or the bar's own ground so the chip reads as a piece of the strip.
+    // "Follow the bar" only applies while the top bar is shown; without it the notch stands alone.
+    readonly property bool barShown: Config.options.bar.show
+    readonly property bool barBody: barShown && Config.options.bar.showBackground
+    readonly property color bodyColor: root.barBody ? Appearance.colors.colBarSurface
+        : Appearance.colors.colDockSurface
     readonly property color contentColor: Tacit.inkMain
     readonly property color subtextColor: Tacit.inkMeta
 

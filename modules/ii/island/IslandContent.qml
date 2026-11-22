@@ -194,6 +194,11 @@ Item {
 
     readonly property var headerGeometry: IslandController.geometryFor(root.headerState)
     readonly property var openGeometry: IslandController.geometryFor("open")
+    // Bar shown + "Follow the bar": the notch wears the bar's material, so the body starts at
+    // the bar's underside and the 34 px header stays clear (the bar's own pixels). Bar off, or
+    // "Dark": the notch stands alone at the screen's top edge with its pre-bar coves/reserve.
+    readonly property bool flushWithBar: Config.options.bar.show && IslandController.barBody
+    readonly property real barBand: Appearance.sizes.baseBarHeight
     property real radius: root.open ? root.openGeometry.r : root.headerGeometry.r
     // The cove stays 6 open and closed (theirs grows to 19; see IslandController.geometryFor).
     // The browser's address sheet is the exception: r 24 with 19 px coves, as its render has it.
@@ -501,6 +506,8 @@ Item {
     }
 
     // The browser's address floats over the page (its render): a soft shadow under the sheet.
+    // Not while flush with the bar: the sheet is the bar's surface and the shadow's top would
+    // darken the strip right above the join, which is the one place that must not show a seam.
     RectangularShadow {
         x: 12
         y: 30
@@ -511,7 +518,7 @@ Item {
         offset: Qt.vector2d(0, 14)
         color: ColorUtils.transparentize(Appearance.m3colors.m3shadow, 0.64)
         visible: opacity > 0
-        opacity: root.open && root.view === "address" ? 1 : 0
+        opacity: root.open && root.view === "address" && !root.flushWithBar ? 1 : 0
         Behavior on opacity {
             Anim {
                 type: Anim.DefaultEffects
@@ -519,20 +526,43 @@ Item {
         }
     }
 
-    // Docked into the top edge as ONE silhouette (body + coves, one fill, one outline that
-    // follows the coves) -- see DockedRect.qml. Closed, the 6px cove is a seam you feel rather
-    // than see; open, the 19px cove is the curve you asked for from caelestia.
+    // Docked into the top edge as ONE silhouette (body + coves, one fill) -- see DockedRect.qml.
+    // At rest it is the 34 px header: a chip floating over the strip at the screen's top edge. No
+    // coves cut into the bar. Open, the same body grows down into the sheet.
+    // Flush to the bar: the shape starts at the bar's underside (no body at rest, hangs open
+    // with square join). Standalone (bar off / Dark): the pre-bar notch at the screen's top edge
+    // with its coves.
     DockedRect {
         id: background
-        anchors.fill: parent
+        // Explicit, not anchored: with the bottom anchored, the item's y is derived from its
+        // height and the offset below the bar was silently dropped (the body stayed 0 px high).
+        x: 0
+        // When the notch is open flush with the bar, extend to y=0 so the surface is one
+        // continuous piece (avoids a double-blur seam at the bar boundary). At rest, start at
+        // barBand so bar widgets remain visible through the transparent top region.
+        y: (root.flushWithBar && root.open) ? 0 : (root.flushWithBar ? root.barBand : 0)
+        width: parent.width
+        height: Math.max(0, root.height - y)
+        // Render the silhouette into its own antialiased layer so the compositor blends a smooth
+        // edge instead of the stair-step of dark dashes the Shape's CurveRenderer left here.
+        layer.enabled: true
+        layer.smooth: true
+        antialiasing: true
         visible: !GlobalStates.gridOver
+        // The sheet keeps its designed corners when open (24) as well as the chip's when
+        // closed (14). Flush to the bar joins with a straight edge (no cove); standalone keeps
+        // the notch's coves.
         cornerRadius: root.radius
-        fillet: root.fillet
-        // the sign-in's page window shows through here
-        hole: root.holeRect
+        fillet: root.flushWithBar ? 0 : root.fillet
+        Behavior on cornerRadius {
+            NumberAnimation { duration: 220 }
+        }
+        // The chip stays present; the grid takes the notch over entirely while it is out.
+        opacity: 1
+        // the sign-in's page window shows through here (the hole is in the body's own frame)
+        hole: Qt.rect(root.holeRect.x, root.holeRect.y - background.y, root.holeRect.width, root.holeRect.height)
         holeRadius: 15
-        // the browser's address is opaque over the page: the frost's own colour, solid
-        color: IslandController.addressOut && root.view === "address" ? Appearance.m3colors.m3surfaceContainerHigh : IslandController.bodyColor
+        color: IslandController.bodyColor
         Behavior on color {
             ColorAnimation {
                 duration: Appearance.animationCurves.expressiveDefaultEffectsDuration
@@ -543,6 +573,7 @@ Item {
         // it read as a black fringe down the right wall and around the bottom-right curve.
         // The frost over the compositor blur is the separation.
         borderWidth: 0
+
     }
     // The fold's first step: the body's colour fades in over the page through the hole, so the page leaves without a
     // cut, and the fold follows as soon as it has gone (closed in one frame, then the empty sheet waited for the page:

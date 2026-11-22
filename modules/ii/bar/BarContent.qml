@@ -18,7 +18,7 @@ Item {
     readonly property real centerPillX: centerPill.x
     readonly property real centerPillWidth: centerPill.width
 
-    readonly property bool trayHasItems: SystemTray.items.values.length > 0
+    readonly property bool trayHasItems: TrayService.items.length > 0
 
     function filterLayout(layout) {
         if (trayHasItems) return layout

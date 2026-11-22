@@ -1,7 +1,8 @@
 // The notch's reserved band through a lock (modules/ii/island/Island.qml): every `active:` binding in the file is run
 // under node with the screen locked and unlocked, and matched to what it holds by the file's brackets. The window that
 // reserves the band (its exclusiveZone) must stay mapped while locked, or every tiled window grows under the lock and
-// shrinks back at unlock; the notch inside it still goes at lock and comes back at unlock.
+// shrinks back at unlock; the notch inside it still goes at lock and comes back at unlock. With the top bar shown the
+// bar owns the strip and the notch's zone is -1; with it off the notch reserves its own band. Both run under node.
 import { inScope, matchBrace, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
@@ -24,9 +25,14 @@ const loaders = [...src.matchAll(/^\s*active:/gm)].map(m => {
   return { obj: around(m.index), expr, locked: when(true), unlocked: when(false) };
 });
 
-const zone = src.indexOf("exclusiveZone: Config.options.island.reservedHeight");
+const zoneProp = /\bexclusiveZone:/.exec(src);
+const zone = zoneProp ? zoneProp.index : -1;
 const notch = src.search(/\bIslandContent\s*\{/);
 check("the file still has the window's reserve and the notch", zone > 0 && notch > 0);
+const zoneExpr = readExpression(src, zone + "exclusiveZone:".length).expr;
+const zoneFor = barShown => inScope({ barShown, Config: { options: { island: { reservedHeight: 34, topMargin: 4 } } } }, "", `return (${zoneExpr});`)();
+check("with the bar off the notch reserves its band", zoneFor(false) === 38, String(zoneFor(false)));
+check("with the bar shown the bar owns the strip (-1)", zoneFor(true) === -1, String(zoneFor(true)));
 
 const aroundZone = loaders.filter(l => holds(l.obj, zone));
 const gone = aroundZone.filter(l => !l.locked);

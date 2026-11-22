@@ -14,7 +14,8 @@ MouseArea {
     readonly property bool isPluggedIn: Battery.isPluggedIn
     readonly property real percentage: Battery.percentage
     readonly property bool isLow: percentage <= Config.options.battery.low / 100
-    readonly property string displayText: (root.vertical && root.percentage > 99) ? "" : batteryProgress.text
+    readonly property bool isLowAndNotCharging: Battery.isLowAndNotCharging
+    readonly property string batteryIcon: Battery.iconName()
 
     implicitWidth:  vertical ? Appearance.sizes.verticalBarWidth : batteryProgress.valueBarWidth + 8
     implicitHeight: vertical ? batteryProgress.valueBarWidth + 8 : Appearance.sizes.barHeight
@@ -45,15 +46,16 @@ MouseArea {
                         Layout.leftMargin: -2
                         Layout.rightMargin: -2
                         fill: 1
-                        text: "bolt"
+                        text: root.batteryIcon
                         iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
+                        visible: true
                     }
                     StyledText {
                         Layout.alignment: Qt.AlignVCenter
                         Layout.topMargin: 2
                         font: batteryProgress.font
-                        text: batteryProgress.text
+                        text: `${Math.round(root.percentage * 100)}%`
+                        visible: Config.options.bar.showBatteryPercentage
                     }
                 }
             }
@@ -69,17 +71,17 @@ MouseArea {
                     MaterialSymbol {
                         Layout.alignment: Qt.AlignHCenter
                         fill: 1
-                        text: "bolt"
+                        text: root.batteryIcon
                         Layout.topMargin: 4
                         iconSize: Appearance.font.pixelSize.smaller
-                        visible: root.isCharging && root.percentage < 1
+                        visible: true
                     }
                     StyledText {
                         Layout.alignment: Qt.AlignHCenter
                         Layout.topMargin: root.isCharging ? 2 : 4
                         font: batteryProgress.font
-                        text: Math.round(root.percentage * 100)
-                        visible: root.percentage < 1
+                        text: `${Math.round(root.percentage * 100)}%`
+                        visible: Config.options.bar.showBatteryPercentage
                     }
                 }
             }

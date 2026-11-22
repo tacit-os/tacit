@@ -1,0 +1,38 @@
+import qs
+import qs.services
+import qs.modules.common
+import qs.modules.common.widgets
+import qs.modules.ii.sidebarRight.wifiNetworks
+import Tacit.Kit
+import QtQuick
+import QtQuick.Layouts
+
+/**
+ * The network drawer's body: the control panel's Wi-Fi section — the radio switch, the
+ * capped, scrolling list of access points and the password flows — unchanged. The panel
+ * hugs this content; the shared drawer draws the surface.
+ */
+Item {
+    id: root
+
+    implicitWidth: 340
+    implicitHeight: wifi.implicitHeight + Kit.tokens.space.l * 2
+
+    BarDrawerBackground {}
+
+    ColumnLayout {
+        anchors {
+            fill: parent
+            leftMargin: Kit.tokens.space.l
+            rightMargin: Kit.tokens.space.l
+            topMargin: Kit.tokens.space.l
+            bottomMargin: Kit.tokens.space.xl
+        }
+
+        WifiSection {
+            id: wifi
+            shown: true
+            Layout.fillWidth: true
+        }
+    }
+}

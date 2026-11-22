@@ -555,6 +555,7 @@ ApplicationWindow {
                 Layout.fillWidth: true
                 Layout.topMargin: 10
                 sourceComponent: root.categories[root.current].key === "look" ? lookPage
+                    : root.categories[root.current].key === "bar" ? barPage
                     : root.categories[root.current].key === "desktop" ? desktopPage
                     : root.categories[root.current].key === "bluetooth" ? bluetoothPage
                     : root.categories[root.current].key === "sound" ? soundPage
@@ -1777,6 +1778,130 @@ ApplicationWindow {
                     description: "Phones and watches nearby rotate an address every few minutes and carry no name"
                     checked: Config.options.bluetooth.hideUnnamedDevices
                     onToggled: value => Config.options.bluetooth.hideUnnamedDevices = value
+                }
+            }
+        }
+    }
+
+    // ── Bar ───────────────────────────────────────────────────────────────────
+    Component {
+        id: barPage
+        ColumnLayout {
+            spacing: 0
+            readonly property bool barShown: Config.options.bar.show
+
+            Group {
+                title: "Top bar"
+                note: "A strip at the top edge. Off: the control panel sits at the bottom-right, notifications arrive at the top corner, and the notch stands alone as before."
+                SwitchRow {
+                    glyph: "bottom_app_bar"
+                    label: "Show bar"
+                    checked: Config.options.bar.show
+                    onToggled: value => Config.options.bar.show = value
+                }
+                SwitchRow {
+                    visible: barShown
+                    glyph: "wallpaper"
+                    label: "Show background"
+                    description: "Show the bar strip and bar drawer backgrounds"
+                    checked: Config.options.bar.showBackground
+                    onToggled: value => {
+                        Config.options.bar.showBackground = value
+                        Config.options.island.bodyStyle = value ? "bar" : "solid"
+                        if (!value) Config.options.bar.drawerStyle = "floating"
+                    }
+                }
+                ChoiceRow {
+                    visible: barShown
+                    glyph: "dock_to_bottom"
+                    label: "Drawer style"
+                    description: Config.options.bar.showBackground
+                        ? "How widget drawers sit below the bar"
+                        : "Floating drawers are used when the bar background is hidden"
+                    options: Config.options.bar.showBackground ? [
+                        { value: "floating", label: "Floating" },
+                        { value: "attached", label: "Attached" }
+                    ] : [
+                        { value: "floating", label: "Floating" }
+                    ]
+                    current: Config.options.bar.drawerStyle
+                    onPicked: value => Config.options.bar.drawerStyle = value
+                }
+            }
+
+            Group {
+                visible: barShown
+                title: "Height"
+                note: "The strip's height, and the space it reserves for windows below. Its buttons need at least 36 px."
+                StepperRow {
+                    glyph: "height"
+                    label: "Bar height"
+                    description: "How tall the top strip is"
+                    value: Config.options.bar.height
+                    from: 36
+                    to: 56
+                    stepSize: 2
+                    suffix: " px"
+                    onMoved: value => Config.options.bar.height = value
+                }
+            }
+
+            Group {
+                visible: barShown
+                title: "Indicators"
+                note: "Each button opens a drawer that wears the bar's own surface. Hide one here and its drawer has no way in from the strip."
+                SwitchRow {
+                    glyph: "expand_more"
+                    label: "System tray"
+                    checked: Config.options.bar.showTrayButton
+                    onToggled: value => Config.options.bar.showTrayButton = value
+                }
+                SwitchRow {
+                    glyph: "battery"
+                    label: "Battery"
+                    description: "Charge, health and power draw"
+                    checked: Config.options.bar.showBatteryButton
+                    onToggled: value => Config.options.bar.showBatteryButton = value
+                }
+                SwitchRow {
+                    glyph: "percent"
+                    label: "Battery percentage"
+                    description: "Show the percentage beside the battery icon in the bar"
+                    checked: Config.options.bar.showBatteryPercentage
+                    onToggled: value => Config.options.bar.showBatteryPercentage = value
+                }
+                SwitchRow {
+                    glyph: "wifi"
+                    label: "Network"
+                    description: "Wi-Fi networks and connections"
+                    checked: Config.options.bar.showNetworkButton
+                    onToggled: value => Config.options.bar.showNetworkButton = value
+                }
+                SwitchRow {
+                    glyph: "volume"
+                    label: "Volume"
+                    description: "Output, mute and app levels"
+                    checked: Config.options.bar.showVolumeButton
+                    onToggled: value => Config.options.bar.showVolumeButton = value
+                }
+                SwitchRow {
+                    glyph: "brightness"
+                    label: "Brightness"
+                    description: "Backlight and night light"
+                    checked: Config.options.bar.showBrightnessButton
+                    onToggled: value => Config.options.bar.showBrightnessButton = value
+                }
+                SwitchRow {
+                    glyph: "tune"
+                    label: "Control panel"
+                    checked: Config.options.bar.showControlButton
+                    onToggled: value => Config.options.bar.showControlButton = value
+                }
+                SwitchRow {
+                    glyph: "bell"
+                    label: "Notifications"
+                    checked: Config.options.bar.showNotificationsButton
+                    onToggled: value => Config.options.bar.showNotificationsButton = value
                 }
             }
         }

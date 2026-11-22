@@ -79,7 +79,7 @@ hl.window_rule({match = {float = 0 }, no_shadow = true})
 hl.workspace_rule({ workspace = "special:special", gaps_out = 30 })
 
 -- ######## Layer rules ########
-hl.layer_rule({ match = { namespace = ".*" }, xray = true})
+hl.layer_rule({ match = { namespace = ".*" }, xray = false}) -- turned it false because the coves in different panels (control panel, notch) were aliasing in transparent settings
 hl.layer_rule({ match = { namespace = "selection" }, no_anim = true})
 hl.layer_rule({ match = { namespace = "overview" }, no_anim = true})
 hl.layer_rule({ match = { namespace = "indicator.*" }, no_anim = true})
@@ -134,6 +134,7 @@ hl.layer_rule({ match = { namespace = "quickshell:session" }, blur = true})
 hl.layer_rule({ match = { namespace = "quickshell:session" }, no_anim = true})
 hl.layer_rule({ match = { namespace = "quickshell:session" }, ignore_alpha = 0})
 hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" }, animation = "slide right"})
+hl.layer_rule({ match = { namespace = "quickshell:sidebarRight" }, xray = false})
 hl.layer_rule({ match = { namespace = "quickshell:verticalBar" }, animation = "slide"})
 hl.layer_rule({ match = { namespace = "quickshell:osk" }, order = -1})
 -- Quickshell: the wallpaper filmstrip

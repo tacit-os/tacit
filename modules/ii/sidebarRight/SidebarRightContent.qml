@@ -54,6 +54,7 @@ import qs.modules.ii.sidebarRight.calendar
  */
 Item {
     id: root
+    readonly property bool barShown: Config.options.bar.show
     property int sidebarWidth: Appearance.sizes.sidebarWidth
     property int sidebarPadding: Kit.tokens.space.l
     property bool showAudioOutputDialog: false
@@ -369,7 +370,16 @@ Item {
     readonly property color colPillOnHover: Tacit.raisedHot
     readonly property color colPillOff: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.05)
     readonly property color colPillOffHover: ColorUtils.mix(Tacit.inkMain, Tacit.ground, 0.07)
-    property real maxHeight: 700
+    // Live bound (not passed through Loader.sourceComponent, whose property bindings
+    // are severed after first instantiation). Mirror the panel window's bar-aware cap:
+    // bar on reserves the strip, bar off reserves the notch. Keep both ceilings in sync
+    // so a tall drawer/submenu cannot make the content outgrow its window.
+    readonly property real maxHeight: {
+        const h = root.QsWindow.window?.screen?.height ?? Appearance.sizes.sidebarWidth * 8
+        return root.barShown
+            ? h - Appearance.sizes.baseBarHeight - 16
+            : h - (Config.options.island.reservedHeight + Config.options.island.topMargin) - 16
+    }
     // The toggles block is the panel's measure: seven height.action cells — six
     // secondaries in the row with the dots as the seventh — close it; the primary
     // square's two pills split the same width. The sliders, row and drawer's grid all
@@ -440,14 +450,13 @@ Item {
             id: panelContent
             anchors.fill: parent
 
-            DockedRect {
+            BarDrawerBackground {
                 id: dockedBg
-                anchors.fill: parent
-                edge: "bottom-right"
+                edge: root.barShown ? "top" : "bottom-right"
                 cornerRadius: sidebarRightBackground.radius
-                fillet: 12
-                // The rule's own role: a shell surface that floats over apps is the frost.
-                color: Appearance.colors.colPanelFrost
+                backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
+                floatingOverride: (root.barShown
+                    && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")) ? 1 : 0
             }
 
         StyledFlickable {

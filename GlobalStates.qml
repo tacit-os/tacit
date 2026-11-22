@@ -12,6 +12,26 @@ Singleton {
     property bool barOpen: true
     property bool equalizerOpen: false
     property bool sidebarRightOpen: false
+    // Where the bar's control-panel button is right now: { x: screen-wide centre, screen: name }.
+    // The bar publishes it; SidebarRight centres itself on it, so the button is the panel's centre
+    // wherever the bar puts it (a different screen, a different clock or title width).
+    property var controlPanelAnchor: null
+    // The bar's volume button, for the volume popup.
+    property var volumeAnchor: null
+    // The bar's notification button, in the same shape, for the notification centre.
+    property var notificationAnchor: null
+    // The volume popup is open.
+    property bool volumeOpen: false
+    // The bar's other drawers: their buttons publish their anchors and own these open flags.
+    property var networkAnchor: null
+    property var batteryAnchor: null
+    property var brightnessAnchor: null
+    property bool networkOpen: false
+    property bool batteryOpen: false
+    property bool brightnessOpen: false
+    // The bar's system-tray button, for the tray drawer.
+    property var trayAnchor: null
+    property bool trayOpen: false
     // A section the control panel opens on (one of SidebarRightContent's section flags), then
     // clears: `sidebarRight openSound` (CTRL+SUPER+V).
     property string sidebarRightSection: ""

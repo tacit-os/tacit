@@ -607,6 +607,21 @@ Singleton {
                 property bool showBackground: true
                 property bool verbose: true
                 property bool vertical: false
+                // The new top bar (modules/newbar) and its drawers. The older options above
+                // belong to the end-4 bar. show gates the strip; when off the shell returns to
+                // the pre-bar layout (no top reserve, control panel bottom-right, notifications
+                // at the top corner, notch standalone).
+                property bool show: true
+                property int height: 36
+                property string drawerStyle: "floating" // "floating" | "attached"
+                property bool showTrayButton: true
+                property bool showBatteryButton: true
+                property bool showBatteryPercentage: false
+                property bool showNetworkButton: true
+                property bool showVolumeButton: true
+                property bool showBrightnessButton: true
+                property bool showControlButton: true
+                property bool showNotificationsButton: true
                 property JsonObject resources: JsonObject {
                     property string style: "filled"
                     property bool showValue: false
@@ -678,6 +693,10 @@ Singleton {
 
             property JsonObject island: JsonObject {
                 property bool enable: true
+                // The notch's body: "solid" wears the dock's ground (colour and see-through, the
+                // same token SearchWidget's dock draws); "bar" wears the bar's own surface and
+                // blur so the chip and strip read as one material.
+                property string bodyStyle: "solid"
                 // The island replaces the clock, not the bar: the tray, workspaces, window title
                 // and power button still live there. Set true to run the island alone.
                 property bool hideBar: true
@@ -959,8 +978,6 @@ Singleton {
             property JsonObject tray: JsonObject {
                 property bool monochromeIcons: true
                 property bool showItemId: false
-                property bool invertPinnedItems: true // Makes the below a whitelist for the tray and blacklist for the pinned area
-                property list<var> pinnedItems: [ "Fcitx" ]
                 property bool filterPassive: true
             }
 

@@ -35,6 +35,10 @@ Scope {
                 id: islandRoot
                 screen: islandLoader.modelData
 
+                // Keep the notch's own namespace even with the bar's colour: sharing the bar's
+                // namespace stacked two translucent surfaces on the same layer and the compositor
+                // blended their antialiased edges into a dotted seam. The notch's blur rule uses
+                // the same threshold as the bar's, so "follow the bar" still blurs alike.
                 WlrLayershell.namespace: "quickshell:island"
                 // Keys only when opened from a key (IslandController.keyboard); None otherwise so
                 // a hover never steals typing from the window under the pointer. Also only while
@@ -59,6 +63,10 @@ Scope {
                 readonly property bool overFullscreen: fullscreenWindow !== null && Config.options.island.showInFullscreenWhilePlaying
                     && IslandController.mediaPresent && MprisController.isPlaying
                     && !MprisController.playsIn(fullscreenWindow, MprisController.activePlayer)
+                // Top is buried under a fullscreen window, which puts the notch behind a game or
+                // film with no map/unmap flicker. Overlay is only for the deliberate case where a
+                // different app plays music in fullscreen. The panel family creates the bar after
+                // the notch, so on this same layer the notch stacks above the strip.
                 WlrLayershell.layer: overFullscreen ? WlrLayer.Overlay : WlrLayer.Top
                 color: "transparent"
 
@@ -68,8 +76,14 @@ Scope {
                 // width only, and the clicked sheet OVERLAYS windows like a menu does - so
                 // nothing on the desktop ever reflows because of the notch, and nothing moves
                 // under the pointer.
-                exclusionMode: ExclusionMode.Normal
-                exclusiveZone: Config.options.island.reservedHeight + Config.options.island.topMargin
+                // The top bar (modules/newbar) owns the top edge when shown: it reserves the
+                // strip and the notch hangs from its underside with no reserve of its own. With
+                // the bar off, the notch returns to its pre-bar place and keeps its own reserve.
+                readonly property bool barShown: Config.options.bar.show
+                // -1 = ignore other surfaces' exclusive zones, so the notch stays at the screen
+                // top even while the bar reserves its strip.
+                exclusionMode: barShown ? ExclusionMode.Ignore : ExclusionMode.Normal
+                exclusiveZone: barShown ? -1 : (Config.options.island.reservedHeight + Config.options.island.topMargin)
 
                 // Top-anchored only (the compositor centres it), at a FIXED size that never
                 // changes: 860 x 540 since the browser's address sheet (820 wide with its shadow,
@@ -83,14 +97,24 @@ Scope {
                     top: true
                 }
                 implicitWidth: 860
-                implicitHeight: 540 + Config.options.island.topMargin
-                mask: Region {
+                implicitHeight: barShown ? 540 : (540 + Config.options.island.topMargin)
+                // Bar shown: the notch draws over the strip (chip at the screen's top edge).
+                // Bar off: the notch sits at its pre-bar offset from the top edge.
+                readonly property bool contentShown: contentLoader.item !== null
+                mask: islandRoot.contentShown ? notchMask : emptyMask
+                Region {
+                    id: notchMask
                     item: contentLoader
                     // the sign-in's hole: the page window under it takes the pointer there
                     Region {
-                        item: islandContent?.holeItem ?? null
+                        item: islandRoot.islandContent?.holeItem ?? null
                         intersection: Intersection.Subtract
                     }
+                }
+                Region {
+                    id: emptyMask
+                    width: 0
+                    height: 0
                 }
 
                 // Include in focus grab, like the bar
@@ -189,9 +213,12 @@ Scope {
                     id: contentLoader
                     active: !GlobalStates.screenLocked
                     focus: true
+                    // Bar shown: the header sits on the bar's centre line. Bar off: the notch
+                    // keeps its pre-bar offset from the top edge.
+                    visible: islandRoot.contentShown
                     anchors.horizontalCenter: parent.horizontalCenter
                     anchors.top: parent.top
-                    anchors.topMargin: Config.options.island.topMargin
+                    anchors.topMargin: islandRoot.barShown ? 0 : Config.options.island.topMargin
                     sourceComponent: IslandContent {
                         screenData: islandRoot.screen
                     }

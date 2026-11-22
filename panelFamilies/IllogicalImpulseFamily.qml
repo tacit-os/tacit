@@ -2,6 +2,7 @@ import QtQuick
 import Quickshell
 
 import qs.modules.common
+import qs.modules.newbar
 import qs.modules.ii.background
 import qs.modules.ii.bar
 import qs.modules.ii.bluetooth
@@ -24,6 +25,8 @@ import qs.modules.ii.screenTranslator
 import qs.modules.ii.sessionScreen
 import qs.modules.ii.sidebarRight
 import qs.modules.ii.overlay
+import qs.modules.ii.volumePopup
+import qs.modules.ii.systemDrawer
 import qs.modules.ii.verticalBar
 import qs.modules.ii.wallpaperSelector
 import qs.modules.ii.desktopMenu
@@ -56,8 +59,19 @@ Scope {
             o.overview.style = "default";
         if (o.lock.useHyprlock)
             o.lock.useHyprlock = false;
+        if (o.bar.showBackground) {
+            if (o.island.bodyStyle !== "bar")
+                o.island.bodyStyle = "bar";
+        } else {
+            if (o.island.bodyStyle !== "solid")
+                o.island.bodyStyle = "solid";
+            if (o.bar.drawerStyle === "attached")
+                o.bar.drawerStyle = "floating";
+        }
     }
     Component.onCompleted: family.holdTacit()
+    property bool barBackgroundWatched: Config.options.bar.showBackground
+    onBarBackgroundWatchedChanged: family.holdTacit()
     Connections {
         target: Config
         function onReadyChanged() { family.holdTacit(); }
@@ -83,7 +97,24 @@ Scope {
     // The bar and the vertical bar have their own switch, bar.enable, off and in no Settings row: the
     // notch replaced them, and turning the notch off used to bring the end-4 bar back.
     PanelLoader { extraCondition: Config.options.bar.enable && !Config.options.bar.vertical && !(Config.options.island.enable && Config.options.island.hideBar); component: Bar {} }
+    // The top strip (Settings > Bar). Off: the shell falls back to the pre-bar layout (no
+    // strip, notch standalone, control panel bottom-right, notifications at the top corner).
+    // Load order affects layer stacking; NewBar last so Island stacks above it.
     PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
+    PanelLoader { extraCondition: Config.options.bar.show; component: NewBar {} }
+    Connections {
+        target: Config.options.bar
+        function onShowChanged() {
+            if (Config.options.bar.show) return;
+            GlobalStates.sidebarRightOpen = false;
+            GlobalStates.volumeOpen = false;
+            GlobalStates.networkOpen = false;
+            GlobalStates.batteryOpen = false;
+            GlobalStates.brightnessOpen = false;
+            GlobalStates.trayOpen = false;
+        }
+        function onShowBackgroundChanged() { family.holdTacit(); }
+    }
     PanelLoader { component: Background {} }
     PanelLoader { component: EqualizerPopup {} }
     PanelLoader { component: FilesPanel {} }
@@ -98,6 +129,14 @@ Scope {
     // the popup, and the shipped defaults (island on, its notification state on) meant a fresh
     // install had no centre at all. The popup itself stands down for the island inside the file.
     PanelLoader { component: NotificationPopup {} }
+    // Always loaded: the bar owns the volume popup the bar's volume button opens (GlobalStates.volumeOpen).
+    PanelLoader { component: VolumePopup {} }
+    // The bar's other drawers share the same shell and the bar's material: each is always
+    // loaded so its button works on the first press, and each stays closed until opened.
+    PanelLoader { component: NetworkDrawer {} }
+    PanelLoader { component: BatteryDrawer {} }
+    PanelLoader { component: BrightnessDrawer {} }
+    PanelLoader { component: TrayDrawer {} }
     // Always loaded: the notch is suppressed on the lock and session screens, and the volume and
     // brightness keys would give no feedback there. The file mutes its own triggers (meters, gamma,
     // the sink-protection warning) while the notch can answer, so exactly one of them says each.

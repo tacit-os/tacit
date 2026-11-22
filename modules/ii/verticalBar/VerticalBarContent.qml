@@ -18,7 +18,7 @@ Item {
 
     readonly property real barPadding: 0
     readonly property bool isMaterial: Config.options.bar.cornerStyle === 3
-    readonly property bool trayHasItems: SystemTray.items.values.length > 0
+    readonly property bool trayHasItems: TrayService.items.length > 0
 
     function filterLayout(layout) {
         if (trayHasItems) return layout

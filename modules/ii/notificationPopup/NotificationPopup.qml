@@ -10,8 +10,8 @@ import Quickshell.Io
 import Quickshell.Hyprland
 
 /**
- * Top right: what happened. ONE panel flush in the corner (DockedRect corner mode), the same
- * silhouette family as the notch and the controls.
+ * What happened. Bar shown: a panel hanging from the strip, centred on the bell button, in the
+ * bar's material. Bar off: a panel flush in its corner (pre-bar), in the panel frost.
  *
  *   arrivals   rows drop out of the corner as notifications come, and leave on their own
  *   centre     hover the panel (or the empty corner's edge, in ScreenCorners) 300ms, or click a row's edge: the panel
@@ -38,7 +38,11 @@ Scope {
             visible: true
             screen: Quickshell.screens.find(s => s.name === Hyprland.focusedMonitor?.name) ?? null
 
+            // Bar shown: hangs from the strip at the right corner with a gap from the wall.
+            // Bar off: sits in the configured corner as before.
+            readonly property bool barShown: Config.options.bar.show
             property string position: {
+                if (barShown) return "top_right"
                 const raw = Config.options.notifications.position ?? "top_right"
                 if (raw === "top") return "top_right"
                 if (raw === "bottom") return "bottom_right"
@@ -67,21 +71,21 @@ Scope {
             WlrLayershell.keyboardFocus: root.replying ? WlrKeyboardFocus.Exclusive
                 : (root.centerOpen || Notifications.popupList.some(n => n.hasInlineReply)) ? WlrKeyboardFocus.OnDemand
                 : WlrKeyboardFocus.None
-            // Ignore other layers' reserved zones (the notch reserves 38px at the top), so the
-            // panel really starts at the screen edge like the notch does.
+            // This layer ignores other reserved zones. Bar shown: a top margin places it below
+            // the strip. Bar off: it sits at the screen edge like before.
             exclusionMode: ExclusionMode.Ignore
             exclusiveZone: 0
 
-            // The panel's own corner, at a fixed size, not the whole screen: the compositor blends
-            // every mapped layer over every damaged pixel it overlaps, and a full-screen
-            // transparent layer taxed every frame of everything (a video, the notch's motion).
-            // Fixed so it never resizes (a resizing layer reads as jank).
+            // The panel's own box, at a fixed size, not the whole screen. Fixed so it never
+            // resizes (a resizing layer reads as jank).
             anchors {
                 top: root.isTop
                 bottom: root.isBottom
                 left: root.isLeft
                 right: root.isRight
             }
+            margins.top: barShown ? Appearance.sizes.baseBarHeight : 0
+            margins.right: barShown ? Tacit.space.m : 0
             implicitWidth: Appearance.sizes.notificationPopupWidth + 40
             implicitHeight: Math.round(dock.cap) + 34 + dock.pad * 2 + 40
 
@@ -144,9 +148,12 @@ Scope {
                     width: awayCatcher.width
                     height: awayCatcher.height
                     Region {
-                        // the panel's window sits in its corner of this one
-                        x: (root.isLeft ? 0 : root.isRight ? awayCatcher.width - root.width : (awayCatcher.width - root.width) / 2) + dock.x
-                        y: (root.isBottom ? awayCatcher.height - root.height : 0) + dock.y
+                        // the panel's window sits in its place within this full-screen catcher
+                        x: (root.isLeft ? root.margins.left
+                            : root.isRight ? awayCatcher.width - root.width - root.margins.right
+                            : (awayCatcher.width - root.width) / 2) + dock.x
+                        y: (root.isTop ? root.margins.top
+                            : awayCatcher.height - root.height - root.margins.bottom) + dock.y
                         width: dock.width
                         height: dock.height
                         intersection: Intersection.Subtract
@@ -164,9 +171,11 @@ Scope {
                 id: dock
                 readonly property int pad: 8
                 readonly property int sideMargin: 0
-                readonly property string dockEdge: root.isCenter
-                    ? (root.isBottom ? "bottom" : "top")
-                    : `${root.isBottom ? "bottom" : "top"}-${root.isLeft ? "left" : "right"}`
+                readonly property string dockEdge: root.barShown
+                    ? "top"
+                    : root.isCenter
+                        ? (root.isBottom ? "bottom" : "top")
+                        : `${root.isBottom ? "bottom" : "top"}-${root.isLeft ? "left" : "right"}`
                 readonly property real cap: root.screen ? root.screen.height * 0.55 : 600
                 // Popups too: a burst does not take the screen; the newest rows show, the rest
                 // wait in the centre (the dock clips).
@@ -196,15 +205,16 @@ Scope {
                 anchors.right: root.isRight ? parent.right : undefined
                 anchors.left: root.isLeft ? parent.left : undefined
                 anchors.horizontalCenter: root.isCenter ? parent.horizontalCenter : undefined
+                anchors.topMargin: root.barShown && root.isTop && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached") ? 8 : 0
                 anchors.rightMargin: sideMargin
                 anchors.leftMargin: sideMargin
 
-                DockedRect {
-                    anchors.fill: parent
+                BarDrawerBackground {
                     edge: dock.dockEdge
-                    cornerRadius: Appearance.rounding.verylarge
-                    fillet: 12
-                    color: Appearance.colors.colPanelFrost
+                    fillet: root.barShown ? 0 : 12
+                    backgroundColor: root.barShown ? Appearance.colors.colBarSurface : Appearance.colors.colPanelFrost
+                    floatingOverride: (root.barShown
+                        && (!Config.options.bar.showBackground || Config.options.bar.drawerStyle !== "attached")) ? 1 : 0
                 }
 
                 // Hover on the panel grows it into the centre; leaving folds it. Not while popups

@@ -651,7 +651,7 @@ Item {
             edge: "bottom"
             cornerRadius: menuTab.corner
             fillet: 12
-            color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainerHigh, 0.08)
+            color: Appearance.colors.colDockSurface
         }
         // uncovered from the dock up as the slab rises
         Item {
@@ -863,7 +863,7 @@ Item {
             edge: "bottom"
             cornerRadius: peekTab.corner
             fillet: 12
-            color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainerHigh, 0.08)
+            color: Appearance.colors.colDockSurface
         }
         // uncovered as the slab grows, centred in it (the slab itself does not clip: its coves reach past its sides)
         Item {
@@ -1032,7 +1032,7 @@ Item {
         edge: "bottom"
         cornerRadius: Appearance.rounding.verylarge
         fillet: root.dockCornerSize
-        color: ColorUtils.transparentize(Appearance.m3colors.m3surfaceContainerHigh, 0.08)
+        color: Appearance.colors.colDockSurface
     }
 
     Item {

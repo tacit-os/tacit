@@ -106,6 +106,7 @@ Item {
             anchors.horizontalCenter: parent.horizontalCenter
             anchors.verticalCenter: parent.verticalCenter
             back: root.pointShown
+            // The clock lives here: at rest, and in the open sheet's header.
             opacity: centre.live ? 0 : 1
             visible: opacity > 0
             Behavior on opacity {
@@ -195,6 +196,38 @@ Item {
                         NumberAnimation { duration: 450; easing.type: Easing.BezierSpline; easing.bezierCurve: Appearance.animationCurves.emphasizedDecel }
                     }
                 }
+            }
+        }
+
+        // Battery in the centre only while recording has taken the clock's place is not a thing;
+        // kept out of the rest state so the clock can sit there.
+        Item {
+            id: batteryFace
+            anchors.horizontalCenter: parent.horizontalCenter
+            anchors.verticalCenter: parent.verticalCenter
+            visible: false && root.loadedState === "idle" && !centre.live && Battery.available
+            width: Battery.available ? (Battery.isPluggedIn ? 20 : 16) : 0
+            height: parent.height
+
+            MaterialSymbol {
+                anchors.centerIn: parent
+                visible: Battery.isPluggedIn
+                text: "bolt"
+                iconSize: 20
+                color: Tacit.inkMain
+            }
+            // A ring for "on the battery": the hollow to the bolt's solid, one ink, no colour.
+            // Drawn rather than set in a glyph: the symbol fonts' ring is a hairline, and at this
+            // size a 2px stroke is the only weight that reads beside a 20px bolt.
+            Rectangle {
+                anchors.centerIn: parent
+                visible: !Battery.isPluggedIn
+                width: 13
+                height: 13
+                radius: 6.5
+                color: "transparent"
+                border.width: 2
+                border.color: Tacit.inkMain
             }
         }
     }
@@ -584,7 +617,7 @@ Item {
                     visible: Battery.available
                     anchors.verticalCenter: parent.verticalCenter
                     // low at the level the low-battery warning uses (Settings: "Warn when the battery falls to")
-                    text: Battery.isPluggedIn ? "bolt" : (Battery.isLow ? "battery_alert" : "battery_full")
+                    text: Battery.iconName()
                     iconSize: 16
                     color: Battery.isLowAndNotCharging ? Tacit.inkMain : IslandController.subtextColor
                 }
