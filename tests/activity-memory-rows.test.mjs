@@ -1,7 +1,8 @@
 // Activity's Now page: its rows add up to the memory in use above them. The kernel's in use (MemTotal - MemAvailable)
 // is more than the cgroups hold (graphics, drivers and the kernel's own belong to no process); that rest is its own row,
-// System, and never part of Tacit itself. sample.py's own sample() runs under python3 with a pretend /proc/meminfo,
-// cgroups and no processes, windows or agents host; then Data.qml's makeNow() runs under node on what it gave.
+// Graphics and kernel, named apart from Tacit itself's part "The system" and never part of Tacit itself. sample.py's own
+// sample() runs under python3 with a pretend /proc/meminfo, cgroups and no processes, windows or agents host; then
+// Data.qml's makeNow() runs under node on what it gave.
 import { spawnSync } from "child_process";
 import { mkdtempSync, rmSync } from "fs";
 import { tmpdir } from "os";
@@ -47,7 +48,7 @@ try {
     const used = s.mem.total - s.mem.avail, held = s.groups.reduce((n, g) => n + g.mem, 0);
     const tacit = s.groups.find(g => g.kind === "tacit");
     check("Tacit itself holds what the cgroups hold, nothing more", tacit?.mem === 3610 * MB, `${tacit?.mem / MB} MB`);
-    check("and its parts are its own", (tacit?.tacitParts ?? []).every(p => p.name !== "System") &&
+    check("and its parts are its own", (tacit?.tacitParts ?? []).every(p => p.name !== "Graphics and kernel") &&
       (tacit?.tacitParts ?? []).reduce((n, p) => n + p.mem, 0) <= tacit.mem, JSON.stringify(tacit?.tacitParts));
     check("what no process holds is given apart, and the groups and it add up to what is in use",
       held + (s.mem.system ?? 0) === used, `in use ${(used / MB).toFixed(0)} MB, groups ${(held / MB).toFixed(0)} MB, apart ${s.mem.system ?? "none"}`);
@@ -62,13 +63,18 @@ try {
     }
     const page = d.makeNow();
     const rows = page.tacit ?? [];
-    const sys = rows.find(i => i.n === "System"), self = rows.find(i => i.kind === "tacit");
-    check("the Now page lists System as a row of its own, said in plain words", sys !== undefined && sys.kind !== "tacit"
-      && /graphics, drivers and the kernel/.test(sys.detail ?? "") && sys.quit === "" && !sys.open, JSON.stringify(rows));
+    const sys = rows.find(i => i.kind === "system"), self = rows.find(i => i.kind === "tacit");
+    const parts = (s.groups.find(g => g.kind === "tacit")?.tacitParts ?? []).map(p => p.name);
+    check("the Now page lists Graphics and kernel as a row of its own, said in plain words", sys !== undefined
+      && sys.n === "Graphics and kernel" && sys.detail === "what the graphics driver and the kernel hold"
+      && sys.quit === "" && !sys.open, JSON.stringify(rows));
+    const word = n => n.toLowerCase().replace(/^the /, "");
+    check("and its name is not taken by one of Tacit itself's parts (The system)", parts.includes("The system")
+      && !parts.some(n => word(sys?.n ?? "").includes(word(n))), JSON.stringify(parts));
     check("Tacit itself shows its own total", self?.c1 === d.gb(3610 * MB), self?.c1);
-    check("System shows the rest of what is in use", sys?.c1 === d.gb(used - 3610 * MB), sys?.c1);
+    check("Graphics and kernel shows the rest of what is in use", sys?.c1 === d.gb(used - 3610 * MB), sys?.c1);
     d.byProcessor = true;
-    check("the processor view, which cannot measure it, leaves System out", !(d.makeNow().tacit ?? []).some(i => i.n === "System"));
+    check("the processor view, which cannot measure it, leaves the row out", !(d.makeNow().tacit ?? []).some(i => i.kind === "system"));
   }
 } finally {
   rmSync(tmp, { recursive: true, force: true });

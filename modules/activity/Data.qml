@@ -562,7 +562,7 @@ Item {
         // what no process holds (sample.py): its own row beside Tacit itself, so the rows add up to the memory in use.
         // Nothing measures its processor, so the processor view leaves it out.
         if (!page.cpuView && (s.mem.system ?? 0) > 0)
-            page.tacit = page.tacit.concat([{ key: "system", kind: "system", n: "System", detail: "graphics, drivers and the kernel", sym: "memory",
+            page.tacit = page.tacit.concat([{ key: "system", kind: "system", n: "Graphics and kernel", detail: "what the graphics driver and the kernel hold", sym: "memory",
                                               c1: d.gb(s.mem.system), mem: s.mem.system, dim: page.alarm, quit: "", open: false }])
                 .sort((a, b) => b.mem - a.mem);
         page.appsTotal = apps.length;
