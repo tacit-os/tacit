@@ -24,7 +24,8 @@ Singleton {
         return root.cleanTitle(root.app, root.rawTitle);
     }
     readonly property string address: root.top?.HyprlandToplevel?.address ? `0x${root.top.HyprlandToplevel.address}` : ""
-    readonly property var terminalApps: ["foot", "footclient", "kitty", "alacritty", "org.wezfurlong.wezterm", "com.mitchellh.ghostty"]   // lower case: Alacritty's app id is "Alacritty"
+    // lower case: Alacritty and XTerm name their window class with capitals (the first of the fallback chain in session/hypr/hyprland/variables.lua)
+    readonly property var terminalApps: ["foot", "footclient", "kitty", "alacritty", "org.wezfurlong.wezterm", "com.mitchellh.ghostty", "konsole", "org.kde.konsole", "org.gnome.console", "xterm", "uxterm"]
     readonly property bool terminal: root.terminalApps.includes(root.app.toLowerCase())
     // "browser" is Thyris's Qt build, "browser-cef" its CEF build (the one now run and packaged)
     readonly property bool thyris: root.app === "browser" || root.app === "browser-cef"
