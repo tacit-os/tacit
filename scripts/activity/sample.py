@@ -499,6 +499,14 @@ def sample():
         for pid in g["pids"]:
             for c in win_pids.get(pid, []):
                 g["windows"].append({"address": c["address"], "title": c.get("title", ""), "class": c.get("class", "")})
+    # A window whose process is in none of the apps' groups (Hyprland gave no process for it, or a launcher's) goes to
+    # the app of its class: left out, the app was listed "In the background, no window open" with its window open.
+    shown = {w["address"] for g in groups.values() if g["kind"] == "app" for w in g["windows"]}
+    byclass = {g["id"].lower(): g for g in groups.values() if g["kind"] == "app"}
+    for c in clients or []:
+        g = byclass.get(norm(c.get("class", "")).lower())
+        if g is not None and c["address"] not in shown:
+            g["windows"].append({"address": c["address"], "title": c.get("title", ""), "class": c.get("class", "")})
 
     # Tacit: every cgroup of the system and the user, less what the apps and agents hold
     total_cg = cg_mem("/user.slice", ratio) + cg_mem("/system.slice", ratio) + cg_mem("/init.scope", ratio)
