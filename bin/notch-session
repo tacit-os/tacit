@@ -155,7 +155,14 @@ PreToolUse)
 	# a sub-agent's tool call comes under the session's id with its agent_id: it says nothing of the session's own
 	# permission prompt, which only the main thread's next call answers
 	aid=$(jq -r '.agent_id // ""' <<<"$input")
-	if [ -n "$aid" ]; then qs_call agentActivity "$sid" "$aid" "$line"; else qs_call activity "$sid" "$line"; fi ;;
+	if [ -n "$aid" ]; then qs_call agentActivity "$sid" "$aid" "$line"; else
+		# the main thread's next tool call means the prompt was answered: the state file (read by Praxis's rail and a
+		# restarted shell) leaves "waiting" as the notch row does, unless this call is the one the Notification came with
+		state="$dir/$sid.state"
+		[ "$(cut -f1 "$state" 2>/dev/null)" = waiting ] && [ $(( $(date +%s) - $(stat -c %Y "$state") )) -ge 2 ] &&
+			printf '%s\t%s\t%s\n' working "$cwd" "$addr" > "$state"
+		qs_call activity "$sid" "$line"
+	fi ;;
 SubagentStart|SubagentStop)
 	# field names are defensive: agent id and a description under whichever key Claude sends
 	aid=$(jq -r '.agent_id // ""' <<<"$input")
