@@ -278,6 +278,8 @@ AbstractBackgroundWidget {
                         color: Appearance.colors.colOnLayer0
                         background: null
                         onTextChanged: root.editingText = text
+                        // the page that opened under the + (now hidden) held the focus: type straight away
+                        onVisibleChanged: if (visible) forceActiveFocus()
                     }
                 }
             }
