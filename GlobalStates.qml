@@ -116,6 +116,9 @@ Singleton {
             root.desktopMenuOpen = false;
             root.dropShelfOpen = false;
             root.wallpaperSelectorOpen = false;
+            root.equalizerOpen = false;
+            root.mediaControlsOpen = false;
+            root.notificationCenterOpen = false;
         }
         Quickshell.execDetached(["busctl", "call", "org.freedesktop.login1",
             "/org/freedesktop/login1/session/auto", "org.freedesktop.login1.Session",
