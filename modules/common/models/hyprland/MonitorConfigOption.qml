@@ -44,9 +44,14 @@ NestableObject {
 
         console.log(`[MonitorConfig] full file:\n${lines}`)
 
-        const escaped = lines.replace(/'/g, "'\\''")
+        const marker = "-- Written by Tacit Settings (Display & power). Delete it to go back to hyprland/general.lua."
+        const escaped = `${marker}\n${lines}`.replace(/'/g, "'\\''")
+        // monitors.lua is also nwg-displays' file: written only when absent or ours (the marker line), as Settings does
         saveProc.command = ["bash", "-c",
-            `printf '%s\n' '${escaped}' > ~/.config/hypr/monitors.lua`]
+            `f="\${XDG_CONFIG_HOME:-$HOME/.config}/hypr/monitors.lua"; `
+            + `if [ -s "$f" ] && ! head -1 "$f" | grep -q '^-- Written by Tacit Settings'; then `
+            + `echo "monitors.lua was written by another tool; left as it is" >&2; exit 1; fi; `
+            + `printf '%s\n' '${escaped}' > "$f"`]
         saveProc.running = true
     }
 
