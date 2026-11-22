@@ -33,9 +33,13 @@ Item {
     readonly property var apps: request.apps ?? []
     property int index: request.selected ?? 0
     property bool always: false
+    // null (centred on the screen) when the asker is unknown or not on this screen: a window of no size, or one on
+    // another screen, sent the menu to the screen's top-left corner
     readonly property var askRect: {
         const a = request.asker;
-        return a ? Qt.rect(a.x - monitorX, a.y - monitorY, a.w, a.h) : null;
+        if (!a || !(a.w > 0 && a.h > 0)) return null;
+        const r = Qt.rect(a.x - monitorX, a.y - monitorY, a.w, a.h);
+        return r.right > 0 && r.bottom > 0 && r.left < root.width && r.top < root.height ? r : null;
     }
 
     readonly property var glyphs: ({
