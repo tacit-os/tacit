@@ -76,7 +76,12 @@ Singleton {
                 return ["bash", "-c", `${cropToStdout} | ${annotationCommand} && ${cleanup}`]
                 break;
             case ScreenshotAction.Action.Search:
-                return ["bash", "-c", `${cropInPlace} && xdg-open "${root.imageSearchEngineBaseUrl}$(${uploadAndGetUrl(screenshotPath)})" && ${cleanup}`]
+                // Offline or with the host down the upload prints nothing (or "null"): the search must not open on an
+                // empty address, so it opens only on a real one and says so when there is none
+                const failed = Translation.tr("Could not upload the picture"), failedBody = Translation.tr("No search was opened");
+                return ["bash", "-c", `${cropInPlace} && { url=$(${uploadAndGetUrl(screenshotPath)}); `
+                    + `if [ -n "$url" ] && [ "$url" != null ]; then xdg-open "${root.imageSearchEngineBaseUrl}$url"; `
+                    + `else notify-send "${failed}" "${failedBody}" -a "Screen Snip" -i "image-x-generic"; fi; ${cleanup}; }`]
                 break;
             case ScreenshotAction.Action.CharRecognition: {
                 // wl-copy with nothing to read empties the clipboard, so a region without text must not reach it
