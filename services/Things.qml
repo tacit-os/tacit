@@ -13,7 +13,7 @@ import qs.modules.common.widgets   // DropShelf
  * path, `describe` says what it is (kind, glyph), what to call it (its origin title over its
  * file name), and what is true of it (origin, age); `actions` lists what can be done with it
  * here, in the same order everywhere: open, open in Graphis, show in Files, park on the shelf,
- * hand to Claude, send to the phone, copy the path, forget where it came from. The notch's rows, a
+ * hand to Claude, send to the phone, copy the path or its folder's, forget where it came from. The notch's rows, a
  * notification's file, a palette result and a Files row all ask this, so a download is the
  * same thing with the same actions wherever you meet it.
  */
@@ -104,6 +104,9 @@ Singleton {
         if (t.kind === "image")
             list.push({ "id": "wallpaper", "label": "Set as wallpaper", "glyph": "wallpaper", "run": () => Wallpapers.apply(path) });
         list.push({ "id": "path", "label": "Copy path", "glyph": "content_copy", "run": () => root.copyPath(path) });
+        // the folder that holds it, to paste into Pinax's search or a terminal
+        if (t.kind !== "folder")
+            list.push({ "id": "folderpath", "label": "Copy folder location", "glyph": "folder_copy", "run": () => root.copyPath(Files.parent(path)) });
         if (t.origin)
             list.push({ "id": "forget", "label": "Forget where it came from", "glyph": "visibility_off", "run": () => Origins.forget(path) });
         return list;
