@@ -140,16 +140,16 @@ Singleton {
         const a = Hyprland.toplevels.values.find(x => x.wayland === toplevel)?.address ?? "";
         return a.length === 0 || a.startsWith("0x") ? a : `0x${a}`;
     }
-    // Each window's last place on a desktop (workspace 1-100), by address: Super+Tab draws a window hidden into the dock
-    // there, and a click on it sends it back (Discord, OYINOS, 2026-11-22: hidden by the band, it was not in Super+Tab).
-    // Not taken while the band holds the window: on its way into the dock it is no longer where it was.
+    // Each window's last desktop (workspace 1-100), by address: Super+Tab draws a window hidden into the dock there, and a
+    // click on it sends it back (Discord, OYINOS, 2026-11-22: hidden by the band, it was not in Super+Tab). Its place
+    // and size are its own: the band keeps a hidden window where it was, at the size it had.
     property var homes: ({})
     function keepHomes(windows) {
         const h = {};
         for (const w of windows) {
             const a = root.norm(w.address);
             const id = w.workspace?.id ?? -1;
-            const home = id >= 1 && id <= 100 && (root.held[a] ?? "") === "" ? { "workspace": w.workspace, "at": w.at, "size": w.size, "monitor": w.monitor } : root.homes[a];
+            const home = id >= 1 && id <= 100 ? { "workspace": w.workspace } : root.homes[a];
             if (home)
                 h[a] = home;
         }

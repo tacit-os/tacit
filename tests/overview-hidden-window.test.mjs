@@ -17,19 +17,16 @@ const keepHomes = fn(band, "keepHomes", { root: bandRoot });
 const win = (ws, at, size) => ({ address: "0xabc", workspace: ws, at, size, monitor: 0 });
 if (keepHomes) {
   keepHomes([win({ id: 3, name: "3" }, [100, 80], [1200, 760])]);
-  check("a window's place on its desktop is kept", bandRoot.homes.abc?.workspace?.id === 3 && bandRoot.homes.abc?.size?.[0] === 1200, JSON.stringify(bandRoot.homes));
-  held.abc = "folding";
-  keepHomes([win({ id: 3, name: "3" }, [900, 1000], [640, 400])]);
-  check("not while the band takes it into the dock", bandRoot.homes.abc?.size?.[0] === 1200, JSON.stringify(bandRoot.homes));
+  check("a window's desktop is kept", bandRoot.homes.abc?.workspace?.id === 3, JSON.stringify(bandRoot.homes));
   held.abc = "hidden";
-  keepHomes([win({ id: -98, name: "special:tacit-hidden" }, [0, 0], [640, 400])]);
-  check("nor on the band's hidden workspace", bandRoot.homes.abc?.workspace?.id === 3 && bandRoot.homes.abc?.at?.[0] === 100, JSON.stringify(bandRoot.homes));
+  keepHomes([win({ id: -98, name: "special:tacit-hidden" }, [100, 80], [1200, 760])]);
+  check("and stays while it is on the band's hidden workspace", bandRoot.homes.abc?.workspace?.id === 3, JSON.stringify(bandRoot.homes));
   keepHomes([]);
   check("a window that is gone is forgotten", !("abc" in bandRoot.homes), JSON.stringify(bandRoot.homes));
-} else check("WindowBand keeps each window's place (keepHomes)", false);
+} else check("WindowBand keeps each window's desktop (keepHomes)", false);
 
 const homeScope = (kind, stray, homes) => ({ root: { homes, heldAs: () => kind, strayHidden: () => stray, norm: bandRoot.norm, addressOf: () => "0xabc" } });
-const home = { workspace: { id: 3 }, at: [100, 80], size: [1200, 760] };
+const home = { workspace: { id: 3 } };
 const homeOf = (kind, stray, homes) => fn(band, "homeOf", homeScope(kind, stray, homes));
 check("a hidden window has its place", homeOf("hidden", false, { abc: home })?.({})?.workspace?.id === 3);
 check("so has one Hyprland shows on the hidden workspace without its event", homeOf("", true, { abc: home })?.({})?.workspace?.id === 3);

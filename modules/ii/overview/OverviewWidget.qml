@@ -332,7 +332,7 @@ Item {
                             widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
                             readonly property var home: WindowBand.homeOf(modelData)
                             held: window.home !== null
-                            windowData: window.home ? Object.assign({}, root.windowByAddress[address], window.home, { "workspace": { "id": root.homeId(modelData) } }) : root.windowByAddress[address]
+                            windowData: window.home ? Object.assign({}, root.windowByAddress[address], { "workspace": { "id": root.homeId(modelData) } }) : root.windowByAddress[address]
 
                             // Offset on the canvas
                             xOffset: (root.workspaceImplicitWidth + root.cardGap) * root.workspaceIds.indexOf(windowData?.workspace.id)
