@@ -7,7 +7,8 @@ import qs.modules.common
 // per 120 units), same accumulation while the 200 ms scroll animation runs. Put it inside a
 // StyledListView, whose `Behavior on contentY` does the easing, or set `ease` on a view without
 // one (Files, Graphis) so its other moves - the cursor followed, a row revealed - stay immediate.
-// A mostly sideways wheel is left to the view, which scrolls long lines itself.
+// A mostly sideways wheel is left to the view, which scrolls long lines itself, and so are a touchpad swipe's start and
+// end, which move nothing: taken here, the view never began the swipe and dragged its sideways part nowhere.
 MouseArea {
     id: wheel
     required property Flickable view
@@ -18,7 +19,7 @@ MouseArea {
     anchors.fill: parent
     acceptedButtons: Qt.NoButton
     onWheel: e => {
-        if (Math.abs(e.angleDelta.x) > Math.abs(e.angleDelta.y)) {
+        if (e.phase === Qt.ScrollBegin || e.phase === Qt.ScrollEnd || Math.abs(e.angleDelta.x) > Math.abs(e.angleDelta.y)) {
             e.accepted = false;
             return;
         }
