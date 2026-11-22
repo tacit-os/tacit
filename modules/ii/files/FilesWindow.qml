@@ -1200,6 +1200,25 @@ FloatingWindow {
         }
         return "/" + out.join("/");
     }
+    // A path typed or pasted into the path field may be a file's (Copy path gives one): its folder opens with the file
+    // selected, as in other file managers. go() alone opened the file's path as a folder, empty (Discord, OYINOS, 2026-11-22).
+    function goTyped(t) {
+        typedProbe.path = win.typedPath(t);
+        typedProbe.running = false;
+        typedProbe.running = true;
+    }
+    function typedProbed(isFile, path) {
+        if (isFile)
+            win.show(Files.parent(path), path, "");
+        else
+            win.go(path);
+    }
+    Process {
+        id: typedProbe
+        property string path: ""
+        command: ["test", "-f", path]
+        onExited: (code, status) => win.typedProbed(code === 0, typedProbe.path)
+    }
     function go(path, push) {
         const p = Files.trim(path);
         if (win.searching) { fdProc.running = false; recentProc.running = false; largeProc.running = false; win.searching = false; win.recentShown = false; win.largeOld = false; win.shelfShown = false; win.phoneShown = false; win.hits = []; win.searchCursor = -1; win.query = ""; }
@@ -2627,7 +2646,7 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                                         if (event.key === Qt.Key_Escape) { win.editingPath = false; event.accepted = true; }
                                         else if (event.key === Qt.Key_Return || event.key === Qt.Key_Enter) {
                                             const t = text.trim();
-                                            if (t.length > 0) win.go(win.typedPath(t));
+                                            if (t.length > 0) win.goTyped(t);
                                             win.editingPath = false;
                                             event.accepted = true;
                                         }
