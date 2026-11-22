@@ -67,10 +67,15 @@ Scope {
     }
 
     // pictures work safety hides on the desktop are not shown here either
+    // whether the first picture is the wallpaper in use: it is left out when unset or hidden by work safety
+    readonly property bool carouselHasCurrent: {
+        const current = FileUtils.trimFileProtocol(Config.options.background.wallpaperPath)
+        return !!current && current.length > 0 && !Wallpapers.hiddenByWorkSafety(current)
+    }
     property var carouselModel: {
         const current = FileUtils.trimFileProtocol(Config.options.background.wallpaperPath)
         const extra = randomWallpapers.filter(p => !Wallpapers.hiddenByWorkSafety(p)).map(p => root.displayPathFor(p))
-        if (!current || current.length === 0 || Wallpapers.hiddenByWorkSafety(current)) return extra
+        if (!root.carouselHasCurrent) return extra
         return [root.displayPathFor(current), ...extra]
     }
 
@@ -210,6 +215,7 @@ Scope {
                     MenuPictures {
                         Layout.fillWidth: true
                         model: root.carouselModel
+                        hasCurrent: root.carouselHasCurrent
                         onPicked: (path, index) => {
                             // The current wallpaper's card shows a live wallpaper as its thumbnail: apply the wallpaper
                             // itself. Not known by its place: work safety can leave it out.

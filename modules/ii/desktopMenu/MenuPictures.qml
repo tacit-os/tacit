@@ -6,11 +6,12 @@ import QtQuick.Effects
 
 // The menu's picture row, drawn as the wallpaper strip draws its cards (WallpaperStrip.qml): radius
 // normal, the pointed one lifted with a primary ring, the wallpaper in use with the check dot.
-// The first entry of `model` is the wallpaper in use. The card under the pointer opens wide (the
+// The first entry of `model` is the wallpaper in use, unless `hasCurrent` is false. The card under the pointer opens wide (the
 // old carousel's pop); the wheel and a drag scroll the row. A click emits `picked` with the card's path and place.
 Item {
     id: root
     property var model: []
+    property bool hasCurrent: true   // false when the first entry is not the wallpaper in use
     property real cardW: 60
     property real wideW: 108
     property real cardH: 62
@@ -88,7 +89,7 @@ Item {
                 maskSource: pictureMask
             }
             Rectangle {
-                visible: cell.index === 0
+                visible: root.hasCurrent && cell.index === 0
                 anchors.left: parent.left
                 anchors.bottom: parent.bottom
                 anchors.margins: 6
