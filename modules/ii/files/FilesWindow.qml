@@ -2383,7 +2383,10 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                 case Qt.Key_Enter:
                     win.openSelection(); event.accepted = true; return;
                 case Qt.Key_Backspace:
-                    win.up(); event.accepted = true; return;
+                    // while a jump is being typed, Backspace corrects it instead of leaving the folder
+                    if (win.jumpBuffer.length > 0) { win.jumpBuffer = win.jumpBuffer.slice(0, -1); jumpTimer.restart(); }
+                    else win.up();
+                    event.accepted = true; return;
                 case Qt.Key_Down:
                     win.moveCursor(win.view === "grid" ? win.gridStep(1) : 1, shift); event.accepted = true; return;
                 case Qt.Key_Up:
@@ -2405,7 +2408,10 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
                 case Qt.Key_PageUp:
                     win.moveCursor(-12, shift); event.accepted = true; return;
                 case Qt.Key_Space:
-                    win.previewToggled = !win.previewToggled; event.accepted = true; return;
+                    // a space inside a jump ("annual r") belongs to the name being typed
+                    if (win.jumpBuffer.length > 0) win.jump(" ");
+                    else win.previewToggled = !win.previewToggled;
+                    event.accepted = true; return;
                 case Qt.Key_Escape:
                     // the panel first: it is what is in front. A copy under way is never stopped here: stopping
                     // removes what was half written, so it has its own key (Ctrl+.)
