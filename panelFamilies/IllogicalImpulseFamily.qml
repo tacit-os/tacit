@@ -99,10 +99,9 @@ Scope {
     PanelLoader { extraCondition: Config.options.bar.enable && !Config.options.bar.vertical && !(Config.options.island.enable && Config.options.island.hideBar); component: Bar {} }
     // The top strip (Settings > Bar). Off: the shell falls back to the pre-bar layout (no
     // strip, notch standalone, control panel bottom-right, notifications at the top corner).
-    // Both surfaces sit on Top, where a fullscreen window buries them. Later surfaces stack
-    // above earlier ones, so the strip loads first and the notch hangs over it.
-    PanelLoader { extraCondition: Config.options.bar.show; component: NewBar {} }
+    // Load order affects layer stacking; NewBar last so Island stacks above it.
     PanelLoader { extraCondition: Config.options.island.enable; component: Island {} }
+    PanelLoader { extraCondition: Config.options.bar.show; component: NewBar {} }
     Connections {
         target: Config.options.bar
         function onShowChanged() {

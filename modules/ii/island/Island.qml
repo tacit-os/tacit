@@ -63,11 +63,13 @@ Scope {
                 readonly property bool overFullscreen: fullscreenWindow !== null && Config.options.island.showInFullscreenWhilePlaying
                     && IslandController.mediaPresent && MprisController.isPlaying
                     && !MprisController.playsIn(fullscreenWindow, MprisController.activePlayer)
-                // Top is buried under a fullscreen window, which puts the notch behind a game or
-                // film with no map/unmap flicker. Overlay is only for the deliberate case where a
-                // different app plays music in fullscreen. The notch stacks above the bar on this
-                // same layer because the panel family loads it after NewBar.
-                WlrLayershell.layer: overFullscreen ? WlrLayer.Overlay : WlrLayer.Top
+                // Overlay keeps the notch stacked above the bar strip however the two surfaces
+                // are created. A fullscreen window would then show the notch on top of a game or
+                // film, so hide the notch in that case below (hideForFullscreen) instead of relying
+                // on Top to bury it: stacking two Top-layer surfaces against each other is what
+                // made the notch disappear behind the bar.
+                WlrLayershell.layer: WlrLayer.Overlay
+                readonly property bool hideForFullscreen: fullscreenWindow !== null && !overFullscreen
                 color: "transparent"
 
                 // Window-aware means honest: the reserve is exactly the resting header (34px)
@@ -100,7 +102,7 @@ Scope {
                 implicitHeight: barShown ? 540 : (540 + Config.options.island.topMargin)
                 // Bar shown: the notch draws over the strip (chip at the screen's top edge).
                 // Bar off: the notch sits at its pre-bar offset from the top edge.
-                readonly property bool contentShown: contentLoader.item !== null
+                readonly property bool contentShown: contentLoader.item !== null && !hideForFullscreen
                 mask: islandRoot.contentShown ? notchMask : emptyMask
                 Region {
                     id: notchMask
