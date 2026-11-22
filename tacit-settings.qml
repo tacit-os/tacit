@@ -1052,10 +1052,15 @@ ApplicationWindow {
         if (next !== undefined)
             root.current = next;
     }
-    // Tab moves through the page's rows; the page scrolls to keep the focused one in view.
+    // Tab moves through the page's rows; the page scrolls to keep the focused one in view. Not when the item
+    // was only given focus back with the window (nothing had focus before): mouse-over focus left and entered
+    // the window, and the page jumped to the row last focused, however far it was scrolled away from it.
+    property bool hadFocusItem: false
     onActiveFocusItemChanged: {
         const item = root.activeFocusItem;
-        if (!item || !pageColumn || !root.isInside(item, pageColumn))
+        const returning = !root.hadFocusItem;
+        root.hadFocusItem = item !== null;
+        if (!item || returning || !pageColumn || !root.isInside(item, pageColumn))
             return;
         const y = item.mapToItem(pageColumn, 0, 0).y + pageColumn.y;
         if (y < pageScroll.contentY + 20)
