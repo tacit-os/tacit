@@ -958,7 +958,7 @@ Item {
                         onClicked: {
                             // a window the band hid comes back through the band, as the pill does, so it is not left
                             // held while focused
-                            if (peekTab.current && WindowBand.heldAs(peekTab.current) === "hidden")
+                            if (peekTab.current && (WindowBand.heldAs(peekTab.current) === "hidden" || WindowBand.strayHidden(peekTab.current)))
                                 WindowBand.reopenAll([WindowBand.addressOf(peekTab.current)]);
                             else
                                 peekTab.current?.activate();

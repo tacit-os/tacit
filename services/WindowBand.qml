@@ -129,6 +129,13 @@ Singleton {
         running: true
         onTriggered: if (!heldQuery.running) heldQuery.running = true
     }
+    // A window Hyprland has on the band's hidden workspace that the shell holds no "hidden" for (an event it missed): the
+    // dock and its preview send it back as well, where they only focused it and nothing came (Discord, OYINOS,
+    // 2026-11-22). The plugin's own events stay the record; a reopen of a window it does not hold does nothing.
+    function strayHidden(toplevel) {
+        return root.heldAs(toplevel) === ""
+            && (HyprlandData.windowByAddress[root.addressOf(toplevel)]?.workspace?.name ?? "") === "special:tacit-hidden";
+    }
     function addressOf(toplevel) {
         const a = Hyprland.toplevels.values.find(x => x.wayland === toplevel)?.address ?? "";
         return a.length === 0 || a.startsWith("0x") ? a : `0x${a}`;

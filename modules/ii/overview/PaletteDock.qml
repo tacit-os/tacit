@@ -160,7 +160,7 @@ Item {
     function activate(app) {
         // the windows the window band hid come back, all of them, each to its own place (the last one in front); held
         // windows are never cycled through
-        const hidden = app.toplevels.filter(t => WindowBand.heldAs(t) === "hidden");
+        const hidden = app.toplevels.filter(t => WindowBand.heldAs(t) === "hidden" || WindowBand.strayHidden(t));
         // a window still on its way into the dock comes back out as soon as it lands
         const folding = app.toplevels.filter(t => WindowBand.heldAs(t) === "folding");
         if (hidden.length > 0 || folding.length > 0) {

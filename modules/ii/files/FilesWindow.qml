@@ -147,6 +147,9 @@ FloatingWindow {
         // Files' minimum (640 x 400); kept, every later Files window opened that small
         if ((c?.workspace?.name ?? "").startsWith("special:tacit-"))
             return;
+        // the same from the band's own events (the window list above can lag behind a hide)
+        if ((WindowBand.held[WindowBand.norm(win.hyprAddress)] ?? "").length > 0)
+            return;
         if (win.dock?.tiled && c && c.floating)   // un-tiled by the keyboard (Super+Alt+Space)
             win.dock = null;
         if (win.dock?.tiled) {   // left as a tile: comes back as one (where there are tiles)

@@ -288,7 +288,14 @@ Singleton {
         root.railPref = v;
         saveTimer.restart();
     }
+    // Files' minimum (640 x 400) is the size the compositor gives a window the band holds in the dock: a floating size that
+    // small was never chosen, and kept it opened every later Files window that small (Discord, OYINOS, 2026-11-22)
+    function heldSize(w) {
+        return (w?.w ?? 1000) <= 640 && (w?.h ?? 640) <= 400;
+    }
     function rememberWindow(state) {
+        if (state.floating && root.heldSize(state))
+            return;
         root.windowState = Object.assign({}, root.windowState, state);
         saveTimer.restart();
     }
@@ -479,8 +486,9 @@ Singleton {
                 root.lastFolder = p.lastFolder ?? "";
                 root.viewByFolder = p.viewByFolder ?? ({});
                 root.sizeByFolder = p.sizeByFolder ?? ({});
+                // a held window's size saved by an earlier version opens at the default one instead
                 if (p.window)
-                    root.windowState = Object.assign({}, root.windowState, p.window);
+                    root.windowState = Object.assign({}, root.windowState, p.window, root.heldSize(p.window) ? { "w": 1000, "h": 640 } : {});
                 if (p.railPref)
                     root.railPref = p.railPref;
                 if (Array.isArray(p.pins))
