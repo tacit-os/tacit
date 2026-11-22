@@ -62,7 +62,7 @@ FocusScope {
         Keys.onSpacePressed: r.selectedBy()
         Keys.onUpPressed: r.moved(-1)
         Keys.onDownPressed: r.moved(1)
-        Keys.onEscapePressed: if (r.mode === "selected") r.cancelled()
+        // no Esc here: on a selected row cancelling changes nothing, and the page closes Settings on Esc
         onActiveFocusChanged: if (activeFocus && r.mode === "") r.selectedBy()
 
         Rectangle {
