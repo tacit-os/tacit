@@ -14,9 +14,11 @@ const Qt = { Key_Escape: 0x01000000, Key_Return: 0x01000004, Key_Enter: 0x010000
 function typed(text) {
   let went = null;
   const win = { home: "/home/a", folder: "/home/a/Documents", editingPath: true, go: p => { went = p; } };
-  for (const name of ["typedPath", "decodePath"]) {
+  // the field asks whether the path is a file first (goTyped); every path here is a folder's, so the probe says no
+  const typedProbe = { path: "", set running(on) { if (on) win.typedProbed(false, this.path); } };
+  for (const name of ["typedPath", "decodePath", "goTyped", "typedProbed"]) {
     const f = qmlFunction(src, name);
-    if (f) win[name] = inScope({ win }, f.params, f.body);
+    if (f) win[name] = inScope({ win, typedProbe }, f.params, f.body);
   }
   inScope({ win, text, Qt }, "event", handler)({ key: Qt.Key_Return, accepted: false });
   return went;
