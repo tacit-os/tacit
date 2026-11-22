@@ -255,8 +255,13 @@ Singleton {
     property bool inSubmap: false
     // The submap is the compositor's state and outlives the shell; inSubmap does not. A reload or
     // a crash mid-sentence left Hyprland in "flow", where only Escape and the Flow key are bound,
-    // so every other key in every app did nothing. Every shell start leaves it.
-    Component.onCompleted: Hyprland.dispatch(`hl.dsp.submap("reset")`)
+    // so every other key in every app did nothing. Every shell start leaves it, and only it: the
+    // virtual-machine submap (Super+Alt+F1) is the person's, and a reload must not end it.
+    Process {
+        running: true
+        command: ["hyprctl", "submap"]
+        stdout: StdioCollector { onStreamFinished: if (text.trim() === "flow") Hyprland.dispatch(`hl.dsp.submap("reset")`) }
+    }
     // "starting" counts too: "listening" waits for the first audio chunk, and an Esc in that
     // window reached the app instead - in Claude Code it stops the running turn, which is the
     // thing the submap exists to prevent.
