@@ -215,6 +215,8 @@ Scope {
                 Faillock.read();
                 root.clearText();
                 root.unlockInProgress = false;
+                // the field was disabled while PAM ran and lost the keyboard focus: take it back for the retry
+                root.shouldReFocus();
                 GlobalStates.screenUnlockFailed = true;
                 root.showFailure = true;
             }
