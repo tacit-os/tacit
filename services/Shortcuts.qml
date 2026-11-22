@@ -239,7 +239,7 @@ Singleton {
         const next = Object.assign({}, root.changed);
         if (takeFrom && takeFrom.kind === "row") next[takeFrom.id] = root.without(takeFrom.id, combo);
         root.undoState = { id: `app${root.apps.length}`, before };
-        root.save(next, [...root.apps.filter(a => !(takeFrom && takeFrom.kind === "app" && a.name === takeFrom.name)), { name, run, icon, keys: combo }]);
+        root.save(next, [...root.apps.filter((a, i) => !(takeFrom && takeFrom.kind === "app" && i === takeFrom.index)), { name, run, icon, keys: combo }]);
     }
     // an added app's shortcut takes other keys
     function setAppKeys(index: int, combo: string, takeFrom: var): void {
