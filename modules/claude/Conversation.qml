@@ -1260,7 +1260,7 @@ Item {
         let at = conv.liveAt;
         let rest = shown.substring(at);
         // closed fences: the text before the first ends its block, the rest are blocks as blocksOf has them
-        const fence = /```(\w+)?\n([\s\S]*?)```|<think>([\s\S]*?)<\/think>/g;
+        const fence = /```([^\s`]*)[ \t]*\r?\n([\s\S]*?)```|<think>([\s\S]*?)<\/think>/g;
         let m, first = -1, last = 0;
         while ((m = fence.exec(rest)) !== null) { if (first < 0) first = m.index; last = fence.lastIndex; }
         if (first >= 0) {
@@ -1271,11 +1271,11 @@ Item {
             rest = rest.substring(last);
         }
         // a fence still open: the text before it is final, the code shows as it comes
-        const open = rest.search(/```\w*\n/);
+        const open = rest.search(/```[^\s`]*[ \t]*\r?\n/);
         if (open >= 0) {
             conv.livePush(rest.substring(0, open), "");
             at += open;
-            const head = /^```(\w*)\n/.exec(rest.substring(open));
+            const head = /^```[^\s`]*[ \t]*\r?\n/.exec(rest.substring(open));
             const code = rest.substring(open + head[0].length).replace(/(^|\n)`{1,2}$/, "");
             conv.liveCode = code.trim().length ? { content: conv.dedent(code), indent: conv.indentOf(code) >= 2 ? 16 : 0 } : null;
             conv.liveTail = "";
@@ -1292,7 +1292,7 @@ Item {
         }
         conv.liveAt = at;
         // a fence being opened is not shown as text first
-        conv.liveTail = rest.replace(/(^|\n)`{1,3}\w*$/, "");
+        conv.liveTail = rest.replace(/(^|\n)`{1,3}[^\s`]*[ \t]*$/, "");
     }
     // Where text being written can be cut so that the two parts drawn one under the other look like
     // the whole drawn at once (Qt's layout, checked line for line): before a paragraph, a list or a
