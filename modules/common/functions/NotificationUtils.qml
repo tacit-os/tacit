@@ -54,12 +54,12 @@ Singleton {
 
     /**
      * @param { number | string | Date } timestamp 
+     * @param { Date } now - passed by a binding that reads a clock, so the label is made again as time goes
      * @returns { string }
      */
-    function getFriendlyNotifTimeString(timestamp) {
+    function getFriendlyNotifTimeString(timestamp, now = new Date()) {
         if (!timestamp) return '';
         const messageTime = new Date(timestamp);
-        const now = new Date();
         const diffMs = now.getTime() - messageTime.getTime();
 
         // Less than 1 minute

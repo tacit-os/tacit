@@ -343,7 +343,7 @@ MouseArea { // Notification group area
                             horizontalAlignment: Text.AlignLeft
                             // a lone row shows the sender's name, so the app goes here: "WhatsApp · Now"
                             text: {
-                                const when = NotificationUtils.getFriendlyNotifTimeString(notificationGroup?.time);
+                                const when = NotificationUtils.getFriendlyNotifTimeString(notificationGroup?.time, DateTime.clock.date);
                                 const app = notificationGroup?.appName ?? "";
                                 return (!topRow.showAppName && app.length > 0 && app !== notificationGroup?.notifications[0]?.summary)
                                     ? `${app} · ${when}` : when;
