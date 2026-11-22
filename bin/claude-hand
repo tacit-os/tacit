@@ -12,7 +12,7 @@
 T_BIN=${TACIT_BIN:-$HOME/.local/bin}                          # Tacit's launchers (the package sets TACIT_BIN)
 T="$T_BIN/tacit-app"
 "$T" ensure praxis >/dev/null || {
-	[ "${1:-}" = new ] && exec foot -D "$2" claude "$3"
+	[ "${1:-}" = new ] && exec foot -D "$2" claude -- "$3"
 	exit 1
 }
 case "${1:-}" in
