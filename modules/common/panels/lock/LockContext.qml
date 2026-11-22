@@ -201,6 +201,7 @@ Scope {
 
         // A PAM error never reaches completed: without this the field stays disabled for good.
         onError: err => {
+            root.alsoInhibitIdle = false;
             root.unlockInProgress = false;
             root.authUnavailable = true;
         }
@@ -212,6 +213,8 @@ Scope {
                 root.unlocked(root.targetAction);
                 stopFingerPam();
             } else {
+                // Ctrl+Enter asked for Keep awake with this password only: a later unlock (the finger) did not
+                root.alsoInhibitIdle = false;
                 Faillock.read();
                 root.clearText();
                 root.unlockInProgress = false;
