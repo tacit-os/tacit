@@ -120,7 +120,12 @@ Singleton {
         let text = preview;
         if (/^file:\/\/\S+(\s+file:\/\/\S+)*$/.test(preview.trim())) {
             const home = FileUtils.trimFileProtocol(Directories.home);
-            text = preview.trim().split(" ").map(u => decodeURIComponent(u.replace(/^file:\/\//, "")).replace(home, "~")).join("\n");
+            text = preview.trim().split(/\s+/).map(u => {
+                const path = u.trim().replace(/^file:\/\//, "");
+                let decoded = path;
+                try { decoded = decodeURIComponent(path); } catch (e) {}   // a literal % is not an escape
+                return decoded.replace(home, "~");
+            }).join("\n");
         }
         const top = ToplevelManager.activeToplevel;
         root.add({
