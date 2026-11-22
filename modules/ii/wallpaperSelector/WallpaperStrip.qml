@@ -27,7 +27,6 @@ Item {
     readonly property real pixelRatio: root.Window.window?.devicePixelRatio ?? 1
     property string source: "yours"
     property int pointed: 0
-    property bool darkMode: Appearance.m3colors.darkmode
     property bool searching: false
     property string filter: ""
     readonly property var sources: [
@@ -211,16 +210,16 @@ Item {
         if (!c)
             return;
         if (c.online) {
-            Wallpapers.downloadAndApply(c.online, root.darkMode);
+            Wallpapers.downloadAndApply(c.online);
         } else if (GlobalStates.wallpaperSelectorTarget === "lockWall") {
             // the old settings panel's "lock screen wallpaper" choice
-            Wallpapers.select(c.path, root.darkMode, finalPath => Config.options.background.lockWall = finalPath);
+            Wallpapers.select(c.path, Appearance.m3colors.darkmode, finalPath => Config.options.background.lockWall = finalPath);
             GlobalStates.wallpaperSelectorTarget = "wallpaper";
         } else {
             const was = root.storedFocus();
             if (Math.abs(root.panX - was.x) > 0.001 || Math.abs(root.panY - was.y) > 0.001)
                 Wallpapers.setFocus(c.path, root.panX, root.panY);
-            Wallpapers.select(c.path, root.darkMode);
+            Wallpapers.select(c.path);
         }
         root.closeRequested();
     }
@@ -521,8 +520,7 @@ Item {
             Repeater {
                 model: [
                     { "glyph": "search", "run": () => { root.searching = !root.searching; if (root.searching) searchField.forceActiveFocus(); else { root.filter = ""; strip.forceActiveFocus(); } } },
-                    { "glyph": "shuffle", "run": () => root.shuffle() },
-                    { "glyph": root.darkMode ? "dark_mode" : "light_mode", "run": () => root.darkMode = !root.darkMode }
+                    { "glyph": "shuffle", "run": () => root.shuffle() }
                 ]
                 MaterialSymbol {
                     id: act
