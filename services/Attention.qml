@@ -24,8 +24,8 @@ Singleton {
         return root.cleanTitle(root.app, root.rawTitle);
     }
     readonly property string address: root.top?.HyprlandToplevel?.address ? `0x${root.top.HyprlandToplevel.address}` : ""
-    readonly property var terminalApps: ["foot", "footclient", "kitty", "alacritty", "org.wezfurlong.wezterm", "com.mitchellh.ghostty"]
-    readonly property bool terminal: root.terminalApps.includes(root.app)
+    readonly property var terminalApps: ["foot", "footclient", "kitty", "alacritty", "org.wezfurlong.wezterm", "com.mitchellh.ghostty"]   // lower case: Alacritty's app id is "Alacritty"
+    readonly property bool terminal: root.terminalApps.includes(root.app.toLowerCase())
     // "browser" is Thyris's Qt build, "browser-cef" its CEF build (the one now run and packaged)
     readonly property bool thyris: root.app === "browser" || root.app === "browser-cef"
     readonly property bool browser: root.thyris || ["zen", "zen-browser", "firefox", "chromium", "thorium-browser", "google-chrome"].some(b => root.app.toLowerCase().includes(b))
