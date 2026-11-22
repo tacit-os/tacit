@@ -51,7 +51,9 @@ if __name__ == "__main__":
     if len(sys.argv) != 2:
         sys.exit("usage: claude_hooks.py <notch-session>")
     folder = os.environ.get("CLAUDE_CONFIG_DIR") or os.path.expanduser("~/.claude")
-    path = os.path.join(folder, "settings.json")
+    # a settings.json kept as a symlink (dotfiles) is written through: the file it points to is replaced, not the link
+    path = os.path.realpath(os.path.join(folder, "settings.json"))
+    folder = os.path.dirname(path)
     try:
         with open(path, encoding="utf-8") as f:
             settings = json.load(f)
