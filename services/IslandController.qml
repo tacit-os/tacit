@@ -2568,11 +2568,13 @@ Singleton {
 
     Process {
         id: cavaProc
+        // flipped on and off at once to start cava again on a new default output (the Connections below)
+        property bool moving: false
         // only while something plays: idle, cava alone was 4% of a core and a stream to parse
         running: root.enabled && !root.suppressed && MprisController.isPlaying
             && Config.options.island.media.enable && Config.options.island.media.waveform
             && !root.othersRunCava
-            && MprisController.activePlayer !== null
+            && MprisController.activePlayer !== null && !cavaProc.moving
         command: ["cava", "-p", `${FileUtils.trimFileProtocol(Directories.scriptPath)}/cava/raw_output_config.txt`]
         onRunningChanged: {
             if (!cavaProc.running)
@@ -2583,6 +2585,20 @@ Singleton {
                 let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
                 GlobalStates.visualizerPoints = points;
             }
+        }
+    }
+
+    // cava hears the output that was the default when it started, so when Bluetooth headphones took over (Audio.qml)
+    // it went on hearing the speakers and drew nothing. A running cava stops and starts again on the new output:
+    // the gate turns its binding off and on, and Process starts it once the old one has ended. No output at all
+    // (between one leaving and the next arriving) waits for the next.
+    Connections {
+        target: Audio
+        function onSinkChanged() {
+            if (!Audio.sink || !cavaProc.running)
+                return;
+            cavaProc.moving = true;
+            cavaProc.moving = false;
         }
     }
 }

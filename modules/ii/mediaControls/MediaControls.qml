@@ -79,6 +79,8 @@ Scope {
 
     Process {
         id: cavaProc
+        // flipped on and off at once to start cava again on a new default output (the Connections below)
+        property bool moving: false
         // Exactly one cava may be alive: these terms are the complement of
         // IslandController.othersRunCava, which owns the waveform in every other case - the
         // equalizer included. (mediaLyricsVisible never existed, so its term only read true.)
@@ -88,7 +90,7 @@ Scope {
             Config.options.bar.layouts.middleLayout.includes("visualizer") ||
             Config.options.bar.layouts.rightLayout.includes("visualizer") ||
             Config.options.background.widgets.visualizer.enable)
-            && MprisController.activePlayer !== null && MprisController.isPlaying
+            && MprisController.activePlayer !== null && MprisController.isPlaying && !cavaProc.moving
         onRunningChanged: {
             if (!cavaProc.running) {
                 GlobalStates.visualizerPoints = [];
@@ -100,6 +102,20 @@ Scope {
                 let points = data.split(";").map(p => parseFloat(p.trim())).filter(p => !isNaN(p));
                 GlobalStates.visualizerPoints = points;
             }
+        }
+    }
+
+    // cava hears the output that was the default when it started, so when Bluetooth headphones took over (Audio.qml)
+    // it went on hearing the speakers and drew nothing. A running cava stops and starts again on the new output:
+    // the gate turns its binding off and on, and Process starts it once the old one has ended. No output at all
+    // (between one leaving and the next arriving) waits for the next.
+    Connections {
+        target: Audio
+        function onSinkChanged() {
+            if (!Audio.sink || !cavaProc.running)
+                return;
+            cavaProc.moving = true;
+            cavaProc.moving = false;
         }
     }
 
