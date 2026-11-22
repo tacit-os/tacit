@@ -80,7 +80,7 @@ Scope {
                 const cmd = `mkdir -p '${dirQ}' && filePath='${dirQ}'"/screenshot-$(date '+%Y-%m-%d_%H.%M.%S').png" && grim -g "$(slurp)" "$filePath" && cat "$filePath" | wl-copy` + announce;
                 Quickshell.execDetached(["bash", "-c", cmd]);
             } else {
-                const cmd = `grim -g "$(slurp)" - | wl-copy && notify-send "Screenshot Copied" "Copied to clipboard" -a "Screen Snip" -i "image-x-generic"`;
+                const cmd = `g="$(slurp)" && grim -g "$g" - | wl-copy && notify-send "Screenshot Copied" "Copied to clipboard" -a "Screen Snip" -i "image-x-generic"`;
                 Quickshell.execDetached(["bash", "-c", cmd]);
             }
             return;
