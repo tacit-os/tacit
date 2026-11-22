@@ -54,6 +54,9 @@ Item {
                 } else if (event.angleDelta.y < 0) {
                     monthShift++;
                 }
+            } else {
+                // the folded week strip has no use for the wheel: the panel's body scrolls under it
+                event.accepted = false;
             }
         }
     }
