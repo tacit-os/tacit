@@ -150,5 +150,10 @@ end
 -- nothing blurred behind it is the "passthrough" look (tacit/rules.lua), the wallpaper sharp under the text
 local inactive = hl.get_config("decoration:inactive_opacity")
 local blur = hl.get_config("decoration:blur:enabled")
-if blur == false or blur == 0 then hl.config({ decoration = { inactive_opacity = 1 } })
+if blur == false or blur == 0 then
+    hl.config({ decoration = { inactive_opacity = 1 } })
+    -- and every window solid: foot and kitty paint their own ground see-through (alpha 0.85) and the browsers' rules
+    -- (tacit/rules.lua) fade theirs, so with the blur off the wallpaper still showed sharp under a terminal's text
+    -- (Discord, OYINOS, 2026-11-22). force_rgbx draws a window without its own alpha, opaque without the rules' fade.
+    hl.window_rule({ match = { class = ".*" }, force_rgbx = true, opaque = true })
 elseif type(inactive) == "number" then hl.config({ decoration = { inactive_opacity = tacit_glass(inactive) } }) end

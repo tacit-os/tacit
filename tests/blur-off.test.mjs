@@ -115,6 +115,8 @@ hl = setmetatable({
     get_config = function(k) return store[k] end,
     get_devices = function() return {} end,
     get_monitors = function() return {} end,
+    -- a rule that makes every window solid (its own alpha and the opacity rules' fade ignored)
+    window_rule = function(t) if t.force_rgbx and t.opaque and t.match and t.match.class == ".*" then store["solid"] = true end end,
 }, { __index = function(_, k) if tostring(k):match("^__tacit") then return nil end return any end })
 HOME = home
 is_file_exists = function(p) local f = io.open(p, "r"); if f then f:close() end; return f ~= nil end
@@ -127,18 +129,21 @@ package.searchers = { function(name)
     return function() return assert(loadfile(path))() end
 end }
 dofile(tree .. "/session/hypr/hyprland.lua")
-io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring(store["decoration:blur:enabled"])))
+io.stderr:write(string.format("RESULT %s %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring(store["decoration:blur:enabled"]), tostring(store["solid"] == true)))
 `);
   function hyprland() {
     const r = spawnSync("lua", [start, tree, home], { encoding: "utf8", env: { PATH: process.env.PATH, HOME: home, XDG_STATE_HOME: state } });
-    const m = /RESULT (\S+) (\S+)/.exec(r.stderr ?? "");
+    const m = /RESULT (\S+) (\S+) (\S+)/.exec(r.stderr ?? "");
     const failed = `${r.stdout}${r.stderr}`.split("\n").filter(l => /FAILED|error/i.test(l)).join("; ");
-    return m ? { inactive: +m[1], blur: m[2], why: failed } : { why: failed || "hyprland.lua did not finish" };
+    return m ? { inactive: +m[1], blur: m[2], solid: m[3], why: failed } : { why: failed || "hyprland.lua did not finish" };
   }
   function opacity(name, want, blur) {
     const h = hyprland();
     check(name, h.inactive !== undefined && Math.abs(h.inactive - want) < 1e-6 && (blur === undefined || h.blur === blur),
       `inactive_opacity ${h.inactive}, blur ${h.blur}${h.why ? `; ${h.why}` : ""}`);
+    // and every window drawn solid while the blur is off (a terminal's own see-through ground too), none while it is on
+    if (blur !== undefined)
+      check(`${name}: every window ${blur === "false" ? "solid" : "as it draws itself"}`, h.solid === (blur === "false" ? "true" : "false"), `solid rule ${h.solid}`);
   }
 
   // 0.82 as shipped, with this wallpaper's scale on its see-through: 1 - 0.18 * 0.8
