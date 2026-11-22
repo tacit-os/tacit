@@ -116,7 +116,9 @@ Button {
                 return;
             }
             if (root.releaseAction) root.releaseAction();
+            root.pointerClick = true
             root.click() // Because the MouseArea already consumed the event
+            root.pointerClick = false
             if (!root.rippleEnabled) return;
             rippleFadeAnim.restart();
         }
@@ -125,6 +127,16 @@ Button {
             if (!root.rippleEnabled) return;
             rippleFadeAnim.restart();
         }
+    }
+
+    // The pointer's press and release run downAction and releaseAction in the MouseArea, which takes every pointer
+    // event, so the Button's own pressed and released come from the keyboard (Space) and from click(), which emits
+    // them as well. Without this a focused button did nothing on Space unless it had an onClicked.
+    property bool pointerClick: false
+    Connections {
+        target: root
+        function onPressed() { if (!root.pointerClick && root.downAction) root.downAction(); }
+        function onReleased() { if (!root.pointerClick && root.releaseAction) root.releaseAction(); }
     }
 
     Keys.onPressed: (event) => {

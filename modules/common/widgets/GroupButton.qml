@@ -79,6 +79,16 @@ Button {
         animation: Appearance.animation.elementMoveFast.numberAnimation.createObject(this)
     }
 
+    // The pointer's press and release run downAction and releaseAction in the MouseArea, which takes every pointer
+    // event, so the Button's own pressed and released come from the keyboard (Space) and from click(), which emits
+    // them as well. Without this a focused button did nothing on Space unless it had an onClicked.
+    property bool pointerClick: false
+    Connections {
+        target: root
+        function onPressed() { if (!root.pointerClick && root.downAction) root.downAction(); }
+        function onReleased() { if (!root.pointerClick && root.releaseAction) root.releaseAction(); }
+    }
+
     property alias mouseArea: buttonMouseArea
     MouseArea {
         id: buttonMouseArea
@@ -106,7 +116,9 @@ Button {
         }
         onClicked: (event) => {
             if (event.button != Qt.LeftButton) return;
+            root.pointerClick = true
             root.click()
+            root.pointerClick = false
         }
         onCanceled: (event) => {
             root.down = false
