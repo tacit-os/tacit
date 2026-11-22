@@ -2225,8 +2225,11 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         if (folderModel.get(i, "fileIsDir"))
             win.go(folderModel.get(i, "filePath"));
         else if (win.forPick && Files.picking !== null) {
+            // picking: a file opened is a file chosen; Enter on one of several selected files chooses them all,
+            // as Choose does (it sent only the file under the cursor, so four files picked for an upload became one)
+            const path = folderModel.get(i, "filePath");
             if (!Files.picking.dir)
-                win.pickDone([folderModel.get(i, "filePath")]);   // picking: a file opened is a file chosen
+                win.pickDone(win.selectedPaths.length > 1 && win.selectedPaths.includes(path) ? win.pickPaths : [path]);
         }
         else
             Things.open(folderModel.get(i, "filePath"));
