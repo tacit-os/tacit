@@ -40,12 +40,34 @@ Item {
             if (id >= 1 && id <= 100)
                 used.add(id);
         }
+        for (const t of ToplevelManager.toplevels.values) {
+            const id = root.homeId(t);
+            if (id >= 1 && id <= 100)
+                used.add(id);
+        }
         let free = 1;
         while (used.has(free))
             free++;
         if (free <= 100)
             used.add(free);
         return Array.from(used).sort((a, b) => a - b);
+    }
+    // A window hidden into the dock is drawn faded on the desktop it was on (WindowBand.homeOf), one hidden before the
+    // shell started on this one, and a click sends it back there; -1 for any other window.
+    function homeId(toplevel) {
+        const home = WindowBand.homeOf(toplevel);
+        return home ? (home.workspace?.id ?? root.effectiveActiveWorkspaceId) : -1;
+    }
+    function shown(toplevel) {
+        const win = root.windowByAddress[`0x${toplevel.HyprlandToplevel?.address}`];
+        return root.workspaceIds.includes(win?.workspace?.id) || root.workspaceIds.includes(root.homeId(toplevel));
+    }
+    function choose(address, hidden) {
+        GlobalStates.overviewOpen = false;
+        if (hidden)
+            WindowBand.reopenAll([address]);
+        else
+            Hyprland.dispatch(`hl.dsp.focus({ window = "address:${address}" })`);
     }
 
     // Layout, in the notch's terms: the 34 px strip on top, then the cards. The sheet is as wide as
@@ -295,13 +317,7 @@ Item {
 
                     Repeater { // Window repeater
                         model: ScriptModel {
-                            values: {
-                                return ToplevelManager.toplevels.values.filter((toplevel) => {
-                                    const address = `0x${toplevel.HyprlandToplevel?.address}`
-                                    var win = root.windowByAddress[address]
-                                    return root.workspaceIds.includes(win?.workspace?.id)
-                                })
-                            }
+                            values: ToplevelManager.toplevels.values.filter(toplevel => root.shown(toplevel))
                         }
                         delegate: OverviewWindow {
                             id: window
@@ -314,7 +330,9 @@ Item {
                             monitorData: this.monitor
                             scale: root.scale
                             widgetMonitor: HyprlandData.monitors.find(m => m.id == root.monitor.id)
-                            windowData: root.windowByAddress[address]
+                            readonly property var home: WindowBand.homeOf(modelData)
+                            held: window.home !== null
+                            windowData: window.home ? Object.assign({}, root.windowByAddress[address], window.home, { "workspace": { "id": root.homeId(modelData) } }) : root.windowByAddress[address]
 
                             // Offset on the canvas
                             xOffset: (root.workspaceImplicitWidth + root.cardGap) * root.workspaceIds.indexOf(windowData?.workspace.id)
@@ -358,8 +376,11 @@ Item {
                                 onEntered: hovered = true // For hover color change
                                 onExited: hovered = false // For hover color change
                                 acceptedButtons: Qt.LeftButton | Qt.MiddleButton
-                                drag.target: parent
+                                // a hidden window is not moved: a click sends it back, to the place the band keeps for it
+                                drag.target: window.held ? null : parent
                                 onPressed: (mouse) => {
+                                    if (window.held)
+                                        return
                                     root.draggingFromWorkspace = windowData?.workspace.id
                                     window.pressed = true
                                     window.Drag.active = true
@@ -368,6 +389,8 @@ Item {
                                     window.Drag.hotSpot.y = mouse.y
                                 }
                                 onReleased: {
+                                    if (window.held)
+                                        return
                                     const targetWorkspace = root.draggingTargetWorkspace
                                     window.pressed = false
                                     window.Drag.active = false
@@ -394,8 +417,7 @@ Item {
                                     if (!windowData) return;
 
                                     if (event.button === Qt.LeftButton) {
-                                        GlobalStates.overviewOpen = false
-                                        Hyprland.dispatch(`hl.dsp.focus({ window = "address:${windowData.address}" })`)
+                                        root.choose(windowData.address, window.held)
                                         event.accepted = true
                                     } else if (event.button === Qt.MiddleButton) {
                                         Hyprland.dispatch(`hl.dsp.window.close({ window = "address:${windowData.address}" })`)

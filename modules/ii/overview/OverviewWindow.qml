@@ -59,7 +59,9 @@ Item { // Window
     y: initY
     width: targetWindowWidth
     height: targetWindowHeight
-    opacity: windowData.monitor == widgetMonitorId ? 1 : 0.4
+    // hidden into the dock (OverviewWidget): faded, as a window on another monitor is
+    property bool held: false
+    opacity: root.held || windowData.monitor != widgetMonitorId ? 0.4 : 1
 
     property real topLeftRadius
     property real topRightRadius
