@@ -394,7 +394,7 @@ PanelPage {
             width: parent.width
             elide: Text.ElideRight
             text: ap.a ? [({ running: "Running", done: "Done", failed: "Failed", stopped: "Stopped" })[ap.a.state] ?? "Waiting",
-                          ap.p.took(ap.a), `${ap.a.steps ?? ap.tools.length} steps`, ap.a.type ?? "", ap.p.modelName(ap.a.model ?? "")].filter(x => x && x.length).join(" · ") : ""
+                          ap.p.took(ap.a), (n => `${n} ${n === 1 ? "step" : "steps"}`)(ap.a.steps ?? ap.tools.length), ap.a.type ?? "", ap.p.modelName(ap.a.model ?? "")].filter(x => x && x.length).join(" · ") : ""
             font.pixelSize: 14
             font.features: { "tnum": 1 }
             topPadding: 4
