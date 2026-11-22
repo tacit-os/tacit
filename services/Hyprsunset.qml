@@ -62,7 +62,7 @@ Singleton {
         if (root.manualActive !== undefined && (inBetween(from, manualActive, t) || inBetween(to, manualActive, t))) {
             root.manualActive = undefined;
         }
-        root.shouldBeOn = inBetween(t, from, to);
+        root.shouldBeOn = from !== to && inBetween(t, from, to);   // a schedule from a time to the same time is no time at all, not all day
 
         // The first evaluation (the shell starting, Automatic switched on) applies here, once: its change of
         // shouldBeOn is skipped below, and waiting for the next minute left the screen cold meanwhile.
