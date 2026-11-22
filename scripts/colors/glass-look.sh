@@ -13,11 +13,15 @@ look=$(jq -r 'if .appearance.transparency.enable == false then "solid"
     elif .appearance.transparency.automatic == false then "clear" else "frosted" end' \
     "$XDG_CONFIG_HOME/illogical-impulse/config.json" 2>/dev/null)
 [ -n "$look" ] || exit 0
+# which amounts the terminals were last given: 2 is Frosted 0.1 and Clear at most 0.2 (1.2.20), so the first start
+# with them gives the terminals the new alpha even though the look did not change
+amounts=2
 was=$(jq -r '.look // ""' "$generated/glass.json" 2>/dev/null)
-[ "$1" = --start ] && [ "$was" = "$look" ] && exit 0
-if [ "$was" != "$look" ]; then
+had=$(jq -r '.amounts // 1' "$generated/glass.json" 2>/dev/null)
+[ "$1" = --start ] && [ "$was" = "$look" ] && [ "$had" = "$amounts" ] && exit 0
+if [ "$was" != "$look" ] || [ "$had" != "$amounts" ]; then
     mkdir -p "$generated"
-    printf '{"look": "%s"}\n' "$look" > "$generated/glass.json.tmp" && mv -f "$generated/glass.json.tmp" "$generated/glass.json"
+    printf '{"look": "%s", "amounts": %s}\n' "$look" "$amounts" > "$generated/glass.json.tmp" && mv -f "$generated/glass.json.tmp" "$generated/glass.json"
 fi
 # a new account has no palette yet: its first wallpaper makes one with this look (switchwall.sh)
 [ -s "$generated/material_colors.scss" ] && "$SCRIPT_DIR/applycolor.sh"

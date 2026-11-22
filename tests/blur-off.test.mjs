@@ -47,24 +47,25 @@ const solidExpr = qmlProperty(app, "solid");
 const solidOf = (blurBehind, enable = true) => solidExpr && inScope({ root: { blurBehind },
   Config: { options: { appearance: { transparency: { enable } } } } }, "", `return (${solidExpr});`)();
 const clearSeeThrough = Number(qmlProperty(tacit, "clearSeeThrough"));
+const frostedSeeThrough = Number(qmlProperty(tacit, "frostedSeeThrough"));
 const seeThroughExpr = (() => {
   const at = tacit.lastIndexOf("property real windowSeeThrough:");
   return tacit.slice(tacit.indexOf(":", at) + 1, tacit.indexOf("\n\n", at));
 })();
 const seeThrough = (blurBehind, transparency) => inScope({ Appearance: { blurBehind, solid: solidOf(blurBehind, transparency.enable),
-  seeThroughScale: 0.8 }, Config: { options: { appearance: { transparency } } }, root: { clearSeeThrough } }, "", `return (${seeThroughExpr});`)();
+  seeThroughScale: 0.8 }, Config: { options: { appearance: { transparency } } }, root: { clearSeeThrough, frostedSeeThrough } }, "", `return (${seeThroughExpr});`)();
 const frosted = { enable: true, automatic: true, backgroundTransparency: 0.4 };
 const clear = { enable: true, automatic: false, backgroundTransparency: 0.25 };
 const solid = { enable: false, automatic: true, backgroundTransparency: 0.4 };
 check("Tacit.windowSeeThrough: none with the blur off, Frosted or Clear", seeThrough(false, frosted) === 0 && seeThrough(false, clear) === 0,
   `${seeThrough(false, frosted)}, ${seeThrough(false, clear)}`);
-check("with the blur on as before: Frosted 0.15 and Clear its own amount, by the wallpaper's scale; Solid none",
-  Math.abs(seeThrough(true, frosted) - 0.12) < 1e-9 && Math.abs(seeThrough(true, clear) - 0.2) < 1e-9 && seeThrough(true, solid) === 0,
+check("with the blur on: Frosted 0.1 and Clear its own amount up to 0.2, by the wallpaper's scale; Solid none",
+  Math.abs(seeThrough(true, frosted) - 0.08) < 1e-9 && Math.abs(seeThrough(true, clear) - 0.16) < 1e-9 && seeThrough(true, solid) === 0,
   `${seeThrough(true, frosted)}, ${seeThrough(true, clear)}, ${seeThrough(true, solid)}`);
 const bodyExpr = expr(files, files.indexOf("color:", files.indexOf("id: body")));
-const body = blurBehind => inScope({ ColorUtils, Appearance: { blurBehind, solid: solidOf(blurBehind) }, win: { termBase: "#101418" } }, "",
-  `return (${bodyExpr});`)();
-check("the Files window's body is solid with the blur off, 0.15 see-through with it on", body(false) === 0 && body(true) === 0.15,
+const body = blurBehind => inScope({ ColorUtils, Appearance: { blurBehind, solid: solidOf(blurBehind) }, win: { termBase: "#101418" },
+  Tacit: { windowSeeThrough: seeThrough(blurBehind, frosted) } }, "", `return (${bodyExpr});`)();
+check("the Files window's body is solid with the blur off, as see-through as the apps with it on", body(false) === 0 && Math.abs(body(true) - 0.08) < 1e-9,
   `${body(false)}, ${body(true)}`);
 const frostExpr = expr(app, app.indexOf("property color colPanelFrost:"));
 const frost = blurBehind => inScope({ ColorUtils, m3colors: { m3surfaceContainerHigh: "#2a2e33" },

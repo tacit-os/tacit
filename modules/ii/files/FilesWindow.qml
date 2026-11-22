@@ -2336,9 +2336,10 @@ for l in sys.stdin.buffer.read().split(b"\\n"):
         anchors.fill: parent
         // 20, not the panels' 30: the compositor clips (and blurs) this window at its own
         // rounding, capped at 20, and the frost must end exactly where the clip does.
-        // Solid while the compositor blurs nothing behind it or See-through is Solid (Appearance.solid).
+        // As see-through as the other apps' windows (Tacit.windowSeeThrough), which is none while the compositor blurs
+        // nothing behind it or See-through is Solid; it kept its own 0.15 whatever See-through was set to.
         radius: 20
-        color: ColorUtils.transparentize(win.termBase, Appearance.solid ? 0 : 0.15)
+        color: ColorUtils.transparentize(win.termBase, Tacit.windowSeeThrough)
 
         FocusScope {
             id: keys

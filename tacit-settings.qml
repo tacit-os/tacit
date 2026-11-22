@@ -127,11 +127,12 @@ ApplicationWindow {
         const m = /\]11;(#[0-9a-fA-F]{6})/.exec(termColors.text() || "");
         return m ? m[1] : Appearance.m3colors.m3surfaceContainerLow;
     }
-    // Praxis's frosted window (15 % through), whatever See-through is set to: the apps keep one look
+    // the apps' window ground as See-through has it (Tacit.windowSeeThrough): the apps keep one look
     readonly property real seeThrough: Tacit.windowSeeThrough
-    // what See-through is set to, for the notch and panels (the Appearance preview shows it)
-    readonly property real seeThroughSetting: !Config.options.appearance.transparency.enable ? 0
-        : Config.options.appearance.transparency.automatic ? 0.15
+    // what See-through is set to, for the notch and panels (the Appearance preview shows it); none while the blur is off,
+    // when everything is solid (Windows' switch or Game mode)
+    readonly property real seeThroughSetting: !Appearance.blurBehind || !Config.options.appearance.transparency.enable ? 0
+        : Config.options.appearance.transparency.automatic ? Tacit.frostedSeeThrough
         : Math.min(Config.options.appearance.transparency.backgroundTransparency, Tacit.clearSeeThrough)
     Rectangle {
         anchors.fill: parent
@@ -1210,8 +1211,11 @@ ApplicationWindow {
             readonly property var tiles: [...(look.showAll ? look.pictures : look.pictures.slice(0, look.shownPictures)), ""]
 
             // see-through as three looks: Solid is off, Frosted decides itself per wallpaper,
-            // Clear is a hand-set amount (Tacit.clearSeeThrough when picked, twice Frosted; How clear lowers it)
-            readonly property string glass: !Config.options.appearance.transparency.enable ? "solid"
+            // Clear is a hand-set amount (Tacit.clearSeeThrough when picked, twice Frosted; How clear lowers it).
+            // One setting with Windows' blur switch: while the blur is off (that switch, or Game mode) everything is solid,
+            // so Solid shows as chosen, and Clear or Frosted picked turns the blur on as the switch does. Before, the three
+            // looked alike with the blur off and seemed to do nothing (Discord, OYINOS, 2026-11-22, on 1.2.19).
+            readonly property string glass: !Appearance.blurBehind || !Config.options.appearance.transparency.enable ? "solid"
                 : Config.options.appearance.transparency.automatic ? "frosted" : "clear"
             readonly property real clearAmount: look.glass === "clear" ? root.seeThroughSetting : Tacit.clearSeeThrough
             function setGlass(kind) {
@@ -1222,6 +1226,10 @@ ApplicationWindow {
                 if (kind === "clear") {
                     t.automatic = false;
                     t.backgroundTransparency = Tacit.clearSeeThrough;
+                }
+                if (kind !== "solid" && !Appearance.blurBehind) {
+                    Config.options.hyprland.decoration.blur.enabled = true;
+                    HyprlandConfig.set("decoration:blur:enabled", 1);
                 }
             }
 

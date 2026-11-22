@@ -12,13 +12,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 # (a new account's prompt was the terminal's built-in green, 2026-10-17)
 CONFIG_DIR="$(dirname "$(dirname "$SCRIPT_DIR")")"
 
-# The terminals' alpha: Tacit's one window see-through (Tacit.windowSeeThrough: Solid none, Frosted 0.15, Clear its
-# own up to Tacit.clearSeeThrough, 0.3) times this wallpaper's scale (seethrough.py), so foot follows the apps' glass. It
-# was foot.ini's 0.85 always. Run again when the look changes (glass-look.sh), so open terminals take it at once.
-term_seethrough=$(jq -r 'if (.appearance.transparency.enable | not) then 0 elif .appearance.transparency.automatic then 0.15
-    else [.appearance.transparency.backgroundTransparency, 0.3] | min end' "$XDG_CONFIG_HOME/illogical-impulse/config.json" 2>/dev/null)
+# The terminals' alpha: Tacit's one window see-through (Tacit.windowSeeThrough: Solid none, Frosted
+# Tacit.frostedSeeThrough 0.1, Clear its own up to Tacit.clearSeeThrough 0.2) times this wallpaper's scale
+# (seethrough.py), so foot follows the apps' glass. It was foot.ini's 0.85 always. Run again when the look changes
+# (glass-look.sh), so open terminals take it at once.
+term_seethrough=$(jq -r 'if (.appearance.transparency.enable | not) then 0 elif .appearance.transparency.automatic then 0.1
+    else [.appearance.transparency.backgroundTransparency, 0.2] | min end' "$XDG_CONFIG_HOME/illogical-impulse/config.json" 2>/dev/null)
 term_scale=$(jq -r '.scale // 1' "$STATE_DIR/user/generated/seethrough.json" 2>/dev/null)
-term_alpha=$(awk -v s="${term_seethrough:-0.15}" -v k="${term_scale:-1}" 'BEGIN { printf "%d", 100 - 100 * s * k + 0.5 }')
+term_alpha=$(awk -v s="${term_seethrough:-0.1}" -v k="${term_scale:-1}" 'BEGIN { printf "%d", 100 - 100 * s * k + 0.5 }')
 # sleep 0 # idk i wanted some delay or colors dont get applied properly
 if [ ! -d "$STATE_DIR"/user/generated ]; then
   mkdir -p "$STATE_DIR"/user/generated

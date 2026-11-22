@@ -26,9 +26,13 @@ const SCALE = 0.8; // a bright wallpaper's (scripts/colors/seethrough.py)
 const options = adapterDefaults(read("modules/common/Config.qml"));
 const transparency = options.appearance.transparency;
 const Config = { options, ready: true };
-const Tacit = { clearSeeThrough: Number(qmlProperty(tacit, "clearSeeThrough")) };
+const Tacit = { clearSeeThrough: Number(qmlProperty(tacit, "clearSeeThrough")), frostedSeeThrough: Number(qmlProperty(tacit, "frostedSeeThrough")) };
 const setGlassFn = qmlFunction(settings, "setGlass");
-const setGlass = kind => inScope({ Config, Tacit }, setGlassFn.params, setGlassFn.body)(kind);
+// the blur as Hyprland has it (Windows' switch, Game mode) and what Settings asked of it
+const Appearance = { blurBehind: true };
+const blurAsked = [];
+const HyprlandConfig = { set: (k, v) => blurAsked.push(`${k}=${v}`) };
+const setGlass = kind => inScope({ Config, Tacit, Appearance, HyprlandConfig }, setGlassFn.params, setGlassFn.body)(kind);
 
 // the grounds with the blur on, as every process draws them: Appearance.solid (none before 1.2.19), the apps' window,
 // the frost, the Files window's body
@@ -41,7 +45,7 @@ function grounds() {
   const win = inScope({ Appearance: root, Config, root: Tacit }, "", `return (${windowExpr});`)();
   const frost = inScope({ ColorUtils, m3colors: { m3surfaceContainerHigh: "#2a2e33" }, root }, "",
     `return (${expr(app, app.indexOf("property color colPanelFrost:"))});`)();
-  const body = inScope({ ColorUtils, Appearance: root, win: { termBase: "#101418" } }, "",
+  const body = inScope({ ColorUtils, Appearance: root, win: { termBase: "#101418" }, Tacit: { windowSeeThrough: win } }, "",
     `return (${expr(files, files.indexOf("color:", files.indexOf("id: body")))});`)();
   return { win, frost, body };
 }
@@ -154,8 +158,8 @@ io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inac
   g = glassLook("--start");
   check("the next start does nothing", g.status === 0 && !g.applycolor && !g.reload, g.said);
   let gr = grounds();
-  check("apps 0.15 and the frost 0.24 by the wallpaper's scale, Files 0.15", near(gr.win, 0.12) && near(gr.frost, 0.192) && gr.body === 0.15, say(gr));
-  check("the terminals' alpha 88 (0.15 by the scale)", terminalAlpha() === 88, String(terminalAlpha()));
+  check("apps and Files 0.1 and the frost 0.24 by the wallpaper's scale", near(gr.win, 0.08) && near(gr.frost, 0.192) && near(gr.body, 0.08), say(gr));
+  check("the terminals' alpha 92 (0.1 by the scale)", terminalAlpha() === 92, String(terminalAlpha()));
   let h = hyprland();
   check("Hyprland: windows not in use at the shipped 0.82 with the scale, none forced solid", near(h.inactive, 0.856) && h.solid === false, h.said);
 
@@ -177,39 +181,39 @@ io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inac
   h = hyprland();
   check("the solid rule is gone and windows not in use fade as before", h.solid === false && near(h.inactive, 0.856), h.said);
   gr = grounds();
-  check("the grounds as before", near(gr.win, 0.12) && near(gr.frost, 0.192) && gr.body === 0.15, say(gr));
+  check("the grounds as before", near(gr.win, 0.08) && near(gr.frost, 0.192) && near(gr.body, 0.08), say(gr));
 
   console.log("== Clear");
   setGlass("clear");
-  check("picked over the 0.4 stored by default it is 0.3, twice Frosted", near(transparency.backgroundTransparency, 0.3),
+  check("picked over the 0.4 stored by default it is 0.2, twice Frosted", near(transparency.backgroundTransparency, 0.2),
     String(transparency.backgroundTransparency));
   g = glassLook();
   check("the terminals are given it; Hyprland, the same for Clear as for Frosted, is not reloaded", g.look === "clear" && g.applycolor && !g.reload, g.said);
   h = hyprland();
   check("no window forced solid, windows not in use fade as on Frosted", h.solid === false && near(h.inactive, 0.856), h.said);
   gr = grounds();
-  check("apps 0.3 by the scale, clearer than Frosted; the frost and Files as on Frosted",
-    near(gr.win, 0.24) && near(gr.frost, 0.192) && gr.body === 0.15, say(gr));
-  check("the terminals' alpha 76 (0.3 by the scale)", terminalAlpha() === 76, String(terminalAlpha()));
+  check("apps and Files 0.2 by the scale, clearer than Frosted; the frost as on Frosted",
+    near(gr.win, 0.16) && near(gr.frost, 0.192) && near(gr.body, 0.16), say(gr));
+  check("the terminals' alpha 84 (0.2 by the scale)", terminalAlpha() === 84, String(terminalAlpha()));
   // How clear went up to 60 % before 1.2.19
   transparency.backgroundTransparency = 0.5;
   gr = grounds();
-  check("a 0.5 stored by an older version is held to 0.3 in the apps", near(gr.win, 0.24), say(gr));
-  check("and in the terminals", terminalAlpha() === 76, String(terminalAlpha()));
-  const seeThroughSetting = inScope({ Config, Tacit }, "", `return (${qmlProperty(settings, "seeThroughSetting")});`)();
+  check("a 0.5 stored by an older version is held to 0.2 in the apps", near(gr.win, 0.16), say(gr));
+  check("and in the terminals", terminalAlpha() === 84, String(terminalAlpha()));
+  const seeThroughSetting = inScope({ Config, Tacit, Appearance }, "", `return (${qmlProperty(settings, "seeThroughSetting")});`)();
   const look = { glass: "clear" };
   look.clearAmount = inScope({ Config, Tacit, look, root: { seeThroughSetting } }, "", `return (${qmlProperty(settings, "clearAmount")});`)();
   const tiles = inScope({ look }, "", `return (${expr(settings, settings.indexOf("model:", settings.indexOf("id: glassRow")))});`)();
   const clearTile = tiles.find(t => t.kind === "clear");
-  check("Settings' preview and Clear tile show 0.3, the tile blurred as real windows are",
-    near(seeThroughSetting, 0.3) && near(clearTile?.see, 0.3) && clearTile?.blur === true, JSON.stringify(clearTile));
+  check("Settings' preview and Clear tile show 0.2, the tile blurred as real windows are",
+    near(seeThroughSetting, 0.2) && near(clearTile?.see, 0.2) && clearTile?.blur === true, JSON.stringify(clearTile));
   const stepAt = settings.indexOf('label: "How clear"');
   const stepScope = { Config, Tacit, root: { seeThroughSetting } };
   const stepTo = inScope(stepScope, "", `return (${expr(settings, settings.indexOf("to:", stepAt))});`)();
   const stepValue = inScope(stepScope, "", `return (${expr(settings, settings.indexOf("value:", stepAt))});`)();
-  check("How clear shows it as 30 % and goes no higher", stepValue === 30 && stepTo === 30, `${stepValue} % of at most ${stepTo} %`);
+  check("How clear shows it as 20 % and goes no higher", stepValue === 20 && stepTo === 20, `${stepValue} % of at most ${stepTo} %`);
   setGlass("clear");
-  check("Clear picked again over the 0.5 stores 0.3", near(transparency.backgroundTransparency, 0.3), String(transparency.backgroundTransparency));
+  check("Clear picked again over the 0.5 stores 0.2", near(transparency.backgroundTransparency, 0.2), String(transparency.backgroundTransparency));
 
   console.log("== Solid and away again by Clear, and a look changed while the shell was not running");
   setGlass("solid");
@@ -224,6 +228,38 @@ io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inac
   h = hyprland();
   check("Solid set in config.json meanwhile: the shell's start writes it down and reloads Hyprland",
     g.look === "solid" && g.reload && g.applycolor && h.solid === true && h.inactive === 1, `${g.said}; ${h.said}`);
+
+  console.log("== one setting with Windows' blur switch (Discord, OYINOS, 2026-11-22, on 1.2.19)");
+  const glassOf = () => inScope({ Config, Appearance }, "", `return (${qmlProperty(settings, "glass")});`)();
+  const previewOf = () => inScope({ Config, Tacit, Appearance }, "", `return (${qmlProperty(settings, "seeThroughSetting")});`)();
+  setGlass("frosted");
+  Appearance.blurBehind = false;
+  check("with the blur off (the switch or Game mode) Solid shows as chosen and the preview is solid",
+    glassOf() === "solid" && previewOf() === 0, `${glassOf()}, preview ${previewOf()}`);
+  blurAsked.length = 0;
+  options.hyprland.decoration.blur.enabled = false;
+  setGlass("clear");
+  check("Clear picked then turns the blur on, as the switch does", blurAsked.join(" ") === "decoration:blur:enabled=1"
+    && options.hyprland.decoration.blur.enabled === true && transparency.enable === true && transparency.automatic === false, blurAsked.join(" ") || "nothing asked");
+  Appearance.blurBehind = true;
+  check("and with it on, Clear shows as chosen", glassOf() === "clear", glassOf());
+  blurAsked.length = 0;
+  setGlass("frosted");
+  check("Frosted picked with the blur on asks nothing of it", blurAsked.length === 0 && glassOf() === "frosted", blurAsked.join(" ") || glassOf());
+  Appearance.blurBehind = false;
+  blurAsked.length = 0;
+  setGlass("solid");
+  check("Solid picked leaves the blur as it is", blurAsked.length === 0 && transparency.enable === false, blurAsked.join(" ") || "");
+  Appearance.blurBehind = true;
+
+  console.log("== the first start with 1.2.20's amounts, over 1.2.19's glass.json");
+  setGlass("frosted");
+  writeFileSync(join(generated, "glass.json"), '{"look": "frosted"}\n');
+  g = glassLook("--start");
+  check("the terminals are given the new alpha; Hyprland, which draws Frosted already, is not reloaded",
+    g.status === 0 && g.look === "frosted" && g.applycolor && !g.reload, g.said);
+  g = glassLook("--start");
+  check("the next start does nothing", g.status === 0 && !g.applycolor && !g.reload, g.said);
 } finally {
   rmSync(dir, { recursive: true, force: true });
 }
