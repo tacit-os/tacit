@@ -583,9 +583,13 @@ def sample():
             d[p[0]] = float(p[1].split("=")[1])
         return d
     pm, pc, pi_ = psi("memory"), psi("cpu"), psi("io")
+    # What the kernel counts as in use (MemTotal - MemAvailable) is more than the cgroups hold: graphics and driver memory
+    # and the kernel's own belong to no process. Activity lists it as System, its own row and not Tacit's, so the rows add
+    # up to what is in use.
+    system = max(0, (mi.get("MemTotal", 0) - mi.get("MemAvailable", 0)) * 1024 - total_cg)
     return {"ev": "sample", "t": time.time(),
           "mem": {"total": mi.get("MemTotal", 0) * 1024, "avail": mi.get("MemAvailable", 0) * 1024,
-                  "swapTotal": mi.get("SwapTotal", 0) * 1024, "swapFree": mi.get("SwapFree", 0) * 1024},
+                  "swapTotal": mi.get("SwapTotal", 0) * 1024, "swapFree": mi.get("SwapFree", 0) * 1024, "system": int(system)},
           "cpu": {"busy": busy, "n": NCPU},
           "psi": {"mem": pm.get("some", 0), "memFull": pm.get("full", 0), "cpu": pc.get("some", 0), "io": pi_.get("some", 0)},
           "groups": out, "battery": battery(), "host": hl is not None}

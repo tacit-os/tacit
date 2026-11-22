@@ -558,7 +558,13 @@ Item {
         });
         page.agents = agents.sort((a, b) => val(b) - val(a)).map(dress);
         page.tacit = tacitG ? [{ key: "tacit", kind: "tacit", n: "Tacit itself", detail: "the desktop, sound, networking", sym: "deployed_code",
-                                 c1: page.cpuView ? d.pct(tacitG.cpu) : d.gb(tacitG.mem), dim: page.alarm, quit: "", open: true }] : [];
+                                 c1: page.cpuView ? d.pct(tacitG.cpu) : d.gb(tacitG.mem), mem: tacitG.mem, dim: page.alarm, quit: "", open: true }] : [];
+        // what no process holds (sample.py): its own row beside Tacit itself, so the rows add up to the memory in use.
+        // Nothing measures its processor, so the processor view leaves it out.
+        if (!page.cpuView && (s.mem.system ?? 0) > 0)
+            page.tacit = page.tacit.concat([{ key: "system", kind: "system", n: "System", detail: "graphics, drivers and the kernel", sym: "memory",
+                                              c1: d.gb(s.mem.system), mem: s.mem.system, dim: page.alarm, quit: "", open: false }])
+                .sort((a, b) => b.mem - a.mem);
         page.appsTotal = apps.length;
         page.windowless = d.windowless().length;
         return page;
