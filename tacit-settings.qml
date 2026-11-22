@@ -676,7 +676,8 @@ ApplicationWindow {
             }
         }
     }
-    // each listener's time; 0 for one Never turned off (its lines behind "#off ")
+    // each listener's time; 0 for one Never turned off (its lines behind "#off "). split gives the "#off " it found, and
+    // for a listener without one Qt's JavaScript gives "" (node gives undefined), so only a found one counts.
     function parseIdle(text) {
         const t = {};
         const parts = text.split(/^(#off )?\s*listener\s*\{/m);
@@ -685,7 +686,7 @@ ApplicationWindow {
             const secs = parseInt((block.match(/^\s*timeout\s*=\s*(\d+)/m) ?? [])[1]);
             const run = (block.match(/^\s*on-timeout\s*=\s*(.*)$/m) ?? [])[1] ?? "";
             const kind = root.idleKind(run);
-            if (kind && !isNaN(secs) && !(kind in t)) t[kind] = parts[i] !== undefined ? 0 : secs;
+            if (kind && !isNaN(secs) && !(kind in t)) t[kind] = parts[i] ? 0 : secs;
         }
         return t;
     }
