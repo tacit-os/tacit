@@ -1,26 +1,24 @@
-// The notch must not show over a fullscreen game or film, but it must still stack above the bar strip. Riding Overlay
-// keeps the stacking; a fullscreen window hides the notch through contentShown (an empty mask, so no unmap and no
-// flicker). The one exception is showInFullscreenWhilePlaying with music from a different app. Both the layer and the
-// hide expression are read from Island.qml and run under node.
-import { inScope, qmlProperty, readExpression } from "./lib/qml.mjs";
+// The notch must not show over a fullscreen game or film, but must still sit above the bar strip. It rides Top, which
+// Hyprland buries under fullscreen, and switches to Overlay only for the deliberate showInFullscreenWhilePlaying case
+// with music from a different app. On Top, the panel family loads the bar after the notch so the notch stacks above
+// the strip. All of this is read from Island.qml / the panel family and run under node.
+import { inScope, readExpression } from "./lib/qml.mjs";
 import { check, done, read } from "./lib/check.mjs";
 
-console.log("== the notch over the bar and under fullscreen (Island.qml)");
+console.log("== the notch over the bar and under fullscreen (Island.qml, panel family)");
 const src = read("modules/ii/island/Island.qml");
-const exprAfter = name => {
-  const at = src.indexOf(name);
-  return readExpression(src, at + name.length).expr;
-};
-const layer = exprAfter("WlrLayershell.layer:");
-const hide = exprAfter("readonly property bool hideForFullscreen:");
-let shown = qmlProperty(src, "contentShown");
-// contentShown is a readonly property, so qmlProperty above finds it; use the binding directly to be sure.
-shown = exprAfter("readonly property bool contentShown:");
+const after = name => readExpression(src, src.indexOf(name) + name.length).expr;
+const layer = after("WlrLayershell.layer:");
+const overFullscreenExpr = after("readonly property bool overFullscreen:");
+const family = read("panelFamilies/IllogicalImpulseFamily.qml");
+const islandAt = family.indexOf("component: Island {}");
+const barAt = family.indexOf("component: NewBar {}");
 
-check("the notch rides Overlay so it stacks above the bar", /WlrLayer\.Overlay/.test(layer) && !/\?/.test(layer), layer);
+check("the notch rides Top, switching to Overlay only for the media case", /overFullscreen\s*\?\s*WlrLayer\.Overlay\s*:\s*WlrLayer\.Top/.test(layer), layer);
+check("the bar loads after the notch so the notch stacks above it", islandAt > 0 && barAt > islandAt, `island@${islandAt} bar@${barAt}`);
 
 const fullscreenWindow = { id: 1 };
-function policy({ fullscreen = false, showInFullscreen = true, media = false, playing = false, itsOwnPlayer = false, loaded = true }) {
+function overFullscreen({ fullscreen = false, showInFullscreen = true, media = false, playing = false, itsOwnPlayer = false }) {
   const Config = { options: { island: { showInFullscreenWhilePlaying: showInFullscreen } } };
   const scope = {
     fullscreenWindow: fullscreen ? fullscreenWindow : null,
@@ -28,20 +26,18 @@ function policy({ fullscreen = false, showInFullscreen = true, media = false, pl
     IslandController: { mediaPresent: media },
     MprisController: { isPlaying: playing, playsIn: () => itsOwnPlayer, activePlayer: "player" },
   };
-  const overFullscreen = inScope(scope, "", `return (fullscreenWindow !== null && Config.options.island.showInFullscreenWhilePlaying && IslandController.mediaPresent && MprisController.isPlaying && !MprisController.playsIn(fullscreenWindow, MprisController.activePlayer));`)();
-  const hidden = inScope({ ...scope, overFullscreen }, "", `return (${hide});`)();
-  const visible = inScope({ contentLoader: { item: loaded ? {} : null }, hideForFullscreen: hidden }, "", `return (${shown});`)();
-  return { hidden, visible };
+  return inScope(scope, "", `return (${overFullscreenExpr});`)();
 }
+const layerFor = over => inScope({ overFullscreen: over, WlrLayer: { Overlay: "Overlay", Top: "Top" } }, "", `return (${layer});`)();
 
-let p = policy({});
-check("with no fullscreen the notch shows", !p.hidden && p.visible, JSON.stringify(p));
-p = policy({ fullscreen: true });
-check("a fullscreen game hides the notch", p.hidden && !p.visible, JSON.stringify(p));
-p = policy({ fullscreen: true, media: true, playing: true });
-check("music from another app keeps the notch over fullscreen", !p.hidden && p.visible, JSON.stringify(p));
-p = policy({ fullscreen: true, media: true, playing: true, itsOwnPlayer: true });
-check("the fullscreen app's own player does not", p.hidden && !p.visible, JSON.stringify(p));
-p = policy({ fullscreen: true, showInFullscreen: false, media: true, playing: true });
-check("turning the setting off hides it", p.hidden && !p.visible, JSON.stringify(p));
+let over = overFullscreen({});
+check("with no fullscreen the notch stays on Top and shows", !over && layerFor(over) === "Top");
+over = overFullscreen({ fullscreen: true });
+check("a fullscreen game keeps the notch on Top, buried", !over && layerFor(over) === "Top");
+over = overFullscreen({ fullscreen: true, media: true, playing: true });
+check("music from another app lifts the notch to Overlay", over && layerFor(over) === "Overlay");
+over = overFullscreen({ fullscreen: true, media: true, playing: true, itsOwnPlayer: true });
+check("the fullscreen app's own player does not", !over && layerFor(over) === "Top");
+over = overFullscreen({ fullscreen: true, showInFullscreen: false, media: true, playing: true });
+check("turning the setting off does not", !over && layerFor(over) === "Top");
 done();
