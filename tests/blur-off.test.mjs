@@ -122,8 +122,15 @@ hl = setmetatable({
     get_config = function(k) return store[k] end,
     get_devices = function() return {} end,
     get_monitors = function() return {} end,
-    -- a rule that makes every window solid (its own alpha and the opacity rules' fade ignored)
-    window_rule = function(t) if t.force_rgbx and t.opaque and t.match and t.match.class == ".*" then store["solid"] = true end end,
+    -- with the blur off or Solid: every window drawn without the rules' fade (opaque on all), and only the apps that paint
+    -- their own see-through ground drawn without their alpha (force_rgbx on those; on all, menus' shadows went black)
+    window_rule = function(t)
+        if not t.match then return end
+        if t.match.class == ".*" then
+            if t.opaque then store["opaque_all"] = true end
+            if t.force_rgbx then store["rgbx_all"] = true end
+        elseif t.force_rgbx then store["rgbx_class"] = t.match.class end
+    end,
 }, { __index = function(_, k) if tostring(k):match("^__tacit") then return nil end return any end })
 HOME = home
 is_file_exists = function(p) local f = io.open(p, "r"); if f then f:close() end; return f ~= nil end
@@ -136,13 +143,15 @@ package.searchers = { function(name)
     return function() return assert(loadfile(path))() end
 end }
 dofile(tree .. "/session/hypr/hyprland.lua")
-io.stderr:write(string.format("RESULT %s %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring(store["decoration:blur:enabled"]), tostring(store["solid"] == true)))
+io.stderr:write("RGBX " .. tostring(store["rgbx_class"]) .. "\\n")
+io.stderr:write(string.format("RESULT %s %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring(store["decoration:blur:enabled"]), tostring((store["opaque_all"] == true and store["rgbx_all"] ~= true and store["rgbx_class"] ~= nil))))
 `);
   function hyprland() {
     const r = spawnSync("lua", [start, tree, home], { encoding: "utf8", env: { PATH: process.env.PATH, HOME: home, XDG_STATE_HOME: state } });
     const m = /RESULT (\S+) (\S+) (\S+)/.exec(r.stderr ?? "");
     const failed = `${r.stdout}${r.stderr}`.split("\n").filter(l => /FAILED|error/i.test(l)).join("; ");
-    return m ? { inactive: +m[1], blur: m[2], solid: m[3], why: failed } : { why: failed || "hyprland.lua did not finish" };
+    const rgbx = /RGBX (\S+)/.exec(r.stderr ?? "")?.[1];
+    return m ? { inactive: +m[1], blur: m[2], solid: m[3], rgbx, why: failed } : { why: failed || "hyprland.lua did not finish" };
   }
   function opacity(name, want, blur) {
     const h = hyprland();
@@ -151,6 +160,14 @@ io.stderr:write(string.format("RESULT %s %s %s\\n", tostring(store["decoration:i
     // and every window drawn solid while the blur is off (a terminal's own see-through ground too), none while it is on
     if (blur !== undefined)
       check(`${name}: every window ${blur === "false" ? "solid" : "as it draws itself"}`, h.solid === (blur === "false" ? "true" : "false"), `solid rule ${h.solid}`);
+    // only the apps that paint their own see-through ground lose their alpha: a browser's menu or a GTK window keeps the
+    // see-through edge its shadow is drawn in (Discord, OYINOS, 2026-11-22: Brave's bookmark folder opened in a black box)
+    if (blur === "false") {
+      const full = c => { try { return new RegExp(`^(?:${h.rgbx})$`).test(c); } catch { return false; } };
+      check(`${name}: foot, kitty and Thyris drawn without their own alpha, Brave's menus and GTK's shadows with theirs`,
+        ["foot", "footclient", "kitty", "browser-cef"].every(full) && !["brave-browser", "org.gnome.Nautilus", "chromium", "discord"].some(full),
+        `force_rgbx on ${h.rgbx}`);
+    }
   }
 
   // 0.82 as shipped, with this wallpaper's scale on its see-through: 1 - 0.18 * 0.8

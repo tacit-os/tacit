@@ -98,7 +98,15 @@ hl = setmetatable({
     get_config = function(k) return store[k] end,
     get_devices = function() return {} end,
     get_monitors = function() return {} end,
-    window_rule = function(t) if t.force_rgbx and t.opaque and t.match and t.match.class == ".*" then store["solid"] = true end end,
+    -- with the blur off or Solid: every window drawn without the rules' fade (opaque on all), and only the apps that paint
+    -- their own see-through ground drawn without their alpha (force_rgbx on those; on all, menus' shadows went black)
+    window_rule = function(t)
+        if not t.match then return end
+        if t.match.class == ".*" then
+            if t.opaque then store["opaque_all"] = true end
+            if t.force_rgbx then store["rgbx_all"] = true end
+        elseif t.force_rgbx then store["rgbx_class"] = t.match.class end
+    end,
 }, { __index = function(_, k) if tostring(k):match("^__tacit") then return nil end return any end })
 HOME = home
 is_file_exists = function(p) local f = io.open(p, "r"); if f then f:close() end; return f ~= nil end
@@ -107,7 +115,8 @@ package.searchers = { function(name)
     return function() return assert(loadfile(tree .. "/session/hypr/hyprland/general.lua"))() end
 end }
 dofile(tree .. "/session/hypr/hyprland.lua")
-io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring(store["solid"] == true)))
+io.stderr:write("RGBX " .. tostring(store["rgbx_class"]) .. "\\n")
+io.stderr:write(string.format("RESULT %s %s\\n", tostring(store["decoration:inactive_opacity"]), tostring((store["opaque_all"] == true and store["rgbx_all"] ~= true and store["rgbx_class"] ~= nil))))
 `);
   function hyprland() {
     const r = spawnSync("lua", [start, tree, home], { encoding: "utf8", timeout: 20000,

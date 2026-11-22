@@ -162,8 +162,11 @@ local inactive = hl.get_config("decoration:inactive_opacity")
 local blur = hl.get_config("decoration:blur:enabled")
 if blur == false or blur == 0 or solid then
     hl.config({ decoration = { inactive_opacity = 1 } })
-    -- and every window solid: foot and kitty paint their own ground see-through (alpha 0.85) and the browsers' rules
-    -- (tacit/rules.lua) fade theirs, so with the blur off the wallpaper still showed sharp under a terminal's text
-    -- (Discord, OYINOS, 2026-11-22). force_rgbx draws a window without its own alpha, opaque without the rules' fade.
-    hl.window_rule({ match = { class = ".*" }, force_rgbx = true, opaque = true })
+    -- and every window solid: foot and kitty paint their own ground see-through (alpha 0.85) and so does Thyris, and the
+    -- browsers' rules (tacit/rules.lua) fade theirs, so with the blur off the wallpaper still showed sharp under a
+    -- terminal's text (Discord, OYINOS, 2026-11-22). opaque draws every window without the rules' fade; force_rgbx, which
+    -- draws a window without its own alpha, only those three: on every window it turned the see-through edge a menu's
+    -- or a GTK window's shadow is drawn in black (Brave's bookmark folder opened in a black box, 1.2.19).
+    hl.window_rule({ match = { class = ".*" }, opaque = true })
+    hl.window_rule({ match = { class = "^(foot|footclient|kitty|browser-cef)$" }, force_rgbx = true })
 elseif type(inactive) == "number" then hl.config({ decoration = { inactive_opacity = tacit_glass(inactive) } }) end
