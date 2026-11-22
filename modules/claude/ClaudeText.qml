@@ -49,12 +49,12 @@ TextArea {
     color: root.tokens.text
     textFormat: TextEdit.RichText
     text: root.mark(root.plainText ? Md.plain(root.markdown) : Md.toHtml(root.markdown, root.tokens))
-    // matches in the text between tags only, so markup and link targets are left alone
+    // matches in the text between tags only, so markup and link targets are left alone, and never inside an entity (&lt;)
     function mark(html) {
         if (root.highlight.length < 2) return html;
         const re = new RegExp(Md.esc(root.highlight).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "gi");
         const tone = `rgba(${Math.round(Appearance.colors.colPrimary.r * 255)},${Math.round(Appearance.colors.colPrimary.g * 255)},${Math.round(Appearance.colors.colPrimary.b * 255)},0.42)`;
-        return ("<i></i>" + html).replace(/>([^<]+)</g, (m, t) => ">" + t.replace(re, x => `<span style="background-color:${tone}">${x}</span>`) + "<").substring(7);
+        return ("<i></i>" + html).replace(/>([^<]+)</g, (m, t) => ">" + t.split(/(&#?\w+;)/).map((part, i) => i % 2 ? part : part.replace(re, x => `<span style="background-color:${tone}">${x}</span>`)).join("") + "<").substring(7);
     }
     padding: 0
     // compact (the side panel): on the page's text edge; the document keeps a 4 px margin of its own
