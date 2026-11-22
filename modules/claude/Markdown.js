@@ -18,12 +18,15 @@ function inline(s, t, codes = []) {
     const links = [];
     s = s.replace(/\[([^\]\n]+)\]\(([^)\s]+)\)/g, (m, label, url) => { links.push([label, url]); return "\u0002" + (links.length - 1) + "\u0002"; });
     s = esc(s);
-    s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)\]]+[^\s<)\].,;:!?'"])/g, (m, pre, url) => `${pre}<a href="${url}" style="color:${t.link}; text-decoration:none">${url}</a>`);
+    // the anchors wait behind placeholders too: "__init__" or "_next_" inside a URL must not reach the emphasis passes
+    const urls = [];
+    s = s.replace(/(^|[\s(])(https?:\/\/[^\s<)\]]+[^\s<)\].,;:!?'"])/g, (m, pre, url) => { urls.push(`<a href="${url}" style="color:${t.link}; text-decoration:none">${url}</a>`); return pre + "\u0003" + (urls.length - 1) + "\u0003"; });
     s = s.replace(/\*\*([^*\n]+)\*\*/g, `<span style="font-weight:600; color:${t.strong}">$1</span>`);
     s = s.replace(/__([^_\n]+)__/g, `<span style="font-weight:600; color:${t.strong}">$1</span>`);
     s = s.replace(/(^|[^*\w])\*([^*\s][^*\n]*?)\*(?![*\w])/g, "$1<i>$2</i>");
     s = s.replace(/(^|[^_\w])_([^_\s][^_\n]*?)_(?![_\w])/g, "$1<i>$2</i>");
     s = s.replace(/~~([^~\n]+)~~/g, "<s>$1</s>");
+    s = s.replace(/\u0003(\d+)\u0003/g, (m, i) => urls[i]);
     s = s.replace(/\u0002(\d+)\u0002/g, (m, i) => `<a href="${links[i][1]}" style="color:${t.link}; text-decoration:none">${inline(links[i][0], t, codes)}</a>`);
     // Padded with thin spaces, except where punctuation follows: Qt breaks lines after any
     // space (even U+202F), so "`x`," could leave the comma alone at the start of a line.
