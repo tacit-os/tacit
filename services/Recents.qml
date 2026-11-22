@@ -116,10 +116,11 @@ Singleton {
         if (isImage && Date.now() - root.lastShotAt < 3000)
             return;
         // A file copied or cut in Files arrives as a uri-list: show it as a path, not as file:///...
+        // cliphist lists each line break as a space, so the addresses are split on spaces
         let text = preview;
-        if (/^file:\/\/\S+(\n\s*file:\/\/\S+)*$/.test(preview.trim())) {
+        if (/^file:\/\/\S+(\s+file:\/\/\S+)*$/.test(preview.trim())) {
             const home = FileUtils.trimFileProtocol(Directories.home);
-            text = preview.trim().split("\n").map(u => decodeURIComponent(u.trim().replace(/^file:\/\//, "")).replace(home, "~")).join("\n");
+            text = preview.trim().split(" ").map(u => decodeURIComponent(u.replace(/^file:\/\//, "")).replace(home, "~")).join("\n");
         }
         const top = ToplevelManager.activeToplevel;
         root.add({
