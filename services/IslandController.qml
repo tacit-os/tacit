@@ -1847,7 +1847,7 @@ Singleton {
         target: Devices
         function onAdded(dev) {
             if (root.warmedUp)
-                root.request("copied", { "icon": Devices.glyphFor(dev), "text": `${Devices.nameFor(dev)} · ${dev.size}` }, 65);
+                root.request("copied", { "icon": Devices.glyphFor(dev), "text": [Devices.nameFor(dev), dev.size].filter(t => t.length > 0).join(" · ") }, 65);   // a phone has no size
         }
         function onRemoved(dev) {
             if (root.warmedUp && (dev.mountpoint ?? "").length > 0 && !dev.loop && !Devices.leaving[dev.path])

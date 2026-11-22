@@ -9,14 +9,19 @@ import qs.modules.common
 /**
  * Disks as the desktop sees them: a stick, a card, a phone's storage, a mounted image, and the
  * computer's other internal drives (not the system's own partitions). udisks says when one comes
- * or goes; lsblk says what it is. Files' rail lists them,
+ * or goes; lsblk says what it is. A phone in file-transfer mode is no disk: GVfs's MTP volume
+ * monitor has it, `gio mount -li` lists it and `gio mount -o` says when it comes or goes; without
+ * gio or gvfs-mtp there is simply no phone listed. Files' rail lists them,
  * a click mounts and enters, the eject glyph unmounts (and powers a USB device off, so it is
  * safe to pull); the notch peeks when one appears. Nothing is mounted by itself.
  */
 Singleton {
     id: root
 
-    property var list: []   // [{ path, name, label, mountpoint, size, fstype, usb, loop, at }]
+    property var list: []   // [{ path, name, label, mountpoint, size, fstype, usb, loop, mtp, at }]
+    property var phones: []   // the same for the phones gio lists (phonesFrom), added to every listing
+    property bool phonesListed: false
+    readonly property string runtimeDir: Quickshell.env("XDG_RUNTIME_DIR") ?? ""
     property bool first: true
     signal added(var dev)
     signal removed(var dev)
@@ -24,6 +29,8 @@ Singleton {
     signal unmounted(var dev)   // an unmount done: a USB drive is powered off too, safe to pull out
 
     function glyphFor(d) {
+        if (d.mtp)
+            return "smartphone";
         if (d.loop)
             return "album";
         if (/mmc|sd_card|card/i.test(d.name + d.label))
@@ -41,7 +48,67 @@ Singleton {
             onStreamFinished: root.absorb(text)
         }
     }
-    function refresh() { lsblk.running = true; }
+    function refresh() {
+        lsblk.running = true;
+        gioList.running = true;
+    }
+
+    // A phone in file-transfer mode, from `gio mount -li`: a Volume whose activation_root is mtp://. gio prints each
+    // Volume as "Volume(n): <name>" with its details two spaces further in and its Mount, once mounted, nested under
+    // it; a stick's volume has no activation root (lsblk lists it). Its path is the mtp:// address, its mountpoint the
+    // folder gvfsd-fuse shows it at (fusePath). It ejects, as a USB drive does: unmounted, it is safe to pull out.
+    function phonesFrom(text, runtimeDir) {
+        const vols = [];
+        let cur = null;
+        for (const line of text.split("\n")) {
+            const v = /^( *)Volume\(\d+\): (.*)$/.exec(line);
+            if (v) {
+                cur = { "depth": v[1].length, "name": v[2].trim(), "uri": "", "mounted": false };
+                vols.push(cur);
+                continue;
+            }
+            const depth = line.search(/\S/);
+            if (!cur || depth < 0)
+                continue;
+            if (depth <= cur.depth)
+                cur = null;
+            else if (/^ *activation_root=/.test(line))
+                cur.uri = line.trim().slice("activation_root=".length);
+            else if (/^ *Mount\(\d+\): /.test(line))
+                cur.mounted = true;
+        }
+        return vols.filter(v => v.uri.startsWith("mtp://")).map(v => ({ "path": v.uri, "name": v.uri.slice(6).replace(/\/.*$/, ""),
+            "label": v.name.length > 0 ? v.name : "Phone", "mountpoint": v.mounted ? root.fusePath(v.uri, runtimeDir) : "",
+            "size": "", "fstype": "mtp", "usb": true, "loop": false, "mtp": true }));
+    }
+    // Where gvfsd-fuse shows a mounted mtp:// address: <runtime dir>/gvfs/ and the mount's name, which is gvfs's
+    // g_mount_spec_to_string: "mtp:host=" and the host, escaped as %XX but for letters, digits, -._~$&'()*+ and
+    // letters beyond ASCII (mtp://%5Busb%3A001%2C005%5D/ is at gvfs/mtp:host=%5Busb%3A001%2C005%5D).
+    function fusePath(uri, runtimeDir) {
+        let host = uri.replace(/^mtp:\/\//, "").replace(/\/.*$/, "");
+        try { host = decodeURIComponent(host); } catch (e) {}
+        const esc = Array.from(host).map(c => c.charCodeAt(0) >= 128 || /[A-Za-z0-9\-._~$&'()*+]/.test(c) ? c
+            : "%" + c.charCodeAt(0).toString(16).toUpperCase().padStart(2, "0")).join("");
+        return `${runtimeDir}/gvfs/mtp:host=${esc}`;
+    }
+    Process {
+        id: gioList
+        command: ["gio", "mount", "-li"]
+        stdout: StdioCollector {
+            onStreamFinished: {
+                const next = root.phonesFrom(text, root.runtimeDir);
+                const first = !root.phonesListed;
+                root.phonesListed = true;
+                if (JSON.stringify(next) === JSON.stringify(root.phones))
+                    return;
+                if (first)
+                    for (const d of next)
+                        d.at = 0;   // gio answers after the first disk listing: a phone already there is not news either
+                root.phones = next;
+                lsblk.running = true;   // the listing adds them and says what came or went
+            }
+        }
+    }
 
     // The disk the system booted from must never be listed: on a USB install its other
     // partitions (/boot, the ESP, /home) all look removable, and their eject glyph ran
@@ -106,11 +173,12 @@ Singleton {
         };
         for (const d of tree)
             walk(d, false, false, false);
+        next = next.concat((root.phones ?? []).map(d => Object.assign({}, d)));
         const before = root.list;
         const now = Date.now();
         for (const d of next) {
             const b = before.find(x => x.path === d.path);
-            d.at = b ? b.at : (before.length === 0 && root.first ? 0 : now);   // the first listing is not news
+            d.at = b ? b.at : (d.at === 0 || (before.length === 0 && root.first) ? 0 : now);   // the first listing is not news
         }
         root.first = false;
         root.list = next;
@@ -158,20 +226,52 @@ Singleton {
             root.refresh();
         }
     }
+    // gio's own monitor, for the phones udisks never sees; it is given back the same way. Without gio it never starts,
+    // and Process says so once in the log.
+    property int phoneMonitorBackoff: 2000
+    Process {
+        id: phoneMonitor
+        running: true
+        command: ["gio", "mount", "-o"]
+        stdout: SplitParser {
+            onRead: line => {
+                if (line.length === 0) return;
+                root.phoneMonitorBackoff = 2000;
+                refreshLater.restart();
+            }
+        }
+        onExited: {
+            phoneMonitorRestart.interval = root.phoneMonitorBackoff;
+            root.phoneMonitorBackoff = Math.min(root.phoneMonitorBackoff * 2, 60000);
+            phoneMonitorRestart.restart();
+        }
+    }
+    Timer {
+        id: phoneMonitorRestart
+        interval: 2000
+        onTriggered: {
+            phoneMonitor.running = true;
+            root.refresh();
+        }
+    }
 
     // mount -> cb(mountpoint) ; "" when it failed (the reason goes through `failed`)
     function mount(path, cb) {
-        const p = actProc.createObject(root, { "cmd": ["udisksctl", "mount", "-b", path], "cb": cb });
+        const cmd = path.startsWith("mtp://") ? ["bash", "-c", root.phoneMountScript, "_", path, root.fusePath(path, root.runtimeDir)]
+            : ["udisksctl", "mount", "-b", path];
+        const p = actProc.createObject(root, { "cmd": cmd, "cb": cb });
         p.running = true;
     }
+    // a phone: mounted by GVfs (already mounted is fine), then said as udisksctl says it, so the folder is read the same way
+    readonly property string phoneMountScript: 'out=$(LC_ALL=C gio mount "$1" 2>&1) || case $out in *"already mounted"*) ;; *) printf "%s\\n" "$out" >&2; exit 1 ;; esac; echo "Mounted $1 at $2."'
     // power-off acts on the whole drive, not the partition, so it waits until nothing else on
     // that drive is mounted. The path travels as an argument, not inside the script text.
     readonly property string ejectScript: 'udisksctl unmount -b "$1" || exit 1; disk=$(lsblk -no PKNAME "$1" 2>/dev/null | head -1); if [ -n "$disk" ] && [ "$(lsblk -nro MOUNTPOINT "/dev/$disk" | grep -c .)" -gt 0 ]; then echo "another partition of /dev/$disk is still mounted" >&2; exit 1; fi; udisksctl power-off -b "$1"'
 
     function unmount(dev) {
         root.leaving[dev.path] = true;
-        const cmd = dev.usb
-            ? ["bash", "-c", root.ejectScript, "_", dev.path]
+        const cmd = dev.mtp ? ["gio", "mount", "-u", dev.path]
+            : dev.usb ? ["bash", "-c", root.ejectScript, "_", dev.path]
             : dev.loop ? ["bash", "-c", 'udisksctl unmount -b "$1"; udisksctl loop-delete -b "$1"', "_", dev.path]
             : ["udisksctl", "unmount", "-b", dev.path];
         const p = actProc.createObject(root, { "cmd": cmd, "cb": null, "dev": dev });
@@ -191,7 +291,8 @@ Singleton {
                 refreshLater.restart();
                 const o = out.text.trim(), e = err.text.trim();
                 if (code !== 0) {
-                    const why = /target is busy/i.test(e) ? "still in use" : /not authorized/i.test(e) ? "not allowed" : (e.split("\n").pop() || "it refused");
+                    const why = /target is busy|resource busy/i.test(e) ? "still in use" : /not authorized/i.test(e) ? "not allowed"
+                        : /MTP device/i.test(e) ? "unlock the phone and allow access to its files" : (e.split("\n").pop() || "it refused");
                     root.failed(why);
                     if (proc.dev) delete root.leaving[proc.dev.path];
                     if (proc.cb) proc.cb("");
