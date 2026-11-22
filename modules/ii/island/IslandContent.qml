@@ -809,13 +809,22 @@ Item {
         anchors.fill: parent
         acceptedButtons: Qt.LeftButton | Qt.MiddleButton
 
+        // A wheel notch is 120; a touchpad sends many small deltas, so add them up and
+        // step the volume once per notch's worth. The open address, Ask and recording sheets
+        // keep their wheel to themselves.
+        property real wheelDelta: 0
         onWheel: event => {
-            if (!Config.options.island.scrollVolume)
+            if (!Config.options.island.scrollVolume || root.sheetHeld)
                 return;
-            if (event.angleDelta.y > 0)
+            islandMouseArea.wheelDelta += event.angleDelta.y;
+            while (islandMouseArea.wheelDelta >= 120) {
                 Audio.incrementVolume();
-            else if (event.angleDelta.y < 0)
+                islandMouseArea.wheelDelta -= 120;
+            }
+            while (islandMouseArea.wheelDelta <= -120) {
                 Audio.decrementVolume();
+                islandMouseArea.wheelDelta += 120;
+            }
         }
         onClicked: event => {
             if (event.button === Qt.MiddleButton) {
