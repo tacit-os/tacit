@@ -43,7 +43,7 @@ Singleton {
                     label: actionName,
                     hint: Translation.tr("Runs your script %1").arg(fileName),
                     execute: ((path) => (args) => {
-                        Quickshell.execDetached([path, ...(args ? args.split(" ") : [])]);
+                        Quickshell.execDetached([path, ...(args ? args.split(/\s+/).filter(a => a) : [])]);
                     })(FileUtils.trimFileProtocol(filePath.toString()))
                 });
             }
