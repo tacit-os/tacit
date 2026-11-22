@@ -191,6 +191,7 @@ Singleton {
     function cleanMusicTitle(title) {
         if (!title)
             return "";
+        const original = title.trim();
         // Brackets
         title = title.replace(/^ *\([^)]*\) */g, " "); // Round brackets
         title = title.replace(/^ *\[[^\]]*\] */g, " "); // Square brackets
@@ -201,7 +202,8 @@ Singleton {
         title = title.replace(/^ *「[^」]*」/, ""); // OP/ED thingie
         title = title.replace(/^ *『[^』]*』/, ""); // OP/ED thingie
 
-        return title.trim();
+        // a title that is only brackets ("[REC]", "(Untitled)") is its name, not a tag
+        return title.trim() || original;
     }
 
     /**
