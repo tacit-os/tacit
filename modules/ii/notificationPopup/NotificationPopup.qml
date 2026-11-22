@@ -118,7 +118,8 @@ Scope {
                 id: leaveTimer
                 interval: 100
                 repeat: false
-                onTriggered: root.closeCenter()
+                // not while a reply is being typed: folding would drop the draft; click-away and Esc still close it
+                onTriggered: if (!root.replying) root.closeCenter()
             }
 
             // Click away: the panel is a small masked window, so it cannot use the focus grab (Hyprland drops
