@@ -76,7 +76,7 @@ ContentPage {
 
                 StyledText {
                     Layout.fillWidth: true
-                    text: Product.nameAndVersion
+                    text: `${Product.name} ${Updates.currentVersion || Product.version}`   // the installed release (/usr/share/tacit/release)
                     font.pixelSize: Appearance.font.pixelSize.normal
                     font.weight: Font.Medium
                     color: Appearance.colors.colSubtext
