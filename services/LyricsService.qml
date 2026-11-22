@@ -87,6 +87,12 @@ Singleton {
     Process {
         id: lyricsProc
         running: false
+        // A script that failed without an answer (a crash) must not leave the spinner turning for good. exitStatus 1
+        // is a run this one replaced (restartLyrics kills it), which says nothing about the new one.
+        onExited: (exitCode, exitStatus) => {
+            if (exitCode !== 0 && exitStatus === 0 && root.status === "loading")
+                root.status = "not_found"
+        }
         stdout: SplitParser {
             onRead: data => {
                 const trimmed = data.trim()

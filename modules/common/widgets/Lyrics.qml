@@ -54,6 +54,28 @@ Item {
                         onClicked: LyricsService.restartLyrics()
                     }
                 }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: root.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    color: root.textColor
+                    text: LyricsService.status === "loading" ? Translation.tr("Looking for lyrics")
+                        : LyricsService.status === "no_info" ? Translation.tr("No song information")
+                        : Translation.tr("No lyrics for this song")
+                }
+
+                StyledText {
+                    Layout.alignment: Qt.AlignHCenter
+                    Layout.maximumWidth: root.width
+                    horizontalAlignment: Text.AlignHCenter
+                    wrapMode: Text.WordWrap
+                    visible: LyricsService.status !== "loading"
+                    color: root.dimColor
+                    font.pixelSize: Appearance.font.pixelSize.smaller
+                    text: Translation.tr("Click the shape to try again")
+                }
             }
         }
 
