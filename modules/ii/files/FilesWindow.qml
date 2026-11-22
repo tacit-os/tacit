@@ -1109,6 +1109,9 @@ FloatingWindow {
         win.query = "";
         keys.forceActiveFocus();
     }
+    // fd's hits are the page only while the search itself is in front: a run stopped for the Shelf, Recent or
+    // Large & old page (or ended) still delivers its exit, and must not put its partial hits over that page
+    readonly property bool deepShown: win.searching && !win.recentShown && !win.shelfShown && !win.largeOld && !win.phoneShown
     Process {
         id: fdProc
         property var buffer: []
@@ -1140,12 +1143,12 @@ FloatingWindow {
                 flush.restart();   // a few rows at a time, not a repaint per line
             }
         }
-        onExited: { flush.stop(); win.hits = fdProc.buffer.slice(); }
+        onExited: { flush.stop(); if (win.deepShown) win.hits = fdProc.buffer.slice(); }
     }
     Timer {
         id: flush
         interval: 40
-        onTriggered: win.hits = fdProc.buffer.slice()
+        onTriggered: if (win.deepShown) win.hits = fdProc.buffer.slice()
     }
     function openHit(i) {
         const h = win.hits[i];
