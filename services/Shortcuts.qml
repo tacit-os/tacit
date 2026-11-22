@@ -348,10 +348,19 @@ Singleton {
     // ── listening for keys ───────────────────────────────────────────────────
     // While a row listens, the compositor's own shortcuts are off (the "tacit-capture" submap, which Esc and a timer also
     // leave), so the keys pressed reach this window instead of being run.
+    // The submap leaves itself after 30 s (shortcut_capture.lua), and from then on the keys run their real actions, so
+    // listening ends a little sooner here and the page is told: the box must not keep asking for keys nobody gets.
+    signal captureTimedOut()
+    Timer {
+        id: captureTimer
+        interval: 25000
+        onTriggered: { root.listen(false); root.captureTimedOut(); }
+    }
     property bool listening: false
     function listen(on: bool): void {
         if (root.listening === on) return;
         root.listening = on;
+        if (on) captureTimer.restart(); else captureTimer.stop();
         Hyprland.dispatch(`hl.dsp.submap("${on ? "tacit-capture" : "reset"}")`);
     }
 

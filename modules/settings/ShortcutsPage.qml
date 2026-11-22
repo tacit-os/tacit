@@ -126,6 +126,11 @@ ColumnLayout {
     // Ctrl+Z is the Undo's own key while its line shows
     Shortcut { sequence: "Ctrl+Z"; enabled: page.mode === "done"; onActivated: page.undo() }
     Component.onDestruction: page.stopListening()
+    // the compositor's own keys come back after 30 s: a row still listening then goes back to selected
+    Connections {
+        target: Shortcuts
+        function onCaptureTimedOut() { if (page.mode === "listening") page.cancel(); }
+    }
     // Settings losing the keyboard (another window picked) ends a listening row: no half-set keys, the compositor's keys back
     readonly property bool active: Window.active
     onActiveChanged: if (!active && (page.mode === "listening" || page.mode === "clash")) page.cancel()
