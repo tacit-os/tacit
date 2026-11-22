@@ -310,10 +310,13 @@ PanelWindow {
         }
         Component.onCompleted: strip.shown = true
 
-        Keys.onPressed: event => {   // Escape without a name field (a folder only)
+        Keys.onPressed: event => {   // Escape, and Enter for a folder, without a name field to take them
             if (event.key === Qt.Key_Escape) {
                 if (win.asking) win.asking = false;
                 else win.answer([]);
+                event.accepted = true;
+            } else if (win.forFolder && (event.key === Qt.Key_Return || event.key === Qt.Key_Enter)) {
+                win.accept();
                 event.accepted = true;
             }
         }
