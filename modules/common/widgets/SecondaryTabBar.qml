@@ -11,9 +11,20 @@ TabBar {
 
     background: Item {
         WheelHandler {
+            // A touchpad swipe sends many small deltas: a tab per event ran a single flick through every tab. A tab is
+            // one wheel notch (120); a change of direction starts again.
+            property real pending: 0
             onWheel: (event) => {
-                if (event.angleDelta.y < 0) root.incrementCurrentIndex();
-                else if (event.angleDelta.y > 0) root.decrementCurrentIndex();
+                if (event.angleDelta.y === 0) return;
+                if (pending * event.angleDelta.y < 0) pending = 0;
+                pending += event.angleDelta.y;
+                if (pending <= -120) {
+                    root.incrementCurrentIndex();
+                    pending = 0;
+                } else if (pending >= 120) {
+                    root.decrementCurrentIndex();
+                    pending = 0;
+                }
             }
             acceptedDevices: PointerDevice.Mouse | PointerDevice.TouchPad
         }
