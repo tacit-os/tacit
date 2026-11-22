@@ -41,7 +41,11 @@ Scope {
     Connections {
         target: DialogBridge
         function onCurrentChanged() {
-            if (root.wanted) root.ask = DialogBridge.current;
+            // finish() has folded the window; an ask queued behind the answered one needs it back
+            if (root.wanted) {
+                root.ask = DialogBridge.current;
+                root.up = true;
+            }
         }
     }
 
