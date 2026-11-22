@@ -88,6 +88,9 @@ Singleton {
     // a HyprlandConfigOption: its WM would start HyprlandData's hyprctl refreshes in every app that draws a ground.
     property var blurAnswer
     readonly property bool blurBehind: root.blurAnswer !== false && root.blurAnswer !== 0
+    // Tacit.windowSeeThrough, the frost and Files solid: with the blur off, and with Settings > Appearance's See-through
+    // on Solid, which the frost and Files did not follow (Discord, OYINOS, 2026-11-22: "solid is not even working")
+    readonly property bool solid: !root.blurBehind || !Config.options.appearance.transparency.enable
     Process {
         id: blurQuery
         command: ["hyprctl", "getoption", "decoration:blur:enabled", "-j"]
@@ -300,7 +303,7 @@ Singleton {
         // Was the palette's private formula; hoisted so the panels stop disagreeing.
         // One step above surfaceContainer: over a page of the same dark tone the frost was
         // invisible and the controls floated. Alpha 0.72 stays above the blur threshold (0.64).
-        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.blurBehind ? 0.24 * root.seeThroughScale : 0)
+        property color colPanelFrost: ColorUtils.transparentize(m3colors.m3surfaceContainerHigh, root.solid ? 0 : 0.24 * root.seeThroughScale)
         property color colSurfaceContainerLow: ColorUtils.solveOverlayColor(m3colors.m3background, m3colors.m3surfaceContainerLow, 1 - root.contentTransparency)
         property color colSurfaceContainer: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainerLow, m3colors.m3surfaceContainer, 1 - root.contentTransparency)
         property color colSurfaceContainerHigh: ColorUtils.solveOverlayColor(m3colors.m3surfaceContainer, m3colors.m3surfaceContainerHigh, 1 - root.contentTransparency)

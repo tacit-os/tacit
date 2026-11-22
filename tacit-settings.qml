@@ -131,7 +131,8 @@ ApplicationWindow {
     readonly property real seeThrough: Tacit.windowSeeThrough
     // what See-through is set to, for the notch and panels (the Appearance preview shows it)
     readonly property real seeThroughSetting: !Config.options.appearance.transparency.enable ? 0
-        : Config.options.appearance.transparency.automatic ? 0.15 : Config.options.appearance.transparency.backgroundTransparency
+        : Config.options.appearance.transparency.automatic ? 0.15
+        : Math.min(Config.options.appearance.transparency.backgroundTransparency, Tacit.clearSeeThrough)
     Rectangle {
         anchors.fill: parent
         color: ColorUtils.transparentize(root.termBase, root.seeThrough)
@@ -1209,10 +1210,10 @@ ApplicationWindow {
             readonly property var tiles: [...(look.showAll ? look.pictures : look.pictures.slice(0, look.shownPictures)), ""]
 
             // see-through as three looks: Solid is off, Frosted decides itself per wallpaper,
-            // Clear is a hand-set amount (raised to 40 % when it was lower, so it reads clearer than Frosted)
+            // Clear is a hand-set amount (Tacit.clearSeeThrough when picked, twice Frosted; How clear lowers it)
             readonly property string glass: !Config.options.appearance.transparency.enable ? "solid"
                 : Config.options.appearance.transparency.automatic ? "frosted" : "clear"
-            readonly property real clearAmount: look.glass === "clear" ? Config.options.appearance.transparency.backgroundTransparency : 0.4
+            readonly property real clearAmount: look.glass === "clear" ? root.seeThroughSetting : Tacit.clearSeeThrough
             function setGlass(kind) {
                 const t = Config.options.appearance.transparency;
                 t.enable = kind !== "solid";
@@ -1220,8 +1221,7 @@ ApplicationWindow {
                     t.automatic = true;
                 if (kind === "clear") {
                     t.automatic = false;
-                    if (t.backgroundTransparency < 0.4)
-                        t.backgroundTransparency = 0.4;
+                    t.backgroundTransparency = Tacit.clearSeeThrough;
                 }
             }
 
@@ -1470,7 +1470,7 @@ ApplicationWindow {
                         spacing: 14
                         Repeater {
                             model: [
-                                { kind: "clear", word: "Clear", see: look.clearAmount, blur: false },
+                                { kind: "clear", word: "Clear", see: look.clearAmount, blur: true },
                                 { kind: "frosted", word: "Frosted", see: 0.15, blur: true },
                                 { kind: "solid", word: "Solid", see: 0, blur: true }
                             ]
@@ -1553,9 +1553,9 @@ ApplicationWindow {
                     visible: look.glass === "clear"
                     label: "How clear"
                     description: "The share of the wallpaper that shows through when see-through is Clear"
-                    value: Math.round(Config.options.appearance.transparency.backgroundTransparency * 100)
+                    value: Math.round(root.seeThroughSetting * 100)
                     from: 5
-                    to: 60
+                    to: Math.round(Tacit.clearSeeThrough * 100)
                     stepSize: 5
                     suffix: "%"
                     onMoved: value => Config.options.appearance.transparency.backgroundTransparency = value / 100

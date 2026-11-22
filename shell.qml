@@ -50,7 +50,26 @@ ShellRoot {
                 Config.options.hyprland.autostartApps.apps.length > 0) {
                 autostartProc.running = true
             }
+
+            Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/colors/glass-look.sh"), "--start"])
         }
+    }
+
+    // Settings > Appearance's See-through to Hyprland and the terminals (scripts/colors/glass-look.sh) whenever it
+    // changes, by Settings, a preset or config.json by hand: Solid left the browsers, the terminals and windows not in
+    // use see-through, and a look reached the terminals only with the next wallpaper (Discord, OYINOS, 2026-11-22). Once
+    // config.json is written (Config's 50 ms) and a stepper's clicks have settled.
+    Timer {
+        id: glassLook
+        interval: 300
+        onTriggered: Quickshell.execDetached(["bash", Quickshell.shellPath("scripts/colors/glass-look.sh")])
+    }
+    Connections {
+        target: Config.options.appearance.transparency
+        enabled: Config.ready
+        function onEnableChanged() { glassLook.restart() }
+        function onAutomaticChanged() { glassLook.restart() }
+        function onBackgroundTransparencyChanged() { glassLook.restart() }
     }
 
     Component.onCompleted: {

@@ -59,6 +59,9 @@ safe_require("hyprland.services")
 -- scale on every designed see-through amount, 1 on dark wallpapers and less on bright ones, so the grounds stay as dark
 -- as on dusk. tacit_glass(o) is a designed opacity with its see-through scaled (the opacity rules, windows not in use).
 TACIT_GLASS = 1
+-- and whether Settings > Appearance's See-through is Solid (generated/glass.json, which the shell writes whenever the
+-- look changes, scripts/colors/glass-look.sh): then every window is solid and none faded, as with the blur off (below)
+local solid = false
 do
     local state = os.getenv("XDG_STATE_HOME") or (HOME .. "/.local/state")
     local f = io.open(state .. "/quickshell/user/generated/seethrough.json", "r")
@@ -66,6 +69,11 @@ do
         local s = tonumber(string.match(f:read("a") or "", '"scale"%s*:%s*([%d.]+)'))
         f:close()
         if s and s >= 0 and s <= 1 then TACIT_GLASS = s end
+    end
+    f = io.open(state .. "/quickshell/user/generated/glass.json", "r")
+    if f then
+        solid = string.match(f:read("a") or "", '"look"%s*:%s*"(%a+)"') == "solid"
+        f:close()
     end
 end
 function tacit_glass(opacity) return 1 - (1 - opacity) * TACIT_GLASS end
@@ -147,10 +155,12 @@ end
 
 -- windows not in use as the person set them (Settings, shellOverrides), with this wallpaper's scale on their see-through;
 -- not faded at all while the blur is off (Settings > Appearance, Game mode, a line of their own): see-through with
--- nothing blurred behind it is the "passthrough" look (tacit/rules.lua), the wallpaper sharp under the text
+-- nothing blurred behind it is the "passthrough" look (tacit/rules.lua), the wallpaper sharp under the text. Nor when
+-- See-through is Solid: the browsers, the terminals and windows not in use stayed see-through (Discord, OYINOS,
+-- 2026-11-22: "solid is not even working when chosen").
 local inactive = hl.get_config("decoration:inactive_opacity")
 local blur = hl.get_config("decoration:blur:enabled")
-if blur == false or blur == 0 then
+if blur == false or blur == 0 or solid then
     hl.config({ decoration = { inactive_opacity = 1 } })
     -- and every window solid: foot and kitty paint their own ground see-through (alpha 0.85) and the browsers' rules
     -- (tacit/rules.lua) fade theirs, so with the blur off the wallpaper still showed sharp under a terminal's text
