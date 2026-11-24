@@ -1,1 +1,17 @@
 __pycache__/
+
+# Local Finder and IDE settings
+.DS_Store
+.qtcreator/
+.idea/
+.zed/
+
+# Generated macOS mail preview
+/mocks/mail/frontend/mac-preview/build*/
+/mocks/mail/frontend/mac-preview/cmake-build*/
+/mocks/mail/frontend/mac-preview/__pycache__/
+
+# Local QML language server paths
+/mocks/mail/frontend/.qmlls.ini
+
+client_secret_*.json

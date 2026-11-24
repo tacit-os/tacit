@@ -1,0 +1,3 @@
+import Tacit.MailEditor
+
+MailRichText {}

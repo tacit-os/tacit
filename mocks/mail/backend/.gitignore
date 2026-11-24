@@ -1,0 +1,8 @@
+/bin/
+*.sqlite
+*.sqlite-shm
+*.sqlite-wal
+*.sock
+*.sqlite.blobs/
+.env
+.env_*

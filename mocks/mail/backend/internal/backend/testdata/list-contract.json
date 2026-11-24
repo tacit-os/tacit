@@ -1,0 +1,1218 @@
+{
+  "accounts": [
+    {
+      "id": "query-a",
+      "name": "Query A",
+      "email": "a@query.test",
+      "provider": "mock"
+    },
+    {
+      "id": "query-b",
+      "name": "Query B",
+      "email": "b@query.test",
+      "provider": "mock"
+    }
+  ],
+  "messages": [
+    {
+      "id": "query-a-old",
+      "account_id": "query-a",
+      "conversation_id": "shared",
+      "remote_id": "contract:old",
+      "mailbox": "Inbox",
+      "date": "2026-01-01T10:00:00Z",
+      "from": {
+        "name": "Zed",
+        "email": "zed@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "üüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüüü",
+      "unread": true,
+      "flagged": true,
+      "attachments": [
+        {
+          "id": "query-file",
+          "filename": "Befund.pdf",
+          "media_type": "application/pdf",
+          "size": 4
+        }
+      ],
+      "body_html": "<p>HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body HTML body </p>"
+    },
+    {
+      "id": "query-a-new",
+      "account_id": "query-a",
+      "conversation_id": "shared",
+      "remote_id": "contract:new",
+      "mailbox": "Inbox",
+      "date": "2026-01-03T10:00:00Z",
+      "from": {
+        "name": "Beta",
+        "email": "beta@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-inbox-b",
+      "account_id": "query-a",
+      "conversation_id": "separate",
+      "remote_id": "contract:inbox-b",
+      "mailbox": "Inbox",
+      "date": "2026-01-02T10:00:00Z",
+      "from": {
+        "name": "Alpha",
+        "email": "alpha@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": false,
+      "attachments": [
+        {
+          "id": "query-inline",
+          "filename": "inline.png",
+          "media_type": "image/png",
+          "size": 1,
+          "inline": true
+        }
+      ]
+    },
+    {
+      "id": "query-a-equal-z",
+      "account_id": "query-a",
+      "conversation_id": "",
+      "remote_id": "contract:equal-z",
+      "mailbox": "Inbox",
+      "date": "2026-01-02T10:00:00Z",
+      "from": {
+        "name": "Same",
+        "email": "same@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-equal-a",
+      "account_id": "query-a",
+      "conversation_id": "",
+      "remote_id": "contract:equal-a",
+      "mailbox": "Inbox",
+      "date": "2026-01-02T10:00:00Z",
+      "from": {
+        "name": "Same",
+        "email": "same@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-sent",
+      "account_id": "query-a",
+      "conversation_id": "shared",
+      "remote_id": "contract:sent",
+      "mailbox": "Inbox",
+      "date": "2026-01-04T10:00:00Z",
+      "from": {
+        "name": "You",
+        "email": "you@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": [],
+      "gmail_labels": [
+        "INBOX",
+        "SENT"
+      ]
+    },
+    {
+      "id": "query-a-sent-explicit",
+      "account_id": "query-a",
+      "conversation_id": "shared",
+      "remote_id": "contract:sent-explicit",
+      "mailbox": "Sent",
+      "date": "2026-01-02T11:00:00Z",
+      "from": {
+        "name": "You",
+        "email": "you@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-archive-old",
+      "account_id": "query-a",
+      "conversation_id": "archive",
+      "remote_id": "contract:archive-old",
+      "mailbox": "Archive",
+      "date": "2026-01-01T09:00:00Z",
+      "from": {
+        "name": "Delta",
+        "email": "delta@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-archive-new",
+      "account_id": "query-a",
+      "conversation_id": "archive",
+      "remote_id": "contract:archive-new",
+      "mailbox": "Archive",
+      "date": "2026-01-02T12:00:00Z",
+      "from": {
+        "name": "Echo",
+        "email": "echo@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": true,
+      "attachments": []
+    },
+    {
+      "id": "query-a-trash-old",
+      "account_id": "query-a",
+      "conversation_id": "trash",
+      "remote_id": "contract:trash-old",
+      "mailbox": "Trash",
+      "date": "2026-01-01T08:00:00Z",
+      "from": {
+        "name": "Foxtrot",
+        "email": "foxtrot@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": true,
+      "attachments": []
+    },
+    {
+      "id": "query-a-trash-new",
+      "account_id": "query-a",
+      "conversation_id": "trash",
+      "remote_id": "contract:trash-new",
+      "mailbox": "Trash",
+      "date": "2026-01-03T11:00:00Z",
+      "from": {
+        "name": "Golf",
+        "email": "golf@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-spam-old",
+      "account_id": "query-a",
+      "conversation_id": "spam",
+      "remote_id": "contract:spam-old",
+      "mailbox": "Spam",
+      "date": "2026-01-01T07:00:00Z",
+      "from": {
+        "name": "Hotel",
+        "email": "hotel@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": true,
+      "attachments": []
+    },
+    {
+      "id": "query-a-spam-new",
+      "account_id": "query-a",
+      "conversation_id": "spam",
+      "remote_id": "contract:spam-new",
+      "mailbox": "Spam",
+      "date": "2026-01-02T09:00:00Z",
+      "from": {
+        "name": "India",
+        "email": "india@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-draft",
+      "account_id": "query-a",
+      "conversation_id": "draft",
+      "remote_id": "contract:draft",
+      "mailbox": "Drafts",
+      "date": "2026-01-06T10:00:00Z",
+      "from": {
+        "name": "Draft",
+        "email": "draft@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-a-outbox",
+      "account_id": "query-a",
+      "conversation_id": "outbox",
+      "remote_id": "contract:outbox",
+      "mailbox": "Outbox",
+      "date": "2026-01-06T11:00:00Z",
+      "from": {
+        "name": "Outbox",
+        "email": "outbox@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": false,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-b-a",
+      "account_id": "query-b",
+      "conversation_id": "shared",
+      "remote_id": "contract:other-account",
+      "mailbox": "Inbox",
+      "date": "2026-01-05T10:00:00Z",
+      "from": {
+        "name": "Gamma",
+        "email": "gamma@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": true,
+      "attachments": []
+    },
+    {
+      "id": "query-a-trash-middle",
+      "account_id": "query-a",
+      "conversation_id": "trash",
+      "remote_id": "contract:trash-middle",
+      "mailbox": "Trash",
+      "date": "2026-01-02T08:00:00Z",
+      "from": {
+        "name": "Foxtrot",
+        "email": "foxtrot@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": false,
+      "attachments": []
+    },
+    {
+      "id": "query-b-trash",
+      "account_id": "query-b",
+      "conversation_id": "trash",
+      "remote_id": "contract:trash-other",
+      "mailbox": "Trash",
+      "date": "2026-01-04T11:00:00Z",
+      "from": {
+        "name": "Foxtrot",
+        "email": "foxtrot@query.test"
+      },
+      "to": [],
+      "subject": "Contractneedle Prüfer",
+      "body_text": "Searchable contract body",
+      "unread": true,
+      "flagged": false,
+      "attachments": []
+    }
+  ],
+  "cases": [
+    {
+      "name": "inbox-newest",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 5,
+      "rows": [
+        {
+          "id": "query-a-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        },
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-z",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-a",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-oldest",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Oldest first",
+      "message_total": 5,
+      "rows": [
+        {
+          "id": "query-a-equal-a",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-z",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        }
+      ]
+    },
+    {
+      "name": "inbox-sender",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Sender",
+      "message_total": 5,
+      "rows": [
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        },
+        {
+          "id": "query-a-equal-z",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-a",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-unread-first",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Unread first",
+      "message_total": 5,
+      "rows": [
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        },
+        {
+          "id": "query-a-equal-z",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-a",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-unread-representative",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-unread-oldest",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "Unread",
+      "sort": "Oldest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-starred-representative",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "Starred",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-attachments-including-inline",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "With attachments",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-attachments-sender",
+      "account": "query-a",
+      "folder": "Inbox",
+      "filter": "With attachments",
+      "sort": "Sender",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-all-accounts",
+      "account": "",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 6,
+      "rows": [
+        {
+          "id": "query-b-a",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        },
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-z",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-equal-a",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-other-account",
+      "account": "query-b",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-b-a",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "inbox-all-accounts-unread",
+      "account": "",
+      "folder": "Inbox",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 3,
+      "rows": [
+        {
+          "id": "query-b-a",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-inbox-b",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "sent-received-label-and-explicit",
+      "account": "query-a",
+      "folder": "Sent",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-sent",
+          "count": 2,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "sent-unread-empty",
+      "account": "query-a",
+      "folder": "Sent",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "sent-attachments-empty",
+      "account": "query-a",
+      "folder": "Sent",
+      "filter": "With attachments",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "sent-starred-empty",
+      "account": "query-a",
+      "folder": "Sent",
+      "filter": "Starred",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "archive-thread",
+      "account": "query-a",
+      "folder": "Archive",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-archive-new",
+          "count": 2,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "archive-unread",
+      "account": "query-a",
+      "folder": "Archive",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-archive-old",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "archive-starred",
+      "account": "query-a",
+      "folder": "Archive",
+      "filter": "Starred",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-archive-new",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "archive-no-attachments",
+      "account": "query-a",
+      "folder": "Archive",
+      "filter": "With attachments",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "trash-thread-star",
+      "account": "query-a",
+      "folder": "Trash",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 3,
+      "rows": [
+        {
+          "id": "query-a-trash-new",
+          "count": 3,
+          "starred": true,
+          "other_starred": true
+        }
+      ]
+    },
+    {
+      "name": "trash-unread",
+      "account": "query-a",
+      "folder": "Trash",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-trash-middle",
+          "count": 2,
+          "starred": true,
+          "other_starred": true
+        }
+      ]
+    },
+    {
+      "name": "trash-starred",
+      "account": "query-a",
+      "folder": "Trash",
+      "filter": "Starred",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-trash-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "spam-ungrouped",
+      "account": "query-a",
+      "folder": "Spam",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-spam-new",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-spam-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "spam-oldest",
+      "account": "query-a",
+      "folder": "Spam",
+      "filter": "All mail",
+      "sort": "Oldest first",
+      "message_total": 2,
+      "rows": [
+        {
+          "id": "query-a-spam-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-spam-new",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "spam-unread",
+      "account": "query-a",
+      "folder": "Spam",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-spam-new",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "spam-starred",
+      "account": "query-a",
+      "folder": "Spam",
+      "filter": "Starred",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-spam-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "starred-excludes-trash",
+      "account": "query-a",
+      "folder": "Starred",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 3,
+      "rows": [
+        {
+          "id": "query-a-archive-new",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-spam-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "starred-unread",
+      "account": "query-a",
+      "folder": "Starred",
+      "filter": "Unread",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "starred-attachments",
+      "account": "query-a",
+      "folder": "Starred",
+      "filter": "With attachments",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-a-old",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "starred-other-account",
+      "account": "query-b",
+      "folder": "Starred",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 1,
+      "rows": [
+        {
+          "id": "query-b-a",
+          "count": 1,
+          "starred": true,
+          "other_starred": false
+        }
+      ]
+    },
+    {
+      "name": "empty-account-Inbox",
+      "account": "absent",
+      "folder": "Inbox",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "empty-account-Sent",
+      "account": "absent",
+      "folder": "Sent",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "empty-account-Archive",
+      "account": "absent",
+      "folder": "Archive",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "empty-account-Trash",
+      "account": "absent",
+      "folder": "Trash",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "empty-account-Spam",
+      "account": "absent",
+      "folder": "Spam",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "empty-account-Starred",
+      "account": "absent",
+      "folder": "Starred",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 0,
+      "rows": []
+    },
+    {
+      "name": "trash-account-isolation",
+      "account": "",
+      "folder": "Trash",
+      "filter": "All mail",
+      "sort": "Newest first",
+      "message_total": 4,
+      "rows": [
+        {
+          "id": "query-b-trash",
+          "count": 1,
+          "starred": false,
+          "other_starred": false
+        },
+        {
+          "id": "query-a-trash-new",
+          "count": 3,
+          "starred": true,
+          "other_starred": true
+        }
+      ]
+    }
+  ],
+  "searches": [
+    {
+      "term": "Contractneedle",
+      "ids": [
+        "query-b-a",
+        "query-b-trash",
+        "query-a-sent",
+        "query-a-trash-new",
+        "query-a-new",
+        "query-a-archive-new",
+        "query-a-sent-explicit",
+        "query-a-inbox-b",
+        "query-a-equal-z",
+        "query-a-equal-a",
+        "query-a-spam-new",
+        "query-a-trash-middle",
+        "query-a-old",
+        "query-a-archive-old",
+        "query-a-trash-old",
+        "query-a-spam-old"
+      ]
+    },
+    {
+      "term": "Prüf",
+      "ids": [
+        "query-b-a",
+        "query-b-trash",
+        "query-a-sent",
+        "query-a-trash-new",
+        "query-a-new",
+        "query-a-archive-new",
+        "query-a-sent-explicit",
+        "query-a-inbox-b",
+        "query-a-equal-z",
+        "query-a-equal-a",
+        "query-a-spam-new",
+        "query-a-trash-middle",
+        "query-a-old",
+        "query-a-archive-old",
+        "query-a-trash-old",
+        "query-a-spam-old"
+      ],
+      "native_prefix": [
+        "seed-rich-text"
+      ]
+    },
+    {
+      "term": "missingcontractword",
+      "ids": []
+    },
+    {
+      "term": "Contract Prüfer",
+      "ids": [
+        "query-b-a",
+        "query-b-trash",
+        "query-a-sent",
+        "query-a-trash-new",
+        "query-a-new",
+        "query-a-archive-new",
+        "query-a-sent-explicit",
+        "query-a-inbox-b",
+        "query-a-equal-z",
+        "query-a-equal-a",
+        "query-a-spam-new",
+        "query-a-trash-middle",
+        "query-a-old",
+        "query-a-archive-old",
+        "query-a-trash-old",
+        "query-a-spam-old"
+      ]
+    },
+    {
+      "term": "Contractneedle missingcontractword",
+      "ids": []
+    },
+    {
+      "term": "",
+      "ids": [
+        "query-b-a",
+        "query-b-trash",
+        "query-a-sent",
+        "query-a-trash-new",
+        "query-a-new",
+        "query-a-archive-new",
+        "query-a-sent-explicit",
+        "query-a-inbox-b",
+        "query-a-equal-z",
+        "query-a-equal-a",
+        "query-a-spam-new",
+        "query-a-trash-middle",
+        "query-a-old",
+        "query-a-archive-old",
+        "query-a-trash-old",
+        "query-a-spam-old"
+      ],
+      "native_scope": "fixture"
+    }
+  ],
+  "counts": [
+    {
+      "account_id": "query-a",
+      "mailbox": "Inbox",
+      "total": 5,
+      "unread": 2
+    },
+    {
+      "account_id": "query-a",
+      "mailbox": "Sent",
+      "total": 2,
+      "unread": 0
+    },
+    {
+      "account_id": "query-a",
+      "mailbox": "Archive",
+      "total": 2,
+      "unread": 1
+    },
+    {
+      "account_id": "query-a",
+      "mailbox": "Trash",
+      "total": 3,
+      "unread": 2
+    },
+    {
+      "account_id": "query-a",
+      "mailbox": "Spam",
+      "total": 2,
+      "unread": 1
+    },
+    {
+      "account_id": "query-a",
+      "mailbox": "Starred",
+      "total": 3,
+      "unread": 1
+    },
+    {
+      "account_id": "query-b",
+      "mailbox": "Inbox",
+      "total": 1,
+      "unread": 1
+    },
+    {
+      "account_id": "query-b",
+      "mailbox": "Starred",
+      "total": 1,
+      "unread": 1
+    },
+    {
+      "account_id": "query-b",
+      "mailbox": "Trash",
+      "total": 1,
+      "unread": 1
+    }
+  ]
+}
